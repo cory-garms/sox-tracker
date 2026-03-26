@@ -1,0 +1,42 @@
+name: Daily Data Refresh
+
+on:
+  schedule:
+    # Runs at 7:00 AM ET (11:00 UTC) every day during baseball season
+    - cron: "0 11 * * *"
+  workflow_dispatch:       # allow manual trigger from the GitHub UI
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # needed to commit updated cache files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch latest data
+        run: python fetch.py --team ${{ vars.TEAM_ABBR || 'BOS' }} --season ${{ vars.SEASON || '2026' }} --refresh
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      - name: Build dashboard
+        run: python viz_report.py --team ${{ vars.TEAM_ABBR || 'BOS' }} --season ${{ vars.SEASON || '2026' }}
+
+      - name: Commit updated cache + dashboard
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/cache/ output/
+          git diff --cached --quiet || git commit -m "chore: auto-refresh data $(date -u +%Y-%m-%d)"
+          git push

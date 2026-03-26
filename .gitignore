@@ -1,0 +1,25 @@
+# Virtual environments
+.soxEnv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Data cache — commit selectively (see README)
+data/cache/*.parquet
+
+# Build output — commit dashboard HTML, not PNGs (they're large)
+output/img/
+
+# OS
+.DS_Store
+Thumbs.db
