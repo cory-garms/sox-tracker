@@ -130,12 +130,17 @@ def build(
     import plotly.io as pio
 
     divs_html = ""
-    for title, fig, height in figures:
+    for i, (title, fig, height) in enumerate(figures):
         div_id = title.lower().replace(" ", "_").replace("/", "_")
+        # Inject the Plotly CDN script only once, from the first figure,
+        # so the version always matches the installed plotly package.
+        include_js = "cdn" if i == 0 else False
+        fig.update_layout(height=height)
+        chart_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id)
         divs_html += f"""
         <section class="chart-section">
             <h2 class="chart-title">{title}</h2>
-            {_fig_div(fig, div_id, height)}
+            {chart_div}
         </section>
         """
 
@@ -145,7 +150,6 @@ def build(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{team_name} — {season} Dashboard</title>
-  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
