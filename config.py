@@ -71,7 +71,7 @@ TEAMS: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 ROOT_DIR   = Path(__file__).parent
 CACHE_DIR  = ROOT_DIR / "data" / "cache"
-OUTPUT_DIR = ROOT_DIR / "output"
+OUTPUT_DIR = ROOT_DIR / "docs"
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

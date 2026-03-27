@@ -27,16 +27,17 @@ jobs:
 
       - name: Fetch latest data
         run: python fetch.py --team ${{ vars.TEAM_ABBR || 'BOS' }} --season ${{ vars.SEASON || '2026' }} --refresh
+        continue-on-error: true
         env:
           PYTHONUNBUFFERED: "1"
 
       - name: Build dashboard
         run: python viz_report.py --team ${{ vars.TEAM_ABBR || 'BOS' }} --season ${{ vars.SEASON || '2026' }}
 
-      - name: Commit updated cache + dashboard
+      - name: Commit updated dashboard
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/cache/ output/
+          git add docs/
           git diff --cached --quiet || git commit -m "chore: auto-refresh data $(date -u +%Y-%m-%d)"
           git push
