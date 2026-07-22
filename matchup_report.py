@@ -239,8 +239,8 @@ def generate_matchup_html(
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
     html, body {{
-      background: #0e1117;
-      color: #e6edf3;
+      background: #0c1829;
+      color: #f0f6fc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
       width: 100%;
@@ -259,12 +259,12 @@ def generate_matchup_html(
       font-weight: 600;
       font-size: 0.9rem;
       padding: 6px 12px;
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: #14243b;
+      border: 1px solid #243854;
       border-radius: 8px;
     }}
     header {{
-      border-bottom: 2px solid #3fb950;
+      border-bottom: 2px solid #00804c;
       padding-bottom: 16px;
       margin-bottom: clamp(20px, 4vw, 32px);
       display: flex;
@@ -286,22 +286,22 @@ def generate_matchup_html(
       gap: 10px;
     }}
     header p {{
-      color: #8b949e;
+      color: #94a7b8;
       margin-top: 6px;
       font-size: clamp(0.85rem, 2.5vw, 1.0rem);
     }}
     .badge {{
-      background: #3fb950;
-      color: #000000;
+      background: #00804c;
+      color: #ffffff;
       font-weight: 800;
       font-size: clamp(0.75rem, 2vw, 0.85rem);
       padding: 4px 10px;
       border-radius: 12px;
     }}
-    .badge.dh {{ background: #f85149; color: #ffffff; }}
+    .badge.dh {{ background: #d22d36; color: #ffffff; }}
     .card {{
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: #14243b;
+      border: 1px solid #243854;
       border-radius: 12px;
       padding: clamp(14px, 3vw, 24px);
       margin-bottom: clamp(16px, 3vw, 24px);

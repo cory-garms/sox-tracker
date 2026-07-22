@@ -211,7 +211,7 @@ def build(
       background: {_GRID};
     }}
     header {{
-      border-bottom: 1px solid {_GRID};
+      border-bottom: 2px solid {_GREEN};
       padding-bottom: 16px;
       margin-bottom: clamp(20px, 4vw, 32px);
       display: flex;

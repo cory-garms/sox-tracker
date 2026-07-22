@@ -18,16 +18,16 @@ from analysis.offense import player_season_totals
 # ---------------------------------------------------------------------------
 # Theme configuration
 # ---------------------------------------------------------------------------
-_BG       = "#0e1117"
-_PAPER_BG = "#161b22"
-_GRID     = "#30363d"
-_TEXT     = "#e6edf3"
-_GREEN    = "#3fb950"
-_RED      = "#f85149"
-_YELLOW   = "#d29922"
-_BLUE     = "#58a6ff"
-_PURPLE   = "#bc8cff"
-_DIM      = "#8b949e"
+_BG       = "#0c1829"  # Fenway Midnight Navy
+_PAPER_BG = "#14243b"  # Dark Navy Card Background
+_GRID     = "#243854"  # Fenway Seam Navy Border
+_TEXT     = "#f0f6fc"  # Silver White Text
+_GREEN    = "#00804c"  # Green Monster Green
+_RED      = "#d22d36"  # Red Sox Crimson Red
+_YELLOW   = "#f5c242"  # Fenway Gold
+_BLUE     = "#58a6ff"  # Navy Accent Blue
+_PURPLE   = "#bc8cff"  # Accent Purple
+_DIM      = "#94a7b8"  # Muted Slate Text
 
 _LAYOUT_BASE = dict(
     paper_bgcolor=_PAPER_BG,
