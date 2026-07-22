@@ -1,30 +1,38 @@
-# MLB Team Tracker
+# ⚾ Boston Red Sox MLB Analytics Suite (`sox_tracker`)
 
-A Python suite for tracking MLB team and player performance — season records,
-streaks, offensive/defensive/pitching analytics, and historical trends.
+A Python suite and interactive GitHub Pages web application for tracking MLB team and player performance — season records, pre-game matchups, win streaks, team stat leaderboards, and historical trends.
 
-Defaults to the **Boston Red Sox**. See [CONFIGURE.md](CONFIGURE.md) to switch teams.
+Authored by **Cory Garms** ([@cory-garms](https://github.com/cory-garms)).
 
----
-
-## Features
-
-- **Season overview**: W-L, run differential, Pythagorean record, pace projection
-- **Standings**: Division standings with games-back and win% trend
-- **Offense**: Batting leaderboard, hot/cold tracker, lineup slot analysis, platoon splits
-- **Pitching**: Rotation stats + ERA trend, bullpen by role, usage load, FIP
-- **Defense**: Fielding%, errors by position, catcher metrics, Statcast OAA
-- **Streaks**: Win/loss streaks, hitting streaks, series results, monthly splits
-- **History**: Multi-season W-L comparison, pace vs. championship seasons
-- **Viz**: Interactive Plotly dashboard (HTML) + PNG exports for embeds
-
-Data sources:
-- [MLB Stats API](https://statsapi.mlb.com/api/v1/) — free, no auth required
-- [Baseball Savant](https://baseballsavant.mlb.com) — Statcast metrics (exit velo, OAA, framing)
+Live Web Suite: **[cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)**
 
 ---
 
-## Quick Start
+## 🌐 GitHub Pages Interactive Web Suite
+
+The suite builds four mobile-optimized, dark-themed HTML pages hosted live on GitHub Pages with GoatCounter analytics tracking:
+
+| Page | Description | CLI Exporter | Live Output |
+| :--- | :--- | :--- | :--- |
+| 🏠 **Suite Landing Index** | Responsive landing page linking to all 4 dashboards | `docs/index.html` | [View Index](https://cory-garms.github.io/sox-tracker/) |
+| ⚾ **Today's Matchup Preview** | Probable starter metrics, platoon advantages, bullpen 3-day rest, head-to-head history | `python matchup_report.py` | [View Preview](https://cory-garms.github.io/sox-tracker/matchup_BOS_2026.html) |
+| 📊 **Main Season Dashboard** | Season timeline, 7/15-game rolling win%, run differential, rotation game scores, bullpen load | `python viz_report.py` | [View Dashboard](https://cory-garms.github.io/sox-tracker/dashboard_BOS_2026.html) |
+| 🏆 **Historical Win Streak Records** | Franchise (15 W), AL (22 W), and MLB win streak milestone benchmark comparison | `python streak_report.py` | [View Streak Report](https://cory-garms.github.io/sox-tracker/streak_records_BOS_2026.html) |
+| 🥇 **Team Stat Leaders** | Single-column vertical stack of Top-5 leaderboards in HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV | `python leaders_report.py` | [View Stat Leaders](https://cory-garms.github.io/sox-tracker/leaders_BOS_2026.html) |
+
+---
+
+## ✨ Features & Design Highlights
+
+- **Retro Red Sox Branding**: Retro Red Sox logo (`images/sox_retro_logo.png`) header across all web pages with Green Monster Green (`#00804c`) and Red Sox Crimson (`#d22d36`) accents.
+- **Mobile-First UX**: Responsive containers (`clamp()`), fluid typography, and touch navigation buttons (`← Back to Suite Index`).
+- **Horizontal Chart Legends**: Chart legends positioned horizontally below figures to maximize 100% horizontal plot area width and prevent squishing on smartphone displays.
+- **Plotly Modebar Clearance**: Top margins (`t=65px`) and section title spacing (`margin-bottom: 24px`) prevent modebar icon overlap.
+- **Privacy Analytics**: Integrated GoatCounter analytics tracking tag (`cory-garms.goatcounter.com`).
+
+---
+
+## ⚡ Quick Start
 
 ```bash
 # 1. Install dependencies
@@ -36,69 +44,76 @@ python fetch.py
 # 3. Print terminal dashboard
 python report.py
 
-# 4. Print pre-game matchup intelligence preview
+# 4. Print terminal pre-game matchup preview
 python matchup.py
 
-# 5. Print a specific section
-python report.py --section offense
-python report.py --section pitching
-python report.py --section streaks
-
-# 6. Fetch a different team/season
-python fetch.py --team NYY --season 2025
-python report.py --team NYY --season 2025
+# 5. Build all HTML web dashboards for GitHub Pages
+python matchup_report.py
+python viz_report.py
+python streak_report.py
+python leaders_report.py
 ```
 
 ---
 
-## Project Structure
+## 🏗️ Repository Structure
 
 ```
 sox_tracker/
-├── config.py              # ← team selection lives here
-├── fetch.py               # CLI: fetch + cache all data
-├── report.py              # CLI: terminal dashboard
-├── matchup.py             # CLI: pre-game matchup intelligence preview
-├── matchup_report.py      # CLI: standalone interactive HTML matchup preview report
-├── viz_report.py          # CLI: main HTML dashboard
-├── streak_report.py       # CLI: standalone historical win streak report
-├── leaders_report.py      # CLI: standalone team stat leaders report
-├── CONFIGURE.md           # instructions for switching teams
-├── .agents/
-│   └── AGENTS.md          # Agent rules & execution directives
+├── config.py              # Team ID, season, and paths
+├── fetch.py               # CLI: fetch & cache parquet data
+├── report.py              # CLI: rich terminal dashboard
+├── matchup.py             # CLI: terminal pre-game matchup preview
+├── matchup_report.py      # CLI: builds docs/matchup_BOS_2026.html
+├── viz_report.py          # CLI: builds docs/dashboard_BOS_2026.html
+├── streak_report.py       # CLI: builds docs/streak_records_BOS_2026.html
+├── leaders_report.py      # CLI: builds docs/leaders_BOS_2026.html
+├── CONFIGURE.md           # Instructions for switching teams
+├── roadmap.md             # Sports betting & prop model feature roadmap
+├── images/
+│   └── sox_retro_logo.png # Vintage Boston Red Sox logo
+├── docs/                  # GitHub Pages output folder
+│   ├── index.html         # Suite landing index
+│   ├── images/            # Static image assets for web deployment
+│   ├── matchup_BOS_2026.html
+│   ├── dashboard_BOS_2026.html
+│   ├── streak_records_BOS_2026.html
+│   └── leaders_BOS_2026.html
 ├── client/
 │   ├── mlb_client.py      # MLB Stats API wrapper
 │   └── savant_client.py   # Baseball Savant / Statcast
 ├── data/
-│   ├── schema.py          # canonical DataFrame schemas
-│   ├── roster.py          # roster management
-│   ├── fetcher.py         # data orchestrator + cache
-│   └── cache/             # auto-generated parquet cache
+│   ├── schema.py          # DataFrame schemas
+│   ├── roster.py          # Active roster fetcher
+│   ├── fetcher.py         # Multi-table parquet cache orchestrator
+│   └── cache/             # Auto-generated parquet cache
 ├── analysis/
-│   ├── standings.py       # season record, standings, pace
-│   ├── offense.py         # batting leaderboards, hot/cold
-│   ├── pitching.py        # rotation + bullpen analytics
-│   ├── defense.py         # fielding, OAA, catcher metrics
-│   ├── streaks.py         # win/loss/hitting streaks, patterns
-│   └── history.py         # multi-season historical trends
-├── viz/
-│   ├── charts.py          # individual Plotly chart functions
-│   ├── dashboard.py       # combined HTML dashboard
-│   └── exports.py         # PNG + HTML export helpers
-└── notebooks/
-    └── demo.ipynb         # interactive walkthrough
+│   ├── standings.py       # Season overview & pace
+│   ├── offense.py         # Batting leaderboards & platoon splits
+│   ├── pitching.py        # Rotation & bullpen metrics
+│   ├── defense.py         # Fielding %, OAA, catcher metrics
+│   ├── streaks.py         # Win/loss streaks & game logs
+│   ├── matchup.py         # Pre-game matchup intelligence
+│   └── history.py         # Historical team comparisons
+└── viz/
+    ├── charts.py          # Plotly chart builders & dark theme
+    ├── dashboard.py       # HTML dashboard template builder
+    └── exports.py         # Static file exporter
 ```
 
 ---
 
-## Switching Teams
+## 🔮 Future Feature Roadmap
 
-See [CONFIGURE.md](CONFIGURE.md) — it takes about 2 minutes.
+See **[roadmap.md](roadmap.md)** for planned sports betting & prop modeling features:
+- Pitcher K Over/Under models vs. opposing lineup K-rates
+- Batter pitch-type Statcast matchup matrix (e.g. OPS vs fastballs > 95mph)
+- First 5 Innings (F5) Moneyline & Over/Under models
+- NRFI / YRFI (No Run First Inning) trackers
+- +EV (Positive Expected Value) odds edge calculator
 
 ---
 
-## Requirements
+## 📜 Switching Teams
 
-- Python 3.11+
-- See `requirements.txt`
-- Optional: `kaleido` for PNG chart exports (`pip install kaleido`)
+See [CONFIGURE.md](CONFIGURE.md) — supports any MLB team abbreviation (e.g., `NYY`, `LAD`, `CHC`).
