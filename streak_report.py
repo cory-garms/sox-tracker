@@ -209,53 +209,105 @@ def main() -> None:
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Boston Red Sox — Historical Win Streak Records</title>
-  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
+    html, body {{
       background: {_BG};
       color: {_TEXT};
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-      padding: 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      width: 100%;
+      overflow-x: hidden;
+    }}
+    body {{
+      padding: clamp(12px, 3vw, 28px);
+    }}
+    .nav-bar {{
+      margin-bottom: 16px;
+    }}
+    .nav-back {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: {_BLUE};
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 6px 12px;
+      background: {_PAPER_BG};
+      border: 1px solid {_GRID};
+      border-radius: 8px;
+      transition: background 0.2s ease;
+    }}
+    .nav-back:hover {{
+      background: {_GRID};
     }}
     header {{
       border-bottom: 2px solid {_GREEN};
       padding-bottom: 16px;
-      margin-bottom: 32px;
+      margin-bottom: clamp(20px, 4vw, 32px);
     }}
-    header h1 {{ font-size: 2.0rem; color: {_TEXT}; }}
-    header p  {{ color: {_DIM}; margin-top: 6px; font-size: 1.0rem; }}
+    header h1 {{
+      font-size: clamp(1.3rem, 4vw, 2.0rem);
+      font-weight: 800;
+      color: {_TEXT};
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }}
+    header p {{
+      color: {_DIM};
+      margin-top: 6px;
+      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
+      line-height: 1.4;
+    }}
     .badge {{
       background: {_GREEN};
       color: #000;
-      font-weight: bold;
-      padding: 3px 8px;
-      border-radius: 4px;
-      margin-left: 8px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: clamp(0.75rem, 2vw, 0.85rem);
     }}
     .chart-card {{
       background: {_PAPER_BG};
       border: 1px solid {_GRID};
-      border-radius: 8px;
-      padding: 24px;
-      margin-bottom: 28px;
+      border-radius: 12px;
+      padding: clamp(12px, 3vw, 24px);
+      margin-bottom: clamp(16px, 3vw, 28px);
+      width: 100%;
+      overflow-x: auto;
     }}
     .chart-card h2 {{
-      font-size: 1.1rem;
-      font-weight: 600;
+      font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+      font-weight: 700;
       color: {_BLUE};
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 16px;
     }}
+    .plotly-graph-div {{
+      width: 100% !important;
+    }}
+
+    @media (max-width: 600px) {{
+      body {{ padding: 10px 8px; }}
+      .chart-card {{ padding: 8px 4px; border-radius: 8px; }}
+    }}
   </style>
 </head>
 <body>
+  <div class="nav-bar">
+    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
+  </div>
   <header>
-    <h1>🏆 Boston Red Sox — Historical Win Streak Benchmark Report <span class="badge">ACTIVE W14</span></h1>
-    <p>Comparing the 2026 Red Sox 14-game winning streak against Franchise, American League, and MLB records.</p>
+    <h1>🏆 Boston Red Sox — Historical Win Streak Benchmark Report <span class="badge">RECORD TIED W15</span></h1>
+    <p>Comparing the 2026 Red Sox 15-game winning streak against Franchise, American League, and MLB records.</p>
   </header>
 
   <section class="chart-card">
@@ -269,13 +321,20 @@ def main() -> None:
   </section>
 
   <section class="chart-card">
-    <h2>3. Active 14-Game Streak Game-by-Game Breakdown</h2>
+    <h2>3. Active Streak Game-by-Game Breakdown</h2>
     {div3}
   </section>
 
+  <script>
+    window.addEventListener('resize', function() {{
+      if (typeof Plotly !== 'undefined') {{
+        var plots = document.querySelectorAll('.plotly-graph-div');
+        plots.forEach(function(p) {{ Plotly.Plots.resize(p); }});
+      }}
+    }});
+  </script>
 </body>
-</html>
-"""
+</html>"""
 
     output_path = config.OUTPUT_DIR / "streak_records_BOS_2026.html"
     output_path.write_text(html_content, encoding="utf-8")

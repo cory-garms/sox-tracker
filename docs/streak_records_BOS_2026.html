@@ -2,53 +2,105 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Boston Red Sox — Historical Win Streak Records</title>
-  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
+    html, body {
       background: #0e1117;
       color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-      padding: 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      width: 100%;
+      overflow-x: hidden;
+    }
+    body {
+      padding: clamp(12px, 3vw, 28px);
+    }
+    .nav-bar {
+      margin-bottom: 16px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #58a6ff;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 6px 12px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      transition: background 0.2s ease;
+    }
+    .nav-back:hover {
+      background: #30363d;
     }
     header {
       border-bottom: 2px solid #3fb950;
       padding-bottom: 16px;
-      margin-bottom: 32px;
+      margin-bottom: clamp(20px, 4vw, 32px);
     }
-    header h1 { font-size: 2.0rem; color: #e6edf3; }
-    header p  { color: #8b949e; margin-top: 6px; font-size: 1.0rem; }
+    header h1 {
+      font-size: clamp(1.3rem, 4vw, 2.0rem);
+      font-weight: 800;
+      color: #e6edf3;
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header p {
+      color: #8b949e;
+      margin-top: 6px;
+      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
+      line-height: 1.4;
+    }
     .badge {
       background: #3fb950;
       color: #000;
-      font-weight: bold;
-      padding: 3px 8px;
-      border-radius: 4px;
-      margin-left: 8px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: clamp(0.75rem, 2vw, 0.85rem);
     }
     .chart-card {
       background: #161b22;
       border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 24px;
-      margin-bottom: 28px;
+      border-radius: 12px;
+      padding: clamp(12px, 3vw, 24px);
+      margin-bottom: clamp(16px, 3vw, 28px);
+      width: 100%;
+      overflow-x: auto;
     }
     .chart-card h2 {
-      font-size: 1.1rem;
-      font-weight: 600;
+      font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+      font-weight: 700;
       color: #58a6ff;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 16px;
     }
+    .plotly-graph-div {
+      width: 100% !important;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 10px 8px; }
+      .chart-card { padding: 8px 4px; border-radius: 8px; }
+    }
   </style>
 </head>
 <body>
+  <div class="nav-bar">
+    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
+  </div>
   <header>
-    <h1>🏆 Boston Red Sox — Historical Win Streak Benchmark Report <span class="badge">ACTIVE W14</span></h1>
-    <p>Comparing the 2026 Red Sox 14-game winning streak against Franchise, American League, and MLB records.</p>
+    <h1>🏆 Boston Red Sox — Historical Win Streak Benchmark Report <span class="badge">RECORD TIED W15</span></h1>
+    <p>Comparing the 2026 Red Sox 15-game winning streak against Franchise, American League, and MLB records.</p>
   </header>
 
   <section class="chart-card">
@@ -3944,9 +3996,17 @@ return Plotly;
   </section>
 
   <section class="chart-card">
-    <h2>3. Active 14-Game Streak Game-by-Game Breakdown</h2>
+    <h2>3. Active Streak Game-by-Game Breakdown</h2>
     <div>                            <div id="breakdown_chart" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("breakdown_chart")) {                    Plotly.newPlot(                        "breakdown_chart",                        [{"hoverinfo":"text","hovertext":["2026-07-04 vs LAA: W 8-1 (+7)","2026-07-05 vs LAA: W 7-5 (+2)","2026-07-07 vs CWS: W 8-1 (+7)","2026-07-08 vs CWS: W 5-0 (+5)","2026-07-09 vs CWS: W 2-1 (+1)","2026-07-10 vs NYM: W 6-2 (+4)","2026-07-11 vs NYM: W 4-0 (+4)","2026-07-12 vs NYM: W 3-2 (+1)","2026-07-17 G1 vs TB: W 5-3 (+2)","2026-07-17 G2 vs TB: W 10-0 (+10)","2026-07-18 vs TB: W 7-6 (+1)","2026-07-19 vs TB: W 6-1 (+5)","2026-07-20 vs BAL: W 6-5 (+1)","2026-07-22 vs BAL: W 6-3 (+3)"],"marker":{"color":"#3fb950"},"text":["vs LAA\u003cbr\u003e+7","vs LAA\u003cbr\u003e+2","vs CWS\u003cbr\u003e+7","vs CWS\u003cbr\u003e+5","vs CWS\u003cbr\u003e+1","vs NYM\u003cbr\u003e+4","vs NYM\u003cbr\u003e+4","vs NYM\u003cbr\u003e+1","vs TB\u003cbr\u003e+2","vs TB\u003cbr\u003e+10","vs TB\u003cbr\u003e+1","vs TB\u003cbr\u003e+5","vs BAL\u003cbr\u003e+1","vs BAL\u003cbr\u003e+3"],"textposition":"outside","x":["2026-07-04","2026-07-05","2026-07-07","2026-07-08","2026-07-09","2026-07-10","2026-07-11","2026-07-12","2026-07-17 G1","2026-07-17 G2","2026-07-18","2026-07-19","2026-07-20","2026-07-22"],"y":{"dtype":"i1","bdata":"BwIHBQEEBAECCgEFAQM="},"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"color":"#e6edf3","family":"monospace"},"xaxis":{"gridcolor":"#30363d","zerolinecolor":"#30363d","title":{"text":"Game Date"},"type":"category"},"yaxis":{"gridcolor":"#30363d","zerolinecolor":"#30363d","title":{"text":"Margin of Victory (Runs)"},"range":[0,14]},"margin":{"l":60,"r":30,"t":60,"b":50},"legend":{"bgcolor":"rgba(0,0,0,0)","bordercolor":"#30363d"},"title":{"font":{"size":16},"text":"Active 14-Game Win Streak: Margin of Victory per Game"},"paper_bgcolor":"#161b22","plot_bgcolor":"#0e1117"},                        {"responsive": true}                    )                };            </script>        </div>
   </section>
 
+  <script>
+    window.addEventListener('resize', function() {
+      if (typeof Plotly !== 'undefined') {
+        var plots = document.querySelectorAll('.plotly-graph-div');
+        plots.forEach(function(p) { Plotly.Plots.resize(p); });
+      }
+    });
+  </script>
 </body>
 </html>

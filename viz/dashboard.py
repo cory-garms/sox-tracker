@@ -163,55 +163,104 @@ def build(
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} — {season} Dashboard</title>
-  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
+    html, body {{
       background: {_BG};
       color: {_TEXT};
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
-      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      width: 100%;
+      overflow-x: hidden;
+    }}
+    body {{
+      padding: clamp(12px, 3vw, 24px);
+    }}
+    .nav-bar {{
+      margin-bottom: 16px;
+    }}
+    .nav-back {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: {_BLUE};
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 6px 12px;
+      background: {_PAPER_BG};
+      border: 1px solid {_GRID};
+      border-radius: 8px;
+      transition: background 0.2s ease;
+    }}
+    .nav-back:hover {{
+      background: {_GRID};
     }}
     header {{
       border-bottom: 1px solid {_GRID};
       padding-bottom: 16px;
-      margin-bottom: 32px;
+      margin-bottom: clamp(20px, 4vw, 32px);
     }}
-    header h1 {{ font-size: 1.8rem; color: {_TEXT}; }}
-    header p  {{ color: {_DIM}; margin-top: 4px; font-size: 0.9rem; }}
+    header h1 {{
+      font-size: clamp(1.4rem, 4vw, 2.0rem);
+      font-weight: 800;
+      color: {_TEXT};
+      line-height: 1.25;
+    }}
+    header p {{
+      color: {_DIM};
+      margin-top: 6px;
+      font-size: clamp(0.85rem, 2.5vw, 0.95rem);
+      line-height: 1.4;
+    }}
     .chart-section {{
       background: {_PAPER_BG};
       border: 1px solid {_GRID};
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 24px;
+      border-radius: 12px;
+      padding: clamp(12px, 3vw, 20px);
+      margin-bottom: clamp(16px, 3vw, 24px);
+      width: 100%;
+      overflow-x: auto;
     }}
     .chart-title {{
-      font-size: 1rem;
-      font-weight: 600;
+      font-size: clamp(0.85rem, 2.2vw, 1.0rem);
+      font-weight: 700;
       color: {_DIM};
       text-transform: uppercase;
       letter-spacing: 0.08em;
       margin-bottom: 12px;
     }}
+    .plotly-graph-div {{
+      width: 100% !important;
+    }}
     footer {{
       text-align: center;
       color: {_DIM};
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       margin-top: 40px;
       padding-top: 16px;
       border-top: 1px solid {_GRID};
+      line-height: 1.5;
     }}
-    footer a {{ color: {_BLUE}; text-decoration: none; }}
+    footer a {{ color: {_BLUE}; text-decoration: none; font-weight: 600; }}
+
+    @media (max-width: 600px) {{
+      body {{ padding: 10px 8px; }}
+      .chart-section {{ padding: 8px 4px; border-radius: 8px; }}
+    }}
   </style>
 </head>
 <body>
+  <div class="nav-bar">
+    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
+  </div>
   <header>
     <h1>{team_name} — {season} Season Dashboard</h1>
     <p>Data: MLB Stats API · Baseball Savant / Statcast &nbsp;|&nbsp;
-       Built with <a href="https://github.com/cory-garms/sox-tracker">sox-tracker</a></p>
+       Built by <a href="https://github.com/cory-garms">Cory Garms (@cory-garms)</a> via <a href="https://github.com/cory-garms/sox-tracker">sox-tracker</a></p>
   </header>
 
   {divs_html}
@@ -221,6 +270,15 @@ def build(
     data via <a href="https://statsapi.mlb.com">MLB Stats API</a> &amp;
     <a href="https://baseballsavant.mlb.com">Baseball Savant</a></p>
   </footer>
+
+  <script>
+    window.addEventListener('resize', function() {{
+      if (typeof Plotly !== 'undefined') {{
+        var plots = document.querySelectorAll('.plotly-graph-div');
+        plots.forEach(function(p) {{ Plotly.Plots.resize(p); }});
+      }}
+    }});
+  </script>
 </body>
 </html>"""
 
