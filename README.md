@@ -59,6 +59,7 @@ sox_tracker/
 ├── fetch.py               # CLI: fetch + cache all data
 ├── report.py              # CLI: terminal dashboard
 ├── matchup.py             # CLI: pre-game matchup intelligence preview
+├── matchup_report.py      # CLI: standalone interactive HTML matchup preview report
 ├── viz_report.py          # CLI: main HTML dashboard
 ├── streak_report.py       # CLI: standalone historical win streak report
 ├── CONFIGURE.md           # instructions for switching teams
