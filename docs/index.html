@@ -29,6 +29,15 @@
     }
     header {
       margin-bottom: clamp(24px, 5vw, 40px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .header-logo {
+      height: clamp(60px, 12vw, 90px);
+      width: auto;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
     }
     h1 {
       font-size: clamp(1.6rem, 5vw, 2.5rem);
@@ -132,7 +141,8 @@
 <body>
   <div class="container">
     <header>
-      <h1>⚾ Boston Red Sox Analytics <span class="badge">2026</span></h1>
+      <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="header-logo">
+      <h1>Boston Red Sox Analytics <span class="badge">2026</span></h1>
       <p class="subtitle">Interactive Plotly dashboards & performance analytics by <strong>Cory Garms</strong> (<a href="https://github.com/cory-garms">@cory-garms</a>)</p>
     </header>
 

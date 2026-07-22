@@ -254,6 +254,14 @@ def generate_leaders_html(
       border-bottom: 2px solid {_GREEN};
       padding-bottom: 16px;
       margin-bottom: clamp(20px, 4vw, 32px);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }}
+    .team-logo {{
+      height: clamp(48px, 10vw, 64px);
+      width: auto;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
     }}
     header h1 {{
       font-size: clamp(1.4rem, 4vw, 2.2rem);
@@ -322,8 +330,11 @@ def generate_leaders_html(
   </div>
 
   <header>
-    <h1>🥇 {team_name} — 2026 Team Stat Leaders <span class="badge">TOP 5 RANKINGS</span></h1>
-    <p>Individual player rankings across major batting and pitching categories.</p>
+    <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
+    <div>
+      <h1>🥇 {team_name} — 2026 Team Stat Leaders <span class="badge">TOP 5 RANKINGS</span></h1>
+      <p>Individual player rankings across major batting and pitching categories.</p>
+    </div>
   </header>
 
   <main class="grid-container">

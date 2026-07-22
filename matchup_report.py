@@ -267,6 +267,14 @@ def generate_matchup_html(
       border-bottom: 2px solid #3fb950;
       padding-bottom: 16px;
       margin-bottom: clamp(20px, 4vw, 32px);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }}
+    .team-logo {{
+      height: clamp(48px, 10vw, 64px);
+      width: auto;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
     }}
     header h1 {{
       font-size: clamp(1.4rem, 4vw, 2.2rem);
@@ -356,8 +364,11 @@ def generate_matchup_html(
   </div>
 
   <header>
-    <h1>⚾ {team_name} vs {opp_name} {status_badge}</h1>
-    <p>Game Date: <strong>{game_date}</strong> &nbsp;·&nbsp; Venue: <strong>{loc_str}</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
+    <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
+    <div>
+      <h1>⚾ {team_name} vs {opp_name} {status_badge}</h1>
+      <p>Game Date: <strong>{game_date}</strong> &nbsp;·&nbsp; Venue: <strong>{loc_str}</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
+    </div>
   </header>
 
   <section class="card">
