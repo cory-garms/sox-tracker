@@ -240,6 +240,8 @@ def fetch_platoon_splits(
 
     df = pd.DataFrame(rows)
     if not df.empty:
+        # Deduplicate per (player_id, hand) by choosing split with highest AB (full season vs team-specific)
+        df = df.sort_values("ab", ascending=False).groupby(["player_id", "hand"], as_index=False).first()
         df.to_parquet(cache_path, index=False)
     return df
 
@@ -254,10 +256,58 @@ def platoon_table(batting: pd.DataFrame, season: int) -> pd.DataFrame:
     if splits.empty:
         return pd.DataFrame()
 
+    # Deduplicate in case cached data has multiple entries
+    splits = splits.sort_values("ab", ascending=False).groupby(["player_id", "hand"], as_index=False).first()
+
     # Attach player names
     name_map = batting.groupby("player_id")["player_name"].first().reset_index()
     splits = splits.merge(name_map, on="player_id", how="left")
     return splits.sort_values(["player_name", "hand"]).reset_index(drop=True)
+
+
+def pivoted_platoon_summary(plat: pd.DataFrame) -> pd.DataFrame:
+    """
+    Pivot raw long-format platoon splits into a single-row-per-player DataFrame
+    with side-by-side vs-LHP and vs-RHP stats and platoon delta.
+    """
+    if plat.empty:
+        return pd.DataFrame()
+
+    rows = []
+    for player_name in plat["player_name"].dropna().unique():
+        l_sub = plat[(plat["player_name"] == player_name) & (plat["hand"] == "vs LHP")]
+        r_sub = plat[(plat["player_name"] == player_name) & (plat["hand"] == "vs RHP")]
+
+        l_row = l_sub.iloc[0] if not l_sub.empty else {}
+        r_row = r_sub.iloc[0] if not r_sub.empty else {}
+
+        l_ab  = int(l_row.get("ab", 0) or 0)
+        r_ab  = int(r_row.get("ab", 0) or 0)
+
+        if l_ab < 10 and r_ab < 10:
+            continue
+
+        l_ops = float(l_row.get("ops", 0) or 0)
+        r_ops = float(r_row.get("ops", 0) or 0)
+
+        rows.append({
+            "player_name": player_name,
+            "l_ab":        l_ab,
+            "l_avg":       float(l_row.get("avg", 0) or 0),
+            "l_obp":       float(l_row.get("obp", 0) or 0),
+            "l_slg":       float(l_row.get("slg", 0) or 0),
+            "l_ops":       l_ops,
+            "l_hr":        int(l_row.get("hr", 0) or 0),
+            "r_ab":        r_ab,
+            "r_avg":       float(r_row.get("avg", 0) or 0),
+            "r_obp":       float(r_row.get("obp", 0) or 0),
+            "r_slg":       float(r_row.get("slg", 0) or 0),
+            "r_ops":       r_ops,
+            "r_hr":        int(r_row.get("hr", 0) or 0),
+            "ops_delta":   round(l_ops - r_ops, 3),
+        })
+
+    return pd.DataFrame(rows).sort_values("player_name").reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +458,10 @@ def fetch_career_context(
             log.warning("Career fetch failed for player %d: %s", pid, e)
             continue
 
-        splits = data.get("stats", [{}])[0].get("splits", [])
+        stats = data.get("stats", [])
+        if not stats:
+            continue
+        splits = stats[0].get("splits", [])
         if not splits:
             continue
         s = splits[0].get("stat", {})
@@ -595,33 +648,36 @@ def print_offense(
     if show_platoon and season:
         plat = platoon_table(batting, season)
         if not plat.empty:
-            pt = Table(title="Platoon Splits", box=box.SIMPLE, show_lines=False)
-            pt.add_column("Player",  style="cyan",  min_width=20)
-            pt.add_column("Split",   style="dim",   min_width=8)
-            pt.add_column("AB",      style="dim",   justify="right")
-            pt.add_column("AVG",     style="white", justify="right")
-            pt.add_column("OBP",     style="white", justify="right")
-            pt.add_column("SLG",     style="white", justify="right")
-            pt.add_column("OPS",     style="bold white", justify="right")
-            pt.add_column("HR",      style="yellow",justify="right")
-            pt.add_column("BB",      style="dim",   justify="right")
-            pt.add_column("SO",      style="dim",   justify="right")
-            for _, row in plat.iterrows():
-                if int(row.get("ab", 0)) < 10:
-                    continue
-                pt.add_row(
-                    str(row.get("player_name", "")),
-                    str(row["hand"]),
-                    str(int(row.get("ab", 0))),
-                    f"{float(row.get('avg', 0)):.3f}",
-                    f"{float(row.get('obp', 0)):.3f}",
-                    f"{float(row.get('slg', 0)):.3f}",
-                    f"{float(row.get('ops', 0)):.3f}",
-                    str(int(row.get("hr", 0))),
-                    str(int(row.get("bb", 0))),
-                    str(int(row.get("so", 0))),
-                )
-            console.print(pt)
+            piv = pivoted_platoon_summary(plat)
+            if not piv.empty:
+                pt = Table(title="Platoon Splits (vs LHP vs. vs RHP)", box=box.SIMPLE, show_lines=False)
+                pt.add_column("Player",       style="cyan",        min_width=20)
+                pt.add_column("L-AB",         style="dim",         justify="right")
+                pt.add_column("L-AVG",        style="white",       justify="right")
+                pt.add_column("L-OPS",        style="bold green",  justify="right")
+                pt.add_column("L-HR",         style="yellow",      justify="right")
+                pt.add_column("R-AB",         style="dim",         justify="right")
+                pt.add_column("R-AVG",        style="white",       justify="right")
+                pt.add_column("R-OPS",        style="bold cyan",   justify="right")
+                pt.add_column("R-HR",         style="yellow",      justify="right")
+                pt.add_column("Δ (L-R)",      style="bold",        justify="right")
+
+                for _, row in piv.iterrows():
+                    d = row["ops_delta"]
+                    d_col = "green" if d >= 0.050 else ("red" if d <= -0.050 else "white")
+                    pt.add_row(
+                        row["player_name"],
+                        str(row["l_ab"]),
+                        f"{row['l_avg']:.3f}" if row["l_ab"] > 0 else "-",
+                        f"{row['l_ops']:.3f}" if row["l_ab"] > 0 else "-",
+                        str(row["l_hr"]),
+                        str(row["r_ab"]),
+                        f"{row['r_avg']:.3f}" if row["r_ab"] > 0 else "-",
+                        f"{row['r_ops']:.3f}" if row["r_ab"] > 0 else "-",
+                        str(row["r_hr"]),
+                        f"[{d_col}]{d:+.3f}[/{d_col}]",
+                    )
+                console.print(pt)
 
     # 6. Career context
     if show_career and season:

@@ -127,6 +127,7 @@ class Fetcher:
 
         for i, game in enumerate(completed):
             gp          = game["gamePk"]
+            official_dt = game.get("officialDate") or game.get("gameDate", "")[:10]
             teams       = game.get("teams", {})
             home        = teams.get("home", {})
             away        = teams.get("away", {})
@@ -145,7 +146,7 @@ class Fetcher:
 
             rows.append({
                 "game_pk":        gp,
-                "game_date":      game.get("gameDate", "")[:10],
+                "game_date":      official_dt,
                 "season":         self.season,
                 "game_num":       i + 1,
                 "home_team_id":   home_id,

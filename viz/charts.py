@@ -57,9 +57,22 @@ def season_timeline(games: pd.DataFrame, team_name: str) -> go.Figure:
     Cumulative wins and losses over the season.
     Includes a .500 pace reference line.
     """
-    f = games[games["status"] == "Final"].sort_values("game_date").reset_index(drop=True)
+    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
     if f.empty:
         return go.Figure()
+
+    date_counts = f["game_date"].value_counts()
+    dup_dates = set(date_counts[date_counts > 1].index)
+    labels = []
+    seen: dict[str, int] = {}
+    for _, r in f.iterrows():
+        d = r["game_date"]
+        if d in dup_dates:
+            seen[d] = seen.get(d, 0) + 1
+            labels.append(f"{d} G{seen[d]}")
+        else:
+            labels.append(d)
+    f["game_label"] = labels
 
     f["cum_w"] = (f["result"] == "W").cumsum()
     f["cum_l"] = (f["result"] == "L").cumsum()
@@ -71,13 +84,15 @@ def season_timeline(games: pd.DataFrame, team_name: str) -> go.Figure:
         x=f["game_n"], y=f["cum_w"],
         name="Wins", mode="lines",
         line=dict(color=_GREEN, width=2),
-        hovertemplate="Game %{x}<br>Wins: %{y}<extra></extra>",
+        text=f["game_label"],
+        hovertemplate="Game %{x} (%{text})<br>Wins: %{y}<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
         x=f["game_n"], y=f["cum_l"],
         name="Losses", mode="lines",
         line=dict(color=_RED, width=2),
-        hovertemplate="Game %{x}<br>Losses: %{y}<extra></extra>",
+        text=f["game_label"],
+        hovertemplate="Game %{x} (%{text})<br>Losses: %{y}<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
         x=f["game_n"], y=f["pace_500"],
@@ -106,9 +121,22 @@ def rolling_win_pct_chart(
     if windows is None:
         windows = [7, 15]
 
-    f = games[games["status"] == "Final"].sort_values("game_date").reset_index(drop=True)
+    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
     if f.empty:
         return go.Figure()
+
+    date_counts = f["game_date"].value_counts()
+    dup_dates = set(date_counts[date_counts > 1].index)
+    labels = []
+    seen: dict[str, int] = {}
+    for _, r in f.iterrows():
+        d = r["game_date"]
+        if d in dup_dates:
+            seen[d] = seen.get(d, 0) + 1
+            labels.append(f"{d} G{seen[d]}")
+        else:
+            labels.append(d)
+    f["game_label"] = labels
 
     f["win_flag"] = (f["result"] == "W").astype(int)
     colors = [_BLUE, _YELLOW, _GREEN, _RED]
@@ -117,7 +145,7 @@ def rolling_win_pct_chart(
     for i, w in enumerate(windows):
         roll = f["win_flag"].rolling(w).mean()
         fig.add_trace(go.Scatter(
-            x=f["game_date"], y=roll,
+            x=f["game_label"], y=roll,
             name=f"{w}-Game Win%",
             mode="lines",
             line=dict(color=colors[i % len(colors)], width=2),
@@ -128,10 +156,11 @@ def rolling_win_pct_chart(
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Rolling Win%", font=dict(size=16)),
-        xaxis_title="Date",
+        xaxis_title="Game / Date",
         yaxis_title="Win%",
         yaxis_range=[0, 1],
     )
+    fig.update_xaxes(type="category")
     return fig
 
 
@@ -144,16 +173,29 @@ def run_differential_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
     Per-game bar chart: runs scored vs. allowed, colored by W/L.
     Overlays cumulative run differential as a line.
     """
-    f = games[games["status"] == "Final"].sort_values("game_date").reset_index(drop=True)
+    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
     if f.empty:
         return go.Figure()
+
+    date_counts = f["game_date"].value_counts()
+    dup_dates = set(date_counts[date_counts > 1].index)
+    labels = []
+    seen: dict[str, int] = {}
+    for _, r in f.iterrows():
+        d = r["game_date"]
+        if d in dup_dates:
+            seen[d] = seen.get(d, 0) + 1
+            labels.append(f"{d} G{seen[d]}")
+        else:
+            labels.append(d)
+    f["game_label"] = labels
 
     f["rd"]     = f["runs_scored"] - f["runs_allowed"]
     f["cum_rd"] = f["rd"].cumsum()
     f["color"]  = f["result"].map({"W": _GREEN, "L": _RED})
     f["game_n"] = range(1, len(f) + 1)
     f["hover"]  = f.apply(
-        lambda r: f"Game {r['game_n']} ({r['game_date']})<br>"
+        lambda r: f"Game {r['game_n']} ({r['game_label']})<br>"
                   f"{int(r['runs_scored'])}-{int(r['runs_allowed'])}  {r['result']}",
         axis=1,
     )
@@ -200,11 +242,26 @@ def streak_timeline_chart(streak_df: pd.DataFrame, team_name: str) -> go.Figure:
     if streak_df.empty:
         return go.Figure()
 
-    colors = [_GREEN if v > 0 else _RED for v in streak_df["streak_value"]]
+    df = streak_df.copy()
+    date_counts = df["game_date"].value_counts()
+    dup_dates = set(date_counts[date_counts > 1].index)
+
+    labels = []
+    seen: dict[str, int] = {}
+    for _, r in df.iterrows():
+        d = r["game_date"]
+        if d in dup_dates:
+            seen[d] = seen.get(d, 0) + 1
+            labels.append(f"{d} G{seen[d]}")
+        else:
+            labels.append(d)
+
+    df["game_label"] = labels
+    colors = [_GREEN if v > 0 else _RED for v in df["streak_value"]]
 
     fig = go.Figure(go.Bar(
-        x=streak_df["game_date"],
-        y=streak_df["streak_value"],
+        x=df["game_label"],
+        y=df["streak_value"],
         marker_color=colors,
         hovertemplate="%{x}<br>Streak: %{y}<extra></extra>",
     ))
@@ -214,6 +271,7 @@ def streak_timeline_chart(streak_df: pd.DataFrame, team_name: str) -> go.Figure:
         xaxis_title="Date",
         yaxis_title="← Loss Streak  |  Win Streak →",
     )
+    fig.update_xaxes(type="category")
     return fig
 
 
@@ -586,5 +644,252 @@ def player_trend_chart(
         title=dict(text=f"{player_name} — Rolling Slash Line", font=dict(size=16)),
         xaxis_title="Date",
         yaxis_title="Rate Stat",
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Turnaround Figure 1: Inflection Point / Net Games Above/Below .500
+# ---------------------------------------------------------------------------
+
+def momentum_curve_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
+    """
+    Cumulative net games above/below .500 (Wins - Losses) per game number.
+    Annotates the low point (e.g. -12) and highlights the active win streak.
+    """
+    f = games[games["status"] == "Final"].sort_values("game_date").reset_index(drop=True)
+    if f.empty:
+        return go.Figure()
+
+    f["win_flag"]  = (f["result"] == "W").astype(int)
+    f["loss_flag"] = (f["result"] == "L").astype(int)
+    f["net_games"] = f["win_flag"].cumsum() - f["loss_flag"].cumsum()
+    f["game_n"]    = range(1, len(f) + 1)
+
+    min_idx  = f["net_games"].idxmin()
+    min_val  = f.loc[min_idx, "net_games"]
+    min_game = f.loc[min_idx, "game_n"]
+
+    last_val  = f["net_games"].iloc[-1]
+    last_game = f["game_n"].iloc[-1]
+
+    fig = go.Figure()
+
+    # Base net curve
+    fig.add_trace(go.Scatter(
+        x=f["game_n"], y=f["net_games"],
+        name="Net W-L (.500 Delta)",
+        mode="lines+markers",
+        line=dict(color=_GREEN if last_val >= 0 else _RED, width=3),
+        marker=dict(size=4),
+        hovertemplate="Game %{x} (%{text})<br>Net: %{y:+d}<extra></extra>",
+        text=f["game_date"],
+    ))
+
+    # .500 Reference line
+    fig.add_hline(y=0, line_dash="dash", line_color=_DIM, annotation_text=".500 Baseline")
+
+    # Annotate low point
+    fig.add_annotation(
+        x=min_game, y=min_val,
+        text=f"Low Point: {min_val:+d} (Game {min_game})",
+        showarrow=True, arrowhead=2, ax=0, ay=35,
+        bgcolor=_PAPER_BG, bordercolor=_RED, font=dict(color=_RED, size=12)
+    )
+
+    # Annotate current peak/streak
+    fig.add_annotation(
+        x=last_game, y=last_val,
+        text=f"Current Peak: {last_val:+d} (Game {last_game})",
+        showarrow=True, arrowhead=2, ax=-40, ay=-35,
+        bgcolor=_PAPER_BG, bordercolor=_GREEN, font=dict(color=_GREEN, size=12)
+    )
+
+    _apply_theme(fig,
+        title=dict(text=f"{team_name} — Season Turnaround & Momentum Curve", font=dict(size=16)),
+        xaxis_title="Game Number",
+        yaxis_title="Games Above / Below .500",
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Turnaround Figure 2: Monthly Differential & Win% Surge
+# ---------------------------------------------------------------------------
+
+def monthly_surge_chart(monthly_df: pd.DataFrame, team_name: str) -> go.Figure:
+    """
+    Subplot chart: Monthly Run Differential (Bars) & Monthly Win% (Line).
+    """
+    if monthly_df.empty:
+        return go.Figure()
+
+    df = monthly_df.copy()
+    df["month_str"] = df["month"].astype(str)
+    colors = [_GREEN if rd >= 0 else _RED for rd in df["run_diff"]]
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Run Diff Bars
+    fig.add_trace(go.Bar(
+        x=df["month_str"], y=df["run_diff"],
+        name="Run Differential",
+        marker_color=colors,
+        hovertemplate="Month %{x}<br>Run Diff: %{y:+d}<extra></extra>",
+    ), secondary_y=False)
+
+    # Win% Line
+    fig.add_trace(go.Scatter(
+        x=df["month_str"], y=df["win_pct"],
+        name="Win%",
+        mode="lines+markers",
+        line=dict(color=_BLUE, width=3),
+        marker=dict(size=8, color=_BLUE),
+        hovertemplate="Month %{x}<br>Win%%: %{y:.3f}<extra></extra>",
+    ), secondary_y=True)
+
+    fig.add_hline(y=0, line_color=_DIM, line_width=1, secondary_y=False)
+    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, secondary_y=True)
+
+    _apply_theme(fig,
+        title=dict(text=f"{team_name} — Monthly Surge & Run Differential", font=dict(size=16)),
+        xaxis_title="Month",
+    )
+    fig.update_yaxes(title_text="Run Differential", secondary_y=False, gridcolor=_GRID)
+    fig.update_yaxes(title_text="Win%", secondary_y=True, gridcolor=_GRID, range=[0, 1.0])
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Turnaround Figure 3: Rolling Synergy (OPS vs. ERA)
+# ---------------------------------------------------------------------------
+
+def rolling_synergy_chart(
+    games: pd.DataFrame,
+    batting: pd.DataFrame,
+    pitching: pd.DataFrame,
+    team_name: str,
+    window: int = 7,
+) -> go.Figure:
+    """
+    Dual-axis rolling time-series: Rolling 7-Game Team OPS (Primary Y)
+    vs Rolling 7-Game Team ERA (Secondary Y, inverted).
+    """
+    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
+    if f.empty or batting.empty or pitching.empty:
+        return go.Figure()
+
+    # Per-game batting OPS (grouped by game_pk to handle doubleheaders)
+    b_grp = batting.groupby(["game_date", "game_pk"]).agg(
+        ab=("ab", "sum"), h=("h", "sum"), bb=("bb", "sum"),
+        hbp=("hbp", "sum"), sf=("sac_fly", "sum"),
+        doubles=("doubles", "sum"), triples=("triples", "sum"), hr=("hr", "sum")
+    ).reset_index().sort_values("game_pk")
+    b_grp["tb"] = b_grp["h"] + b_grp["doubles"] + 2 * b_grp["triples"] + 3 * b_grp["hr"]
+
+    # Rolling batting over last N games
+    b_grp["roll_ab"] = b_grp["ab"].rolling(window).sum()
+    b_grp["roll_h"]  = b_grp["h"].rolling(window).sum()
+    b_grp["roll_bb"] = b_grp["bb"].rolling(window).sum()
+    b_grp["roll_hbp"]= b_grp["hbp"].rolling(window).sum()
+    b_grp["roll_sf"] = b_grp["sf"].rolling(window).sum()
+    b_grp["roll_tb"] = b_grp["tb"].rolling(window).sum()
+
+    obp_d = b_grp["roll_ab"] + b_grp["roll_bb"] + b_grp["roll_hbp"] + b_grp["roll_sf"]
+    roll_obp = (b_grp["roll_h"] + b_grp["roll_bb"] + b_grp["roll_hbp"]) / obp_d
+    roll_slg = b_grp["roll_tb"] / b_grp["roll_ab"]
+    b_grp["roll_ops"] = (roll_obp + roll_slg).round(3)
+
+    # Per-game pitching ERA (grouped by game_pk)
+    p_grp = pitching.groupby(["game_date", "game_pk"]).agg(
+        ip=("ip", "sum"), er=("er", "sum")
+    ).reset_index().sort_values("game_pk")
+    p_grp["roll_ip"]  = p_grp["ip"].rolling(window).sum()
+    p_grp["roll_er"]  = p_grp["er"].rolling(window).sum()
+    p_grp["roll_era"] = (p_grp["roll_er"] * 9 / p_grp["roll_ip"]).round(2)
+
+    merged = pd.merge(b_grp[["game_date", "game_pk", "roll_ops"]], p_grp[["game_date", "game_pk", "roll_era"]], on=["game_date", "game_pk"]).dropna()
+    if merged.empty:
+        return go.Figure()
+
+    # Differentiate doubleheader dates
+    date_counts = merged["game_date"].value_counts()
+    dup_dates = set(date_counts[date_counts > 1].index)
+    labels = []
+    seen: dict[str, int] = {}
+    for _, r in merged.iterrows():
+        d = r["game_date"]
+        if d in dup_dates:
+            seen[d] = seen.get(d, 0) + 1
+            labels.append(f"{d} G{seen[d]}")
+        else:
+            labels.append(d)
+    merged["game_label"] = labels
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    fig.add_trace(go.Scatter(
+        x=merged["game_label"], y=merged["roll_ops"],
+        name=f"{window}-Game Team OPS",
+        mode="lines",
+        line=dict(color=_GREEN, width=3),
+        hovertemplate="%{x}<br>OPS: %{y:.3f}<extra></extra>",
+    ), secondary_y=False)
+
+    fig.add_trace(go.Scatter(
+        x=merged["game_label"], y=merged["roll_era"],
+        name=f"{window}-Game Team ERA",
+        mode="lines",
+        line=dict(color=_BLUE, width=3),
+        hovertemplate="%{x}<br>ERA: %{y:.2f}<extra></extra>",
+    ), secondary_y=True)
+
+    _apply_theme(fig,
+        title=dict(text=f"{team_name} — Rolling Synergy (OPS vs. ERA)", font=dict(size=16)),
+        xaxis_title="Date",
+    )
+    fig.update_xaxes(type="category")
+    fig.update_yaxes(title_text="Team OPS", secondary_y=False, gridcolor=_GRID)
+    fig.update_yaxes(title_text="Team ERA", secondary_y=True, gridcolor=_GRID, autorange="reversed")
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Turnaround Figure 5: Platoon Diverging Bar Chart
+# ---------------------------------------------------------------------------
+
+def platoon_diverging_chart(plat_summary: pd.DataFrame, team_name: str) -> go.Figure:
+    """
+    Diverging / side-by-side bar chart showing vs-LHP OPS vs vs-RHP OPS and Platoon Delta.
+    plat_summary: output from pivoted_platoon_summary().
+    """
+    if plat_summary.empty:
+        return go.Figure()
+
+    df = plat_summary[plat_summary["l_ab"] + plat_summary["r_ab"] >= 30].sort_values("ops_delta", ascending=True)
+    if df.empty:
+        return go.Figure()
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        y=df["player_name"], x=df["l_ops"],
+        name="vs LHP OPS", orientation="h",
+        marker_color=_GREEN,
+        hovertemplate="%{y}<br>vs LHP OPS: %{x:.3f}<extra></extra>",
+    ))
+
+    fig.add_trace(go.Bar(
+        y=df["player_name"], x=df["r_ops"],
+        name="vs RHP OPS", orientation="h",
+        marker_color=_BLUE,
+        hovertemplate="%{y}<br>vs RHP OPS: %{x:.3f}<extra></extra>",
+    ))
+
+    _apply_theme(fig,
+        title=dict(text=f"{team_name} — Platoon Splits (vs LHP vs vs RHP OPS)", font=dict(size=16)),
+        xaxis_title="OPS",
+        yaxis_title="Player",
+        barmode="group",
     )
     return fig

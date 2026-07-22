@@ -26,6 +26,10 @@ from viz.charts import (
     rotation_heatmap,
     bullpen_load_chart,
     era_split_chart,
+    momentum_curve_chart,
+    monthly_surge_chart,
+    rolling_synergy_chart,
+    platoon_diverging_chart,
 )
 
 
@@ -57,63 +61,74 @@ def build(
     """
     Build and write the full interactive HTML dashboard.
 
-    Sections (top to bottom):
-      1.  Season Timeline (cumulative W-L)
-      2.  Rolling Win% (7-game, 15-game)
-      3.  Run Differential per game + cumulative
-      4.  Streak Timeline
-      5.  Batting Leaderboard Heatmap
-      6.  Hot / Cold Tracker
-      7.  Rotation Game Score Heatmap
-      8.  Bullpen Workload Heatmap
-      9.  ERA by Role (bar chart)
-
     Returns the path to the written HTML file.
     """
-    from analysis.offense import player_season_totals, hot_cold_summary
+    from analysis.offense import player_season_totals, hot_cold_summary, platoon_table, pivoted_platoon_summary
     from analysis.pitching import team_pitching_split
-    from analysis.streaks import streak_timeline
+    from analysis.streaks import streak_timeline, monthly_record
 
     if output_path is None:
         output_path = OUTPUT_DIR / f"dashboard_{team_abbr}_{season}.html"
 
     figures: list[tuple[str, go.Figure, int]] = []  # (title, fig, height)
 
-    # 1. Season timeline
+    # 1. Turnaround Momentum Curve
+    fig_mom = momentum_curve_chart(games, team_name)
+    figures.append(("Season Turnaround Momentum Curve", fig_mom, 450))
+
+    # 2. Monthly Surge & Run Diff
+    m_df = monthly_record(games)
+    if not m_df.empty:
+        fig_m = monthly_surge_chart(m_df, team_name)
+        figures.append(("Monthly Surge & Run Differential", fig_m, 400))
+
+    # 3. Rolling Synergy (OPS vs ERA)
+    fig_syn = rolling_synergy_chart(games, batting, pitching, team_name, window=7)
+    figures.append(("7-Game Rolling Synergy (OPS vs. ERA)", fig_syn, 420))
+
+    # 4. Platoon Splits Diverging Bar
+    plat = platoon_table(batting, season)
+    if not plat.empty:
+        piv = pivoted_platoon_summary(plat)
+        if not piv.empty:
+            fig_plat = platoon_diverging_chart(piv, team_name)
+            figures.append(("Platoon Advantage (vs LHP vs vs RHP OPS)", fig_plat, max(400, len(piv) * 25 + 100)))
+
+    # 5. Season timeline
     fig1 = season_timeline(games, team_name)
     figures.append(("Season Timeline", fig1, 420))
 
-    # 2. Rolling win%
+    # 6. Rolling win%
     fig2 = rolling_win_pct_chart(games, team_name, windows=[7, 15])
     figures.append(("Rolling Win%", fig2, 380))
 
-    # 3. Run differential
+    # 7. Run differential
     fig3 = run_differential_chart(games, team_name)
     figures.append(("Run Differential", fig3, 420))
 
-    # 4. Streak timeline
+    # 8. Streak timeline
     streak_df = streak_timeline(games)
     fig4 = streak_timeline_chart(streak_df, team_name)
     figures.append(("Streak Timeline", fig4, 320))
 
-    # 5. Batting leaderboard heatmap
+    # 9. Batting leaderboard heatmap
     totals = player_season_totals(batting)
     if not totals.empty:
         fig5 = batting_leaderboard_heatmap(totals, team_name)
         figures.append(("Batting Leaderboard", fig5, max(400, len(totals) * 30 + 100)))
 
-    # 6. Hot / cold
+    # 10. Hot / cold
     hc = hot_cold_summary(batting, windows=[7, 15])
     if not hc.empty:
         fig6 = hot_cold_chart(hc, team_name)
         figures.append(("Hot / Cold", fig6, max(380, len(hc) * 25 + 100)))
 
-    # 7. Rotation heatmap
+    # 11. Rotation heatmap
     if not pitching.empty:
         fig7 = rotation_heatmap(pitching, team_name)
         figures.append(("Rotation Game Scores", fig7, 380))
 
-    # 8. Bullpen load
+    # 12. Bullpen load
     if not pitching.empty:
         fig8 = bullpen_load_chart(pitching, team_name)
         figures.append(("Bullpen Workload", fig8, 380))

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source .soxEnv/bin/activate)",
+      "Bash(python viz_report.py --team BOS --season 2025)"
+    ]
+  }
+}

@@ -36,12 +36,15 @@ python fetch.py
 # 3. Print terminal dashboard
 python report.py
 
-# 4. Print a specific section
+# 4. Print pre-game matchup intelligence preview
+python matchup.py
+
+# 5. Print a specific section
 python report.py --section offense
 python report.py --section pitching
 python report.py --section streaks
 
-# 5. Fetch a different team/season
+# 6. Fetch a different team/season
 python fetch.py --team NYY --season 2025
 python report.py --team NYY --season 2025
 ```
@@ -55,7 +58,12 @@ sox_tracker/
 ├── config.py              # ← team selection lives here
 ├── fetch.py               # CLI: fetch + cache all data
 ├── report.py              # CLI: terminal dashboard
+├── matchup.py             # CLI: pre-game matchup intelligence preview
+├── viz_report.py          # CLI: main HTML dashboard
+├── streak_report.py       # CLI: standalone historical win streak report
 ├── CONFIGURE.md           # instructions for switching teams
+├── .agents/
+│   └── AGENTS.md          # Agent rules & execution directives
 ├── client/
 │   ├── mlb_client.py      # MLB Stats API wrapper
 │   └── savant_client.py   # Baseball Savant / Statcast

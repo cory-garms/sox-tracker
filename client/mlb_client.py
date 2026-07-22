@@ -64,6 +64,7 @@ class MLBClient:
         game_type: str = "R",       # R=regular season, P=postseason, S=spring
         start_date: str | None = None,
         end_date: str | None = None,
+        hydrate: str = "decisions,linescore",
     ) -> list[dict]:
         """Return a list of game records for the given team and season."""
         params: dict[str, Any] = {
@@ -71,7 +72,7 @@ class MLBClient:
             "teamId": team_id,
             "season": season,
             "gameType": game_type,
-            "hydrate": "decisions,linescore",
+            "hydrate": hydrate,
         }
         if start_date:
             params["startDate"] = start_date
@@ -81,9 +82,29 @@ class MLBClient:
         data = self._get("/schedule", params)
         games: list[dict] = []
         for date_block in data.get("dates", []):
+            official_date = date_block.get("date")
             for game in date_block.get("games", []):
+                if official_date:
+                    game["officialDate"] = official_date
                 games.append(game)
         return games
+
+    def get_game_previews(self, team_id: int, date_str: str) -> list[dict[str, Any]]:
+        """Fetch pre-game preview metadata for all games on a given date (handles doubleheaders)."""
+        return self.get_schedule(
+            team_id=team_id,
+            season=int(date_str[:4]),
+            start_date=date_str,
+            end_date=date_str,
+            hydrate="probablePitcher,lineups,decisions,linescore,person",
+        )
+
+    def get_game_preview(self, team_id: int, date_str: str) -> dict[str, Any]:
+        """Fetch pre-game preview metadata for the first/primary game on a date."""
+        games = self.get_game_previews(team_id, date_str)
+        if not games:
+            return {}
+        return games[0]
 
     def get_boxscore(self, game_pk: int) -> dict:
         """Full boxscore for a single game (batting, pitching, fielding lines)."""
@@ -137,7 +158,10 @@ class MLBClient:
             f"/teams/{team_id}/stats",
             {"stats": stats_type, "group": group, "season": season, "sportId": 1},
         )
-        splits = data.get("stats", [{}])[0].get("splits", [{}])
+        stats = data.get("stats", [])
+        if not stats:
+            return {}
+        splits = stats[0].get("splits", [])
         return splits[0].get("stat", {}) if splits else {}
 
     # ------------------------------------------------------------------
@@ -155,7 +179,10 @@ class MLBClient:
             f"/people/{player_id}/stats",
             {"stats": "season", "group": group, "season": season, "sportId": 1},
         )
-        splits = data.get("stats", [{}])[0].get("splits", [{}])
+        stats = data.get("stats", [])
+        if not stats:
+            return {}
+        splits = stats[0].get("splits", [])
         return splits[0].get("stat", {}) if splits else {}
 
     def get_player_game_log(
@@ -169,7 +196,10 @@ class MLBClient:
             f"/people/{player_id}/stats",
             {"stats": "gameLog", "group": group, "season": season, "sportId": 1},
         )
-        splits = data.get("stats", [{}])[0].get("splits", [])
+        stats = data.get("stats", [])
+        if not stats:
+            return []
+        splits = stats[0].get("splits", [])
         return splits
 
     def get_player_info(self, player_id: int) -> dict:
