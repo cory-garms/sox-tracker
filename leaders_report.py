@@ -35,7 +35,7 @@ _LAYOUT_BASE = dict(
     font=dict(color=_TEXT, family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"),
     xaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
     yaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    margin=dict(l=40, r=20, t=40, b=50),
+    margin=dict(l=40, r=20, t=65, b=70),
     legend=dict(
         orientation="h",
         yanchor="top",
@@ -304,7 +304,7 @@ def generate_leaders_html(
       color: {_BLUE};
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      margin-bottom: 12px;
+      margin-bottom: 24px;
     }}
     .plotly-graph-div {{ width: 100% !important; }}
     footer {{

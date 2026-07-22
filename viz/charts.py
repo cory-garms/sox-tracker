@@ -35,7 +35,7 @@ _LAYOUT_BASE = dict(
     font=dict(color=_TEXT, family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"),
     xaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
     yaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    margin=dict(l=40, r=20, t=50, b=70),
+    margin=dict(l=40, r=20, t=65, b=70),
     legend=dict(
         orientation="h",
         yanchor="top",

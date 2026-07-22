@@ -250,7 +250,7 @@ def build(
       color: {_DIM};
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 12px;
+      margin-bottom: 24px;
     }}
     .plotly-graph-div {{
       width: 100% !important;
