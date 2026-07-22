@@ -127,19 +127,31 @@ def generate_leaders_html(
 
     # Pitching Totals
     if not pitching.empty:
-        p_group = pitching.groupby(["player_id", "player_name"]).agg(
-            w=("w", "sum"),
-            l=("l", "sum"),
-            sv=("sv", "sum"),
-            so=("so", "sum"),
-            ip=("ip", "sum"),
-            er=("er", "sum"),
-            h=("h", "sum"),
-            bb=("bb", "sum"),
-        ).reset_index()
+        win_col = "win" if "win" in pitching.columns else ("w" if "w" in pitching.columns else None)
+        loss_col = "loss" if "loss" in pitching.columns else ("l" if "l" in pitching.columns else None)
+        save_col = "save" if "save" in pitching.columns else ("sv" if "sv" in pitching.columns else None)
 
-        p_group["era"] = p_group.apply(lambda r: round((r["er"] * 9) / r["ip"], 2) if r["ip"] > 0 else 0.0, axis=1)
-        p_group["whip"] = p_group.apply(lambda r: round((r["h"] + r["bb"]) / r["ip"], 2) if r["ip"] > 0 else 0.0, axis=1)
+        p_agg = {}
+        if win_col: p_agg["w"] = (win_col, "sum")
+        if loss_col: p_agg["l"] = (loss_col, "sum")
+        if save_col: p_agg["sv"] = (save_col, "sum")
+        if "so" in pitching.columns: p_agg["so"] = ("so", "sum")
+        if "ip_outs" in pitching.columns: p_agg["ip_outs"] = ("ip_outs", "sum")
+        if "er" in pitching.columns: p_agg["er"] = ("er", "sum")
+        if "h" in pitching.columns: p_agg["h"] = ("h", "sum")
+        if "bb" in pitching.columns: p_agg["bb"] = ("bb", "sum")
+
+        p_group = pitching.groupby(["player_id", "player_name"]).agg(**p_agg).reset_index()
+
+        if "ip_outs" in p_group.columns:
+            p_group["ip"] = p_group["ip_outs"] / 3
+            p_group["era"] = p_group.apply(lambda r: round((r["er"] * 27) / r["ip_outs"], 2) if r["ip_outs"] > 0 else 0.0, axis=1)
+            p_group["whip"] = p_group.apply(lambda r: round((r["h"] + r["bb"]) / (r["ip_outs"] / 3), 2) if r["ip_outs"] > 0 else 0.0, axis=1)
+        else:
+            p_group["ip"] = 0
+            p_group["era"] = 0.0
+            p_group["whip"] = 0.0
+
         p_totals = p_group
     else:
         p_totals = pd.DataFrame()
