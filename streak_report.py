@@ -36,11 +36,19 @@ _DIM      = "#8b949e"
 _LAYOUT_BASE = dict(
     paper_bgcolor=_PAPER_BG,
     plot_bgcolor=_BG,
-    font=dict(color=_TEXT, family="monospace"),
+    font=dict(color=_TEXT, family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"),
     xaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
     yaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    margin=dict(l=60, r=30, t=60, b=50),
-    legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor=_GRID),
+    margin=dict(l=40, r=20, t=50, b=70),
+    legend=dict(
+        orientation="h",
+        yanchor="top",
+        y=-0.22,
+        xanchor="center",
+        x=0.5,
+        bgcolor="rgba(0,0,0,0)",
+        bordercolor=_GRID,
+    ),
 )
 
 def _apply_theme(fig: go.Figure, **extra) -> go.Figure:
