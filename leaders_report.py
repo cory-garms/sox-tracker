@@ -66,6 +66,7 @@ def build_leader_bar_chart(
     top_n: int = 5,
     min_ab_ip: float = 0,
     filter_col: str | None = None,
+    lowest_first: bool = False,
 ) -> go.Figure:
     """Build horizontal top-N leader bar chart."""
     data = df.copy()
@@ -78,16 +79,20 @@ def build_leader_bar_chart(
         _apply_theme(fig, title=dict(text=title))
         return fig
 
-    # Sort top N
-    top_df = data.sort_values(stat_col, ascending=False).head(top_n).copy()
-    top_df = top_df.sort_values(stat_col, ascending=True)  # ascending for horizontal bar
+    # Sort top N (lowest or highest)
+    if lowest_first:
+        top_df = data.sort_values(stat_col, ascending=True).head(top_n).copy()
+        top_df = top_df.sort_values(stat_col, ascending=False)  # descending so #1 (lowest) is at top of bar chart
+    else:
+        top_df = data.sort_values(stat_col, ascending=False).head(top_n).copy()
+        top_df = top_df.sort_values(stat_col, ascending=True)   # ascending so #1 (highest) is at top of bar chart
 
     player_col = "player_name" if "player_name" in top_df.columns else "name"
     y_vals = top_df[player_col]
     x_vals = top_df[stat_col]
 
     if is_float:
-        txt = [f"{v:.3f}" if isinstance(v, float) else f"{v}" for v in x_vals]
+        txt = [f"{v:.2f}" if "era" in stat_col or "whip" in stat_col else f"{v:.3f}" for v in x_vals]
     else:
         txt = [f"{int(v)}" if pd.notna(v) else "0" for v in x_vals]
 
@@ -168,16 +173,9 @@ def generate_leaders_html(
     fig_w = build_leader_bar_chart(p_totals, "w", "🏆 Pitching Wins", "Wins", color=_GREEN)
     fig_sv = build_leader_bar_chart(p_totals, "sv", "🔒 Bullpen Saves", "Saves", color=_YELLOW)
 
-    # ERA (Inverted sort for ERA & WHIP - lower is better)
-    if not p_totals.empty:
-        p_qual = p_totals[p_totals["ip"] >= 15].sort_values("era", ascending=True).head(5)
-        p_qual_whip = p_totals[p_totals["ip"] >= 15].sort_values("whip", ascending=True).head(5)
-
-        fig_era = build_leader_bar_chart(p_qual, "era", "🛡️ Lowest ERA (Min 15 IP)", "ERA", color=_GREEN, is_float=True)
-        fig_whip = build_leader_bar_chart(p_qual_whip, "whip", "🎯 Lowest WHIP (Min 15 IP)", "WHIP", color=_BLUE, is_float=True)
-    else:
-        fig_era = go.Figure()
-        fig_whip = go.Figure()
+    # ERA & WHIP (Lowest value is best - lowest_first=True)
+    fig_era = build_leader_bar_chart(p_totals, "era", "🛡️ Lowest ERA (Min 15 IP)", "ERA", color=_GREEN, is_float=True, min_ab_ip=15, filter_col="ip", lowest_first=True)
+    fig_whip = build_leader_bar_chart(p_totals, "whip", "🎯 Lowest WHIP (Min 15 IP)", "WHIP", color=_BLUE, is_float=True, min_ab_ip=15, filter_col="ip", lowest_first=True)
 
     import plotly.io as pio
 
@@ -277,9 +275,11 @@ def generate_leaders_html(
       border-radius: 12px;
     }}
     .grid-container {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: clamp(16px, 3vw, 24px);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(16px, 3vw, 28px);
+      max-width: 900px;
+      margin: 0 auto;
       width: 100%;
     }}
     .chart-card {{
