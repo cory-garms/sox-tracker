@@ -62,6 +62,7 @@ sox_tracker/
 ├── matchup_report.py      # CLI: standalone interactive HTML matchup preview report
 ├── viz_report.py          # CLI: main HTML dashboard
 ├── streak_report.py       # CLI: standalone historical win streak report
+├── leaders_report.py      # CLI: standalone team stat leaders report
 ├── CONFIGURE.md           # instructions for switching teams
 ├── .agents/
 │   └── AGENTS.md          # Agent rules & execution directives

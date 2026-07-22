@@ -146,11 +146,22 @@ def build(
 
     divs_html = ""
     for i, (title, fig, height) in enumerate(figures):
-        div_id = title.lower().replace(" ", "_").replace("/", "_")
+        div_id = title.lower().replace(" ", "_").replace("/", "_").replace(" ", "_")
         # Embed the full Plotly bundle in the first div so the JS version
         # always matches the installed package — avoids CDN mismatch blanks.
         include_js = True if i == 0 else False
-        fig.update_layout(height=height)
+        fig.update_layout(
+            height=height,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.18,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(0,0,0,0)",
+                bordercolor="#30363d",
+            ),
+        )
         chart_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id)
         divs_html += f"""
         <section class="chart-section">

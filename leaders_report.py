@@ -1,0 +1,355 @@
+"""
+Team Stat Leaders HTML Exporter — generates interactive mobile-first HTML leaderboards
+saved to docs/leaders_BOS_2026.html.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+import pandas as pd
+import plotly.graph_objects as go
+
+import config
+from data.fetcher import Fetcher
+from analysis.offense import player_season_totals
+
+
+# ---------------------------------------------------------------------------
+# Theme configuration
+# ---------------------------------------------------------------------------
+_BG       = "#0e1117"
+_PAPER_BG = "#161b22"
+_GRID     = "#30363d"
+_TEXT     = "#e6edf3"
+_GREEN    = "#3fb950"
+_RED      = "#f85149"
+_YELLOW   = "#d29922"
+_BLUE     = "#58a6ff"
+_PURPLE   = "#bc8cff"
+_DIM      = "#8b949e"
+
+_LAYOUT_BASE = dict(
+    paper_bgcolor=_PAPER_BG,
+    plot_bgcolor=_BG,
+    font=dict(color=_TEXT, family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"),
+    xaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
+    yaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
+    margin=dict(l=40, r=20, t=40, b=50),
+    legend=dict(
+        orientation="h",
+        yanchor="top",
+        y=-0.22,
+        xanchor="center",
+        x=0.5,
+        bgcolor="rgba(0,0,0,0)",
+        bordercolor=_GRID,
+    ),
+)
+
+
+def _apply_theme(fig: go.Figure, **extra) -> go.Figure:
+    layout = {**_LAYOUT_BASE, **extra}
+    fig.update_layout(**layout)
+    fig.update_xaxes(gridcolor=_GRID, zerolinecolor=_GRID)
+    fig.update_yaxes(gridcolor=_GRID, zerolinecolor=_GRID)
+    return fig
+
+
+def build_leader_bar_chart(
+    df: pd.DataFrame,
+    stat_col: str,
+    title: str,
+    stat_name: str,
+    color: str = _BLUE,
+    is_float: bool = False,
+    top_n: int = 5,
+    min_ab_ip: float = 0,
+    filter_col: str | None = None,
+) -> go.Figure:
+    """Build horizontal top-N leader bar chart."""
+    data = df.copy()
+
+    if filter_col and min_ab_ip > 0 and filter_col in data.columns:
+        data = data[data[filter_col] >= min_ab_ip]
+
+    if stat_col not in data.columns or data.empty:
+        fig = go.Figure()
+        _apply_theme(fig, title=dict(text=title))
+        return fig
+
+    # Sort top N
+    top_df = data.sort_values(stat_col, ascending=False).head(top_n).copy()
+    top_df = top_df.sort_values(stat_col, ascending=True)  # ascending for horizontal bar
+
+    player_col = "player_name" if "player_name" in top_df.columns else "name"
+    y_vals = top_df[player_col]
+    x_vals = top_df[stat_col]
+
+    if is_float:
+        txt = [f"{v:.3f}" if isinstance(v, float) else f"{v}" for v in x_vals]
+    else:
+        txt = [f"{int(v)}" if pd.notna(v) else "0" for v in x_vals]
+
+    fig = go.Figure(go.Bar(
+        y=y_vals,
+        x=x_vals,
+        orientation="h",
+        marker_color=color,
+        text=txt,
+        textposition="inside",
+        insidetextanchor="start",
+        hovertemplate="%{y}: %{x} " + stat_name + "<extra></extra>",
+    ))
+
+    _apply_theme(fig,
+        title=dict(text=title, font=dict(size=14, color=_TEXT)),
+        xaxis_title=stat_name,
+        yaxis_title="",
+    )
+    return fig
+
+
+def generate_leaders_html(
+    team_abbr: str = config.TEAM_ABBR,
+    season: int = config.SEASON,
+) -> Path:
+    """Generate standalone mobile-optimized HTML team leaders report."""
+    team_id = config.TEAMS.get(team_abbr, {}).get("id", config.TEAM_ID)
+    team_name = config.TEAMS.get(team_abbr, {}).get("name", "Boston Red Sox")
+
+    fetcher = Fetcher(team_id=team_id, season=season)
+    batting = fetcher.load("batting")
+    pitching = fetcher.load("pitching")
+
+    # Aggregate Player Totals
+    b_totals = player_season_totals(batting) if not batting.empty else pd.DataFrame()
+
+    # Pitching Totals
+    if not pitching.empty:
+        p_group = pitching.groupby(["player_id", "player_name"]).agg(
+            w=("w", "sum"),
+            l=("l", "sum"),
+            sv=("sv", "sum"),
+            so=("so", "sum"),
+            ip=("ip", "sum"),
+            er=("er", "sum"),
+            h=("h", "sum"),
+            bb=("bb", "sum"),
+        ).reset_index()
+
+        p_group["era"] = p_group.apply(lambda r: round((r["er"] * 9) / r["ip"], 2) if r["ip"] > 0 else 0.0, axis=1)
+        p_group["whip"] = p_group.apply(lambda r: round((r["h"] + r["bb"]) / r["ip"], 2) if r["ip"] > 0 else 0.0, axis=1)
+        p_totals = p_group
+    else:
+        p_totals = pd.DataFrame()
+
+    # Offensive Charts
+    fig_hr = build_leader_bar_chart(b_totals, "hr", "💣 Home Run Leaders", "Home Runs", color=_RED)
+    fig_rbi = build_leader_bar_chart(b_totals, "rbi", "🏃 RBI Leaders", "RBIs", color=_YELLOW)
+    fig_ops = build_leader_bar_chart(b_totals, "ops", "🎯 OPS Leaders (Min 80 AB)", "OPS", color=_GREEN, is_float=True, min_ab_ip=80, filter_col="ab")
+    fig_avg = build_leader_bar_chart(b_totals, "avg", "📈 Batting Average (Min 80 AB)", "AVG", color=_BLUE, is_float=True, min_ab_ip=80, filter_col="ab")
+    fig_sb = build_leader_bar_chart(b_totals, "sb", "💨 Stolen Base Leaders", "Stolen Bases", color=_PURPLE)
+
+    # Pitching Charts
+    fig_so = build_leader_bar_chart(p_totals, "so", "⚡ Strikeout Leaders", "Strikeouts", color=_BLUE)
+    fig_w = build_leader_bar_chart(p_totals, "w", "🏆 Pitching Wins", "Wins", color=_GREEN)
+    fig_sv = build_leader_bar_chart(p_totals, "sv", "🔒 Bullpen Saves", "Saves", color=_YELLOW)
+
+    # ERA (Inverted sort for ERA & WHIP - lower is better)
+    if not p_totals.empty:
+        p_qual = p_totals[p_totals["ip"] >= 15].sort_values("era", ascending=True).head(5)
+        p_qual_whip = p_totals[p_totals["ip"] >= 15].sort_values("whip", ascending=True).head(5)
+
+        fig_era = build_leader_bar_chart(p_qual, "era", "🛡️ Lowest ERA (Min 15 IP)", "ERA", color=_GREEN, is_float=True)
+        fig_whip = build_leader_bar_chart(p_qual_whip, "whip", "🎯 Lowest WHIP (Min 15 IP)", "WHIP", color=_BLUE, is_float=True)
+    else:
+        fig_era = go.Figure()
+        fig_whip = go.Figure()
+
+    import plotly.io as pio
+
+    charts = [
+        ("💣 Home Run Leaders", fig_hr),
+        ("🏃 RBI Leaders", fig_rbi),
+        ("🎯 OPS Leaders (Min 80 AB)", fig_ops),
+        ("📈 Batting Average (Min 80 AB)", fig_avg),
+        ("💨 Stolen Base Leaders", fig_sb),
+        ("⚡ Strikeouts", fig_so),
+        ("🛡️ Lowest ERA (Min 15 IP)", fig_era),
+        ("🎯 Lowest WHIP (Min 15 IP)", fig_whip),
+        ("🏆 Pitching Wins", fig_w),
+        ("🔒 Bullpen Saves", fig_sv),
+    ]
+
+    cards_html = ""
+    for i, (title, fig) in enumerate(charts):
+        div_id = f"leader_chart_{i}"
+        include_js = True if i == 0 else False
+        fig.update_layout(
+            height=320,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.22,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(0,0,0,0)",
+                bordercolor=_GRID,
+            ),
+        )
+        c_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id)
+        cards_html += f"""
+        <div class="chart-card">
+          <h2>{title}</h2>
+          {c_div}
+        </div>
+        """
+
+    full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>{team_name} — 2026 Team Stat Leaders</title>
+  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  <style>
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    html, body {{
+      background: {_BG};
+      color: {_TEXT};
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      width: 100%;
+      overflow-x: hidden;
+    }}
+    body {{
+      padding: clamp(12px, 3vw, 28px);
+    }}
+    .nav-bar {{ margin-bottom: 16px; }}
+    .nav-back {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: {_BLUE};
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 6px 12px;
+      background: {_PAPER_BG};
+      border: 1px solid {_GRID};
+      border-radius: 8px;
+    }}
+    header {{
+      border-bottom: 2px solid {_GREEN};
+      padding-bottom: 16px;
+      margin-bottom: clamp(20px, 4vw, 32px);
+    }}
+    header h1 {{
+      font-size: clamp(1.4rem, 4vw, 2.2rem);
+      font-weight: 800;
+      color: {_TEXT};
+      line-height: 1.25;
+    }}
+    header p {{
+      color: {_DIM};
+      margin-top: 6px;
+      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
+    }}
+    .badge {{
+      background: {_GREEN};
+      color: #000;
+      font-weight: 800;
+      font-size: clamp(0.75rem, 2vw, 0.85rem);
+      padding: 3px 10px;
+      border-radius: 12px;
+    }}
+    .grid-container {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: clamp(16px, 3vw, 24px);
+      width: 100%;
+    }}
+    .chart-card {{
+      background: {_PAPER_BG};
+      border: 1px solid {_GRID};
+      border-radius: 12px;
+      padding: clamp(12px, 3vw, 20px);
+      width: 100%;
+      overflow-x: auto;
+    }}
+    .chart-card h2 {{
+      font-size: clamp(0.9rem, 2.2vw, 1.1rem);
+      font-weight: 700;
+      color: {_BLUE};
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+    }}
+    .plotly-graph-div {{ width: 100% !important; }}
+    footer {{
+      text-align: center;
+      color: {_DIM};
+      font-size: 0.85rem;
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid {_GRID};
+    }}
+    footer a {{ color: {_BLUE}; text-decoration: none; font-weight: 600; }}
+
+    @media (max-width: 600px) {{
+      body {{ padding: 10px 8px; }}
+      .grid-container {{ grid-template-columns: 1fr; }}
+      .chart-card {{ padding: 8px 4px; border-radius: 8px; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="nav-bar">
+    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
+  </div>
+
+  <header>
+    <h1>🥇 {team_name} — 2026 Team Stat Leaders <span class="badge">TOP 5 RANKINGS</span></h1>
+    <p>Individual player rankings across major batting and pitching categories.</p>
+  </header>
+
+  <main class="grid-container">
+    {cards_html}
+  </main>
+
+  <footer>
+    <p>Generated by <a href="https://github.com/cory-garms/sox-tracker">sox-tracker</a> &mdash;
+    Created by <a href="https://github.com/cory-garms">Cory Garms (@cory-garms)</a> &mdash;
+    Data: MLB Stats API &amp; Baseball Savant</p>
+  </footer>
+
+  <script>
+    window.addEventListener('resize', function() {{
+      if (typeof Plotly !== 'undefined') {{
+        var plots = document.querySelectorAll('.plotly-graph-div');
+        plots.forEach(function(p) {{ Plotly.Plots.resize(p); }});
+      }}
+    }});
+  </script>
+</body>
+</html>"""
+
+    output_path = config.OUTPUT_DIR / "leaders_BOS_2026.html"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(full_html, encoding="utf-8")
+    print(f"Leaders report generated successfully: {output_path}")
+    return output_path
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate interactive HTML team leaders report.")
+    parser.add_argument("--team", default=config.TEAM_ABBR, help="Team abbreviation (default: BOS)")
+    parser.add_argument("--season", type=int, default=config.SEASON, help="Season (default: 2026)")
+    args = parser.parse_args()
+
+    generate_leaders_html(team_abbr=args.team, season=args.season)
+
+
+if __name__ == "__main__":
+    main()
