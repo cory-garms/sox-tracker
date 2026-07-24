@@ -32,6 +32,11 @@ from config import CACHE_DIR
 
 log = logging.getLogger(__name__)
 
+# Games the schedule reports as "Final" that were never actually played.
+_UNPLAYED_STATES: frozenset[str] = frozenset({
+    "Postponed", "Cancelled", "Canceled", "Suspended",
+})
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -122,7 +127,28 @@ class Fetcher:
         raw_games = self.client.get_schedule(self.team_id, self.season)
         rows: list[dict] = []
 
-        completed = [g for g in raw_games if g.get("status", {}).get("abstractGameState") == "Final"]
+        # A postponed game keeps abstractGameState "Final" while carrying its
+        # original date, and reappears under its makeup date with the same gamePk.
+        # Filtering on detailedState drops the stale entry; the dedupe below is a
+        # safety net so one gamePk can never contribute two rows.
+        completed = [
+            g for g in raw_games
+            if g.get("status", {}).get("abstractGameState") == "Final"
+            and g.get("status", {}).get("detailedState") not in _UNPLAYED_STATES
+        ]
+        by_pk: dict[int, dict] = {}
+        for g in completed:
+            by_pk[g["gamePk"]] = g
+
+        # Chronological order: officialDate, then gameNumber so doubleheader
+        # game 1 always precedes game 2 (gamePk does NOT order them correctly).
+        completed = sorted(
+            by_pk.values(),
+            key=lambda g: (
+                g.get("officialDate") or g.get("gameDate", "")[:10],
+                _safe_int(g.get("gameNumber"), 1),
+            ),
+        )
         log.info("Processing %d completed games", len(completed))
 
         for i, game in enumerate(completed):
@@ -139,7 +165,13 @@ class Fetcher:
             runs_scored  = _safe_int(our_side.get("score"))
             runs_allowed = _safe_int(their_side.get("score"))
 
-            result = "W" if runs_scored > runs_allowed else "L"
+            # Never infer a loss from a scoreless/undecided game — a tie is "T".
+            if runs_scored > runs_allowed:
+                result = "W"
+            elif runs_scored < runs_allowed:
+                result = "L"
+            else:
+                result = "T"
 
             decisions = game.get("decisions", {})
             linescore = game.get("linescore", {})
@@ -149,6 +181,7 @@ class Fetcher:
                 "game_date":      official_dt,
                 "season":         self.season,
                 "game_num":       i + 1,
+                "game_number":    _safe_int(game.get("gameNumber"), 1),
                 "home_team_id":   home_id,
                 "away_team_id":   away_id,
                 "team_id":        self.team_id,

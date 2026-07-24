@@ -23,6 +23,7 @@ GAMES_SCHEMA: dict[str, str] = {
     "game_date":      "object",  # YYYY-MM-DD string; cast to datetime when needed
     "season":         "Int64",
     "game_num":       "Int64",   # sequential game number in season
+    "game_number":    "Int64",   # MLB gameNumber: 1, or 2 for the nightcap of a doubleheader
     "home_team_id":   "Int64",
     "away_team_id":   "Int64",
     "team_id":        "Int64",   # the team we're tracking

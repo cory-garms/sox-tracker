@@ -23,6 +23,21 @@ from config import TEAMS
 _ID_TO_ABBR: dict[int, str] = {v["id"]: k for k, v in TEAMS.items()}
 
 
+def played_in_order(games: pd.DataFrame) -> pd.DataFrame:
+    """
+    Completed games in true playing order.
+
+    Sorting by date alone (or by game_pk) mis-orders doubleheaders — gamePk is
+    assigned at scheduling time, so a makeup game can carry a *lower* pk than the
+    nightcap it precedes. MLB's gameNumber is the authoritative tiebreaker.
+
+    Falls back to game_pk for caches written before game_number was captured.
+    """
+    finished = games[games["status"] == "Final"]
+    tiebreak = "game_number" if "game_number" in finished.columns else "game_pk"
+    return finished.sort_values(["game_date", tiebreak]).reset_index(drop=True)
+
+
 # ---------------------------------------------------------------------------
 # Team win/loss streaks
 # ---------------------------------------------------------------------------
@@ -33,7 +48,7 @@ def current_streak(games: pd.DataFrame) -> tuple[str, int]:
     type = 'W' or 'L', length = consecutive games.
     Returns ('', 0) if no games played.
     """
-    finished = games[games["status"] == "Final"].sort_values("game_date")
+    finished = played_in_order(games)
     if finished.empty:
         return ("", 0)
     results = finished["result"].tolist()
@@ -52,12 +67,41 @@ def current_streak(games: pd.DataFrame) -> tuple[str, int]:
 
 def longest_streak(games: pd.DataFrame, streak_type: str = "W") -> int:
     """Longest win or loss streak in the season."""
-    finished = games[games["status"] == "Final"].sort_values("game_date")
+    finished = played_in_order(games)
     best = current = 0
     for result in finished["result"]:
         current = (current + 1) if result == streak_type else 0
         best = max(best, current)
     return best
+
+
+def longest_streak_games(games: pd.DataFrame, streak_type: str = "W") -> pd.DataFrame:
+    """
+    Return the games that make up the season's longest win (or loss) streak,
+    in chronological order. Ties resolve to the earliest streak.
+
+    Returns an empty frame if no such streak exists.
+    """
+    finished = played_in_order(games)
+    if finished.empty:
+        return finished
+
+    best_start = best_end = None
+    best = current = 0
+    start = 0
+    for i, result in enumerate(finished["result"]):
+        if result == streak_type:
+            if current == 0:
+                start = i
+            current += 1
+            if current > best:
+                best, best_start, best_end = current, start, i
+        else:
+            current = 0
+
+    if best == 0:
+        return finished.iloc[0:0]
+    return finished.iloc[best_start:best_end + 1].reset_index(drop=True)
 
 
 def streak_timeline(games: pd.DataFrame) -> pd.DataFrame:
