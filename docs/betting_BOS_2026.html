@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Boston Red Sox — Sports Betting & Prop Intelligence</title>
+  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #0c1829;
+      color: #f0f6fc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      width: 100%;
+      overflow-x: hidden;
+    }
+    body {
+      padding: clamp(12px, 3vw, 28px);
+    }
+    .nav-bar { margin-bottom: 16px; }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #58a6ff;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 6px 12px;
+      background: #14243b;
+      border: 1px solid #243854;
+      border-radius: 8px;
+    }
+    header {
+      border-bottom: 2px solid #d22d36;
+      padding-bottom: 16px;
+      margin-bottom: clamp(20px, 4vw, 32px);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .team-logo {
+      height: clamp(48px, 10vw, 64px);
+      width: auto;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+    }
+    header h1 {
+      font-size: clamp(1.4rem, 4vw, 2.2rem);
+      font-weight: 800;
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header p {
+      color: #94a7b8;
+      margin-top: 6px;
+      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
+    }
+    .badge {
+      background: #d22d36;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: clamp(0.75rem, 2vw, 0.85rem);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+    .card {
+      background: #14243b;
+      border: 1px solid #243854;
+      border-radius: 12px;
+      padding: clamp(14px, 3vw, 24px);
+      margin-bottom: clamp(16px, 3vw, 24px);
+      width: 100%;
+      overflow-x: auto;
+    }
+    .card h2 {
+      font-size: clamp(0.95rem, 2.2vw, 1.2rem);
+      font-weight: 700;
+      color: #58a6ff;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: clamp(0.82rem, 2.2vw, 0.95rem);
+    }
+    .report-table th, .report-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #30363d;
+    }
+    .report-table th {
+      color: #8b949e;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+    }
+    .prop-line {
+      background: #1f314d;
+      color: #e6edf3;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+    .edge-val {
+      color: #3fb950;
+      font-weight: 700;
+    }
+    .rec-badge {
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 6px;
+      padding: 3px 8px;
+    }
+    .rec-badge.over { background: rgba(63, 185, 80, 0.2); color: #3fb950; border: 1px solid #3fb950; }
+    .rec-badge.under { background: rgba(88, 166, 255, 0.2); color: #58a6ff; border: 1px solid #58a6ff; }
+    .rec-badge.neu { background: rgba(139, 148, 158, 0.2); color: #8b949e; border: 1px solid #8b949e; }
+    
+    .matchup-banner {
+      background: #0f1c2e;
+      border: 1px solid #1f3452;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .matchup-banner h3 {
+      color: #e6edf3;
+      font-size: 1.05rem;
+      margin-bottom: 12px;
+    }
+    .matchup-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+    .team-card {
+      background: #162842;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .team-title { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
+    .pitcher-title { font-size: 1.0rem; color: #ffffff; font-weight: 700; margin: 4px 0 8px 0; }
+    .vs-badge {
+      font-weight: 900;
+      color: #d22d36;
+      font-size: 1.2rem;
+    }
+    .f5-total-bar {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid #243854;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .kpi-card {
+      background: #0f1c2e;
+      border: 1px solid #1f3452;
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .kpi-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #3fb950;
+    }
+    .kpi-label {
+      font-size: 0.78rem;
+      color: #8b949e;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+    .delta-pos { color: #3fb950; font-weight: 700; }
+    .delta-neg { color: #f85149; font-weight: 700; }
+    .delta-neu { color: #8b949e; }
+
+    footer {
+      text-align: center;
+      color: #8b949e;
+      font-size: 0.85rem;
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid #30363d;
+    }
+    footer a { color: #58a6ff; text-decoration: none; }
+
+    @media (max-width: 600px) {
+      body { padding: 10px 8px; }
+      .card { padding: 10px 6px; border-radius: 8px; }
+      .report-table th, .report-table td { padding: 8px 6px; }
+      .matchup-grid { grid-template-columns: 1fr; text-align: center; }
+      .vs-badge { margin: 4px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="nav-bar">
+    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
+  </div>
+
+  <header>
+    <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
+    <div>
+      <h1>🎲 Sports Betting &amp; Prop Intelligence <span class="badge">2026</span></h1>
+      <p>Pre-game prop projections, First 5 Innings (F5) models, and NRFI/YRFI 1st-inning trend analytics</p>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) Prop Model</h2>
+    
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Pitcher</th>
+          <th>Starts</th>
+          <th>Season K/9</th>
+          <th>L5 K/9</th>
+          <th>Avg IP</th>
+          <th>Proj K's</th>
+          <th>Prop Line (Odds)</th>
+          <th>Edge</th>
+          <th>Line Source</th>
+          <th>Recommendation (+EV)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+            <tr>
+              <td><strong>Sonny Gray</strong></td>
+              <td>18</td>
+              <td>8.06</td>
+              <td>9.81</td>
+              <td>6.4</td>
+              <td><strong>6.50</strong></td>
+              <td><span class="prop-line">6.5</span> (-115)</td>
+              <td><span class="edge-val">-0.00</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Connelly Early</strong></td>
+              <td>17</td>
+              <td>9.39</td>
+              <td>11.07</td>
+              <td>4.9</td>
+              <td><strong>5.64</strong></td>
+              <td><span class="prop-line">5.5</span> (-115)</td>
+              <td><span class="edge-val">+0.14</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Ranger Suarez</strong></td>
+              <td>17</td>
+              <td>9.81</td>
+              <td>12.05</td>
+              <td>5.1</td>
+              <td><strong>6.29</strong></td>
+              <td><span class="prop-line">6.5</span> (-115)</td>
+              <td><span class="edge-val">-0.21</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Payton Tolle</strong></td>
+              <td>16</td>
+              <td>9.84</td>
+              <td>12.54</td>
+              <td>4.9</td>
+              <td><strong>6.21</strong></td>
+              <td><span class="prop-line">6.0</span> (-115)</td>
+              <td><span class="edge-val">+0.21</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jake Bennett</strong></td>
+              <td>12</td>
+              <td>6.40</td>
+              <td>6.18</td>
+              <td>6.1</td>
+              <td><strong>4.26</strong></td>
+              <td><span class="prop-line">4.5</span> (-115)</td>
+              <td><span class="edge-val">-0.24</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Brayan Bello</strong></td>
+              <td>8</td>
+              <td>5.86</td>
+              <td>5.76</td>
+              <td>4.1</td>
+              <td><strong>2.62</strong></td>
+              <td><span class="prop-line">2.5</span> (-115)</td>
+              <td><span class="edge-val">+0.12</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Garrett Crochet</strong></td>
+              <td>6</td>
+              <td>11.37</td>
+              <td>11.20</td>
+              <td>4.7</td>
+              <td><strong>5.83</strong></td>
+              <td><span class="prop-line">6.0</span> (-115)</td>
+              <td><span class="edge-val">-0.17</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Patrick Sandoval</strong></td>
+              <td>2</td>
+              <td>9.89</td>
+              <td>9.89</td>
+              <td>4.5</td>
+              <td><strong>5.00</strong></td>
+              <td><span class="prop-line">5.0</span> (-115)</td>
+              <td><span class="edge-val">0.00</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Eduardo Rivera</strong></td>
+              <td>2</td>
+              <td>10.19</td>
+              <td>10.19</td>
+              <td>2.6</td>
+              <td><strong>3.00</strong></td>
+              <td><span class="prop-line">3.0</span> (-115)</td>
+              <td><span class="edge-val">0.00</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jovani Morán</strong></td>
+              <td>3</td>
+              <td>18.00</td>
+              <td>18.00</td>
+              <td>1.0</td>
+              <td><strong>2.00</strong></td>
+              <td><span class="prop-line">2.0</span> (-115)</td>
+              <td><span class="edge-val">0.00</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Tyler Samaniego</strong></td>
+              <td>1</td>
+              <td>18.00</td>
+              <td>18.00</td>
+              <td>1.0</td>
+              <td><strong>2.00</strong></td>
+              <td><span class="prop-line">2.0</span> (-115)</td>
+              <td><span class="edge-val">0.00</span></td>
+              <td><span style="font-size: 0.8rem; font-weight: 600;">Model Est. 🟡</span></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+      </tbody>
+    </table>
+    
+  </section>
+
+  <section class="card">
+    <h2>💥 Batter Total Bases (TB) &amp; 1+ Hit Prop Intelligence</h2>
+    
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Hitter</th>
+          <th>Games</th>
+          <th>AVG</th>
+          <th>SLG</th>
+          <th>Season TB/G</th>
+          <th>L10 TB/G</th>
+          <th>L10 Over 1.5 TB %</th>
+          <th>L10 1+ Hit %</th>
+          <th>Proj TB</th>
+          <th>Recommendation</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+            <tr>
+              <td><strong>Wilyer Abreu</strong></td>
+              <td>100</td>
+              <td>0.261</td>
+              <td>0.449</td>
+              <td>1.72</td>
+              <td>2.70</td>
+              <td><span class="delta-pos">40.0%</span></td>
+              <td>50.0%</td>
+              <td><strong>2.31</strong></td>
+              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jarren Duran</strong></td>
+              <td>95</td>
+              <td>0.195</td>
+              <td>0.351</td>
+              <td>1.35</td>
+              <td>0.90</td>
+              <td><span class="delta-pos">20.0%</span></td>
+              <td>50.0%</td>
+              <td><strong>1.08</strong></td>
+              <td><span class="rec-badge under">UNDER 1.5 🧊</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Ceddanne Rafaela</strong></td>
+              <td>98</td>
+              <td>0.285</td>
+              <td>0.449</td>
+              <td>1.72</td>
+              <td>2.30</td>
+              <td><span class="delta-pos">70.0%</span></td>
+              <td>100.0%</td>
+              <td><strong>2.07</strong></td>
+              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Willson Contreras</strong></td>
+              <td>94</td>
+              <td>0.294</td>
+              <td>0.556</td>
+              <td>1.97</td>
+              <td>2.70</td>
+              <td><span class="delta-pos">80.0%</span></td>
+              <td>80.0%</td>
+              <td><strong>2.41</strong></td>
+              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Caleb Durbin</strong></td>
+              <td>95</td>
+              <td>0.249</td>
+              <td>0.407</td>
+              <td>1.36</td>
+              <td>1.70</td>
+              <td><span class="delta-pos">60.0%</span></td>
+              <td>80.0%</td>
+              <td><strong>1.56</strong></td>
+              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Marcelo Mayer</strong></td>
+              <td>70</td>
+              <td>0.220</td>
+              <td>0.312</td>
+              <td>0.91</td>
+              <td>1.00</td>
+              <td><span class="delta-pos">30.0%</span></td>
+              <td>60.0%</td>
+              <td><strong>0.97</strong></td>
+              <td><span class="rec-badge under">UNDER 1.5 🧊</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Masataka Yoshida</strong></td>
+              <td>68</td>
+              <td>0.277</td>
+              <td>0.421</td>
+              <td>1.25</td>
+              <td>1.90</td>
+              <td><span class="delta-pos">30.0%</span></td>
+              <td>70.0%</td>
+              <td><strong>1.64</strong></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Carlos Narváez</strong></td>
+              <td>56</td>
+              <td>0.213</td>
+              <td>0.323</td>
+              <td>0.95</td>
+              <td>0.90</td>
+              <td><span class="delta-pos">10.0%</span></td>
+              <td>40.0%</td>
+              <td><strong>0.92</strong></td>
+              <td><span class="rec-badge under">UNDER 1.5 🧊</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Andruw Monasterio</strong></td>
+              <td>60</td>
+              <td>0.239</td>
+              <td>0.436</td>
+              <td>1.18</td>
+              <td>2.40</td>
+              <td><span class="delta-pos">60.0%</span></td>
+              <td>80.0%</td>
+              <td><strong>1.91</strong></td>
+              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Trevor Story</strong></td>
+              <td>41</td>
+              <td>0.206</td>
+              <td>0.303</td>
+              <td>1.22</td>
+              <td>1.20</td>
+              <td><span class="delta-pos">20.0%</span></td>
+              <td>70.0%</td>
+              <td><strong>1.21</strong></td>
+              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+            </tr>
+            
+      </tbody>
+    </table>
+    
+  </section>
+
+  <section class="card">
+    <h2>🚀 Home Run &amp; RBI Prop Target Leaderboard</h2>
+    
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Hitter</th>
+          <th>Season HR</th>
+          <th>PA / HR</th>
+          <th>L10 HR</th>
+          <th>L10 RBI</th>
+          <th>L10 1+ RBI %</th>
+          <th>L10 1+ Run %</th>
+          <th>HR Prop Target</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+            <tr>
+              <td><strong>Willson Contreras</strong></td>
+              <td>22</td>
+              <td>17.6</td>
+              <td><strong>4</strong></td>
+              <td>13</td>
+              <td><span class="delta-pos">60.0%</span></td>
+              <td>80.0%</td>
+              <td><span class="rec-badge over">🚀 HIGH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Wilyer Abreu</strong></td>
+              <td>15</td>
+              <td>28.9</td>
+              <td><strong>5</strong></td>
+              <td>9</td>
+              <td><span class="delta-pos">40.0%</span></td>
+              <td>50.0%</td>
+              <td><span class="rec-badge over">🚀 HIGH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jarren Duran</strong></td>
+              <td>13</td>
+              <td>31.3</td>
+              <td><strong>0</strong></td>
+              <td>11</td>
+              <td><span class="delta-pos">50.0%</span></td>
+              <td>20.0%</td>
+              <td><span class="rec-badge neu">LOW</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Ceddanne Rafaela</strong></td>
+              <td>10</td>
+              <td>40.2</td>
+              <td><strong>2</strong></td>
+              <td>5</td>
+              <td><span class="delta-pos">50.0%</span></td>
+              <td>90.0%</td>
+              <td><span class="rec-badge over">🚀 HIGH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Caleb Durbin</strong></td>
+              <td>10</td>
+              <td>35.1</td>
+              <td><strong>1</strong></td>
+              <td>7</td>
+              <td><span class="delta-pos">50.0%</span></td>
+              <td>60.0%</td>
+              <td><span class="rec-badge under">MODERATE</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Masataka Yoshida</strong></td>
+              <td>5</td>
+              <td>45.4</td>
+              <td><strong>2</strong></td>
+              <td>6</td>
+              <td><span class="delta-pos">40.0%</span></td>
+              <td>60.0%</td>
+              <td><span class="rec-badge over">🚀 HIGH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Andruw Monasterio</strong></td>
+              <td>5</td>
+              <td>35.4</td>
+              <td><strong>2</strong></td>
+              <td>5</td>
+              <td><span class="delta-pos">40.0%</span></td>
+              <td>40.0%</td>
+              <td><span class="rec-badge over">🚀 HIGH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Carlos Narváez</strong></td>
+              <td>4</td>
+              <td>46.0</td>
+              <td><strong>1</strong></td>
+              <td>5</td>
+              <td><span class="delta-pos">30.0%</span></td>
+              <td>10.0%</td>
+              <td><span class="rec-badge under">MODERATE</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Trevor Story</strong></td>
+              <td>3</td>
+              <td>58.7</td>
+              <td><strong>1</strong></td>
+              <td>2</td>
+              <td><span class="delta-pos">20.0%</span></td>
+              <td>40.0%</td>
+              <td><span class="rec-badge under">MODERATE</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Marcelo Mayer</strong></td>
+              <td>3</td>
+              <td>75.7</td>
+              <td><strong>0</strong></td>
+              <td>5</td>
+              <td><span class="delta-pos">30.0%</span></td>
+              <td>20.0%</td>
+              <td><span class="rec-badge neu">LOW</span></td>
+            </tr>
+            
+      </tbody>
+    </table>
+    
+  </section>
+
+  <section class="card">
+    <h2>⏱️ First 5 Innings (F5) Starter Matchup &amp; Performance Card</h2>
+    
+    
+        <div class="matchup-banner">
+          <h3>⚡ Today's F5 Starter Matchup Projection</h3>
+          <div class="matchup-grid">
+            <div class="team-card">
+              <div class="team-title">BOS Starter</div>
+              <div class="pitcher-title">Patrick Sandoval (LHP)</div>
+              <p>F5 ERA: <strong>4.82</strong> &nbsp;·&nbsp; F5 WHIP: <strong>1.71</strong></p>
+              <p>F5 Expected Runs Allowed: <strong style="color: #f85149;">2.68</strong></p>
+            </div>
+            <div class="vs-badge">VS</div>
+            <div class="team-card">
+              <div class="team-title">Opponent Starter</div>
+              <div class="pitcher-title">Trey Yesavage (RHP)</div>
+              <p>F5 ERA: <strong>3.78</strong> &nbsp;·&nbsp; F5 WHIP: <strong>1.16</strong></p>
+              <p>F5 Expected Runs Allowed: <strong style="color: #f85149;">2.1</strong></p>
+            </div>
+          </div>
+          <div class="f5-total-bar">
+            <span>Projected F5 Total Runs: <strong>4.78</strong></span>
+            <span class="rec-badge over">OVER 4.5 🟢</span>
+          </div>
+        </div>
+        
+    <table class="report-table" style="margin-top: 16px;">
+      <thead>
+        <tr>
+          <th>Starter</th>
+          <th>Starts</th>
+          <th>Innings</th>
+          <th>F5 ERA</th>
+          <th>F5 WHIP</th>
+          <th>K / 9</th>
+          <th>Avg Game Score</th>
+          <th>F5 Exp ER / Game</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+            <tr>
+              <td><strong>Sonny Gray</strong></td>
+              <td>18</td>
+              <td>100.5</td>
+              <td>2.51</td>
+              <td>1.13</td>
+              <td>8.06</td>
+              <td>53.1</td>
+              <td><strong style="color: #58a6ff;">1.39</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Ranger Suarez</strong></td>
+              <td>17</td>
+              <td>89.0</td>
+              <td>3.24</td>
+              <td>1.19</td>
+              <td>9.81</td>
+              <td>51.8</td>
+              <td><strong style="color: #58a6ff;">1.80</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Connelly Early</strong></td>
+              <td>17</td>
+              <td>89.1</td>
+              <td>3.54</td>
+              <td>1.29</td>
+              <td>9.39</td>
+              <td>49.9</td>
+              <td><strong style="color: #58a6ff;">1.96</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Payton Tolle</strong></td>
+              <td>16</td>
+              <td>87.8</td>
+              <td>3.38</td>
+              <td>1.13</td>
+              <td>9.84</td>
+              <td>52.2</td>
+              <td><strong style="color: #58a6ff;">1.88</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jake Bennett</strong></td>
+              <td>12</td>
+              <td>68.9</td>
+              <td>2.61</td>
+              <td>0.97</td>
+              <td>6.40</td>
+              <td>54.0</td>
+              <td><strong style="color: #58a6ff;">1.45</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Brayan Bello</strong></td>
+              <td>8</td>
+              <td>33.8</td>
+              <td>10.92</td>
+              <td>2.34</td>
+              <td>5.86</td>
+              <td>25.9</td>
+              <td><strong style="color: #58a6ff;">6.07</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Garrett Crochet</strong></td>
+              <td>6</td>
+              <td>29.3</td>
+              <td>6.45</td>
+              <td>1.50</td>
+              <td>11.37</td>
+              <td>42.5</td>
+              <td><strong style="color: #58a6ff;">3.58</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jovani Morán</strong></td>
+              <td>3</td>
+              <td>3.0</td>
+              <td>15.00</td>
+              <td>3.00</td>
+              <td>18.00</td>
+              <td>42.3</td>
+              <td><strong style="color: #58a6ff;">8.33</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Patrick Sandoval</strong></td>
+              <td>2</td>
+              <td>9.1</td>
+              <td>4.95</td>
+              <td>1.76</td>
+              <td>9.89</td>
+              <td>43.0</td>
+              <td><strong style="color: #58a6ff;">2.75</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Eduardo Rivera</strong></td>
+              <td>2</td>
+              <td>5.3</td>
+              <td>5.09</td>
+              <td>1.51</td>
+              <td>10.19</td>
+              <td>48.0</td>
+              <td><strong style="color: #58a6ff;">2.83</strong></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Tyler Samaniego</strong></td>
+              <td>1</td>
+              <td>1.0</td>
+              <td>36.00</td>
+              <td>6.00</td>
+              <td>18.00</td>
+              <td>27.0</td>
+              <td><strong style="color: #58a6ff;">20.00</strong></td>
+            </tr>
+            
+      </tbody>
+    </table>
+    
+  </section>
+
+  <section class="card">
+    <h2>🚫 NRFI / YRFI (No Run / Yes Run 1st Inning) Tracker</h2>
+    
+    
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-value">46.0%</div>
+        <div class="kpi-label">Season NRFI Rate (46/100)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">48.0%</div>
+        <div class="kpi-label">Home Fenway NRFI %</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">44.0%</div>
+        <div class="kpi-label">Away Road NRFI %</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">50.0%</div>
+        <div class="kpi-label">Last 10 Games NRFI %</div>
+      </div>
+    </div>
+    
+    <h3 style="color: #58a6ff; font-size: 1.0rem; margin: 20px 0 10px 0; text-transform: uppercase;">Red Sox Starting Pitcher NRFI Records</h3>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Starter</th>
+          <th>Starts</th>
+          <th>NRFI Clean (0 R)</th>
+          <th>YRFI Runs (1+ R)</th>
+          <th>NRFI Record</th>
+          <th>NRFI Success %</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+            <tr>
+              <td><strong>Sonny Gray</strong></td>
+              <td>18</td>
+              <td>8</td>
+              <td>10</td>
+              <td><strong>8-10</strong></td>
+              <td><span class="delta-neg">44.4%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Ranger Suarez</strong></td>
+              <td>17</td>
+              <td>9</td>
+              <td>8</td>
+              <td><strong>9-8</strong></td>
+              <td><span class="delta-neu">52.9%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Connelly Early</strong></td>
+              <td>17</td>
+              <td>7</td>
+              <td>10</td>
+              <td><strong>7-10</strong></td>
+              <td><span class="delta-neg">41.2%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Payton Tolle</strong></td>
+              <td>16</td>
+              <td>8</td>
+              <td>8</td>
+              <td><strong>8-8</strong></td>
+              <td><span class="delta-neu">50.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jake Bennett</strong></td>
+              <td>12</td>
+              <td>9</td>
+              <td>3</td>
+              <td><strong>9-3</strong></td>
+              <td><span class="delta-pos">75.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Brayan Bello</strong></td>
+              <td>8</td>
+              <td>0</td>
+              <td>8</td>
+              <td><strong>0-8</strong></td>
+              <td><span class="delta-neg">0.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Garrett Crochet</strong></td>
+              <td>6</td>
+              <td>3</td>
+              <td>3</td>
+              <td><strong>3-3</strong></td>
+              <td><span class="delta-neu">50.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jovani Morán</strong></td>
+              <td>3</td>
+              <td>0</td>
+              <td>3</td>
+              <td><strong>0-3</strong></td>
+              <td><span class="delta-neg">0.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Patrick Sandoval</strong></td>
+              <td>2</td>
+              <td>2</td>
+              <td>0</td>
+              <td><strong>2-0</strong></td>
+              <td><span class="delta-pos">100.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Eduardo Rivera</strong></td>
+              <td>2</td>
+              <td>1</td>
+              <td>1</td>
+              <td><strong>1-1</strong></td>
+              <td><span class="delta-neu">50.0%</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Tyler Samaniego</strong></td>
+              <td>1</td>
+              <td>0</td>
+              <td>1</td>
+              <td><strong>0-1</strong></td>
+              <td><span class="delta-neg">0.0%</span></td>
+            </tr>
+            
+      </tbody>
+    </table>
+    
+  </section>
+
+  <footer>
+    <p>Generated by <a href="https://github.com/cory-garms/sox-tracker">sox-tracker</a> &mdash;
+    Created by <a href="https://github.com/cory-garms">Cory Garms (@cory-garms)</a> &mdash;
+    Data: MLB Stats API &amp; Baseball Savant</p>
+  </footer>
+</body>
+</html>
