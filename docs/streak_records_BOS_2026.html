@@ -214,6 +214,12 @@
     .rec-badge.over { background: #4E9F3D; color: #06120d; }
     .rec-badge.under { background: #4391e9; color: #04101d; }
     .rec-badge.neu { background: rgba(197,160,89,0.2); color: #C5A059; border: 1px solid #C5A059; }
+    /* A model disagreeing with the market by more than its own error bar —
+       reported as a defect, so it must not look like a pick. */
+    .rec-badge.review {
+      background: transparent; color: #BD3039;
+      border: 1px dashed #BD3039;
+    }
     .delta-pos { color: #4E9F3D; }
     .delta-neg { color: #BD3039; }
     .delta-neu { color: #9DB0A5; }

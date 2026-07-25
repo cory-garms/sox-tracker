@@ -76,11 +76,11 @@ So the root URL (`https://username.github.io/sox-tracker/`) works:
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=dashboard_BOS_2025.html">
+  <meta http-equiv="refresh" content="0; url=dashboard_BOS_2026.html">
   <title>Sox Tracker</title>
 </head>
 <body>
-  <p>Redirecting to <a href="dashboard_BOS_2025.html">dashboard</a>…</p>
+  <p>Redirecting to <a href="dashboard_BOS_2026.html">dashboard</a>…</p>
 </body>
 </html>
 ```

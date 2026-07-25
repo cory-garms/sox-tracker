@@ -19,7 +19,7 @@ Five mobile-first, vintage-ballpark HTML pages, rebuilt daily by GitHub Actions 
 | 📊 **Main Season Dashboard** | Season timeline, 7/15-game rolling win%, run differential, rotation game scores, bullpen load | `python viz_report.py` | [View Dashboard](https://cory-garms.github.io/sox-tracker/dashboard_BOS_2026.html) |
 | 🏆 **The 15-Game Win Streak** | Tribute to the July 3–22, 2026 run that tied the franchise record, measured against Franchise (15 W), AL (22 W), and MLB (26 W) marks | `python streak_report.py` | [View Streak Report](https://cory-garms.github.io/sox-tracker/streak_records_BOS_2026.html) |
 | 🥇 **Team Stat Leaders** | Top-5 leaderboards in HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV | `python leaders_report.py` | [View Stat Leaders](https://cory-garms.github.io/sox-tracker/leaders_BOS_2026.html) |
-| 🎲 **Betting & Prop Intelligence** | Pitcher strikeout projections, batter total-bases and HR/RBI props, First-5 starter cards, NRFI/YRFI tracking | `python betting_report.py` | [View Betting Page](https://cory-garms.github.io/sox-tracker/betting_BOS_2026.html) |
+| 🎲 **Betting & Prop Intelligence** | Today's starter's strikeout projection vs the live book line, batter total-bases and HR/RBI props, First-5 starter cards, NRFI/YRFI tracking | `python betting_report.py` | [View Betting Page](https://cory-garms.github.io/sox-tracker/betting_BOS_2026.html) |
 
 ---
 
@@ -61,12 +61,19 @@ python streak_report.py
 
 The betting page builds without any API key — it shows model projections and reports the line as unavailable. It never invents a line in order to display an "edge".
 
-To compute real edge and expected value you need actual book prices:
+To compute real edge you need actual book prices. Put the key in a `.env` file in
+the repo root — it is gitignored, and `config.py` loads it with `python-dotenv`:
 
 ```bash
-export ODDS_API_KEY="your_key_here"   # free key: https://the-odds-api.com/
+echo 'ODDS_API_KEY=your_key_here' > .env   # free key: https://the-odds-api.com/
 python betting_report.py --team BOS --season 2026
 ```
+
+An exported environment variable works too, and always wins over `.env`, so a
+stale local file can never shadow the secret CI passes in.
+
+Check the pipeline end to end at any time with `python scripts/verify_odds.py`,
+which reports which markets your key actually returns and your remaining quota.
 
 > DraftKings' public sportsbook endpoints are **not** usable programmatically — they sit behind an Akamai edge returning `403` to non-browser clients on every host and API version. Live lines come from The Odds API, which aggregates DraftKings prices. Full details in [CONFIGURE.md](CONFIGURE.md#optional--live-sportsbook-lines).
 
@@ -89,6 +96,9 @@ sox_tracker/
 ├── HANDOFF_GUIDE.md       # Current state, design rules, known gaps
 ├── roadmap.md             # Sports betting & prop model feature roadmap
 ├── docs/                  # GitHub Pages output folder
+├── tests/                 # Offline pytest suite (no network, ~0.4s)
+├── scripts/
+│   └── verify_odds.py     # Diagnoses the live odds pipeline & quota
 ├── client/
 │   ├── mlb_client.py          # MLB Stats API wrapper
 │   ├── savant_client.py       # Baseball Savant / Statcast
@@ -128,7 +138,7 @@ Use `analysis.streaks.played_in_order(games)`, which sorts by `(game_date, game_
 
 ## 🔮 Roadmap
 
-See **[roadmap.md](roadmap.md)** for planned betting & prop modelling features, and [HANDOFF_GUIDE.md §8](HANDOFF_GUIDE.md#-8-known-gaps--next-up) for known gaps — the largest being that the project currently has **no test coverage**.
+See **[roadmap.md](roadmap.md)** for planned betting & prop modelling features, and [HANDOFF_GUIDE.md §8](HANDOFF_GUIDE.md#-8-known-gaps--next-up) for known gaps — the largest being that the strikeout model has **no opponent, park, or platoon adjustment**, which is why it currently declines to recommend any side.
 
 ---
 

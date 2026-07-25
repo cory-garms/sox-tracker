@@ -181,15 +181,30 @@ python leaders_report.py --team BOS --season 2026
 python matchup_report.py --team BOS --season 2026
 python betting_report.py --team BOS --season 2026    # needs ODDS_API_KEY for lines
 python streak_report.py                              # no --team flag yet
+
+pytest                                               # 170 tests, offline, ~0.4s
+python scripts/verify_odds.py                        # live odds pipeline + quota
 ```
+
+**Run `pytest` before every commit.** The suite is fully offline — no network, no
+API key, no cached parquet required — so there is no excuse to skip it. Fakes for
+the MLB and odds clients live in `tests/conftest.py` and `tests/test_betting_models.py`.
+
+Tests here exist to pin down *behaviour that was once wrong*: each class
+docstring names the bug it guards against. Keep that convention — a test whose
+name explains only what it does, rather than what it prevents, tends to get
+deleted by the next person who finds it inconvenient.
 
 ---
 
 ## 📋 8. Known Gaps / Next Up
 
-1. **No tests.** ~9,000 lines of numeric code with zero test coverage. The pure
-   functions in `analysis/` need no network and would have caught the circular
-   edge bug immediately. Highest-value next step.
+1. **The strikeout model has no opponent, park, or platoon adjustment.**
+   (`roadmap.md` item 1, never built.) A walk-forward backtest puts the model's
+   own error at **±1.43 K per start**, which is larger than any edge it has
+   found — so it now declines to recommend a side at all. Closing this gap is
+   the only route back to a page that can call anything. See
+   [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md).
 2. **Repo weight.** Pages embed the full ~4.7 MB Plotly bundle
    (`include_plotlyjs=True`), and the daily Action commits them, so history grows
    ~5 MB/page/day. This is deliberate — a code comment notes it avoids CDN
@@ -201,6 +216,7 @@ python streak_report.py                              # no --team flag yet
    line on a secondary y). Two scales on one plot is a well-known way to imply
    relationships that aren't there; splitting it into two charts or indexing to a
    common base would be more honest.
-5. **Player props need a paid Odds API tier.** Game-level markets (moneyline,
-   totals) work on the free tier; strikeout and total-bases props do not.
-6. **`docs/dashboard_BOS_2025.html`** (5 MB, last season) is still tracked.
+5. **Game-level markets are fetched but never shown.** `get_game_odds()` pulls
+   moneyline and totals, and nothing on the page uses them. `roadmap.md` item 2.
+   (Player props *are* available on the free tier — an earlier note here
+   claiming otherwise was wrong; see [CONFIGURE.md](CONFIGURE.md).)

@@ -91,17 +91,37 @@ aggregates DraftKings prices and has a free tier (~500 requests/month).
 
 ```bash
 # 1. Get a free key at https://the-odds-api.com/
-# 2. Export it (never commit it)
-export ODDS_API_KEY="your_key_here"
+# 2. Put it in .env (gitignored — never commit it)
+echo 'ODDS_API_KEY=your_key_here' > .env
 
-# 3. Build the betting page — it will now show real lines, edge, and EV
+# 3. Build the betting page — it will now show real lines
 python betting_report.py --team BOS --season 2026
+
+# 4. Confirm the pipeline works and check your quota
+python scripts/verify_odds.py
 ```
+
+`config.py` loads `.env` with `python-dotenv` using `override=False`, so a real
+environment variable always beats the file. That ordering matters: CI passes the
+key in the environment, and a stale local `.env` must never shadow it.
 
 For the GitHub Action, add the same value as a repository secret named
 `ODDS_API_KEY` (Settings → Secrets and variables → Actions).
 
-Note that **player prop markets** (pitcher strikeouts, batter total bases) are
-gated to The Odds API's paid tiers. On the free tier, game-level markets work and
-prop lines come back empty — the report degrades to projections-only rather than
-inventing a line.
+### Which markets the free tier returns
+
+**Player props are available on the free tier** — an earlier version of this
+document claimed they were paid-only, which is wrong. Verified against a live
+event on 2026-07-25:
+
+| Market | Status |
+| :--- | :--- |
+| `pitcher_strikeouts`, `pitcher_outs`, `pitcher_hits_allowed` | ✅ |
+| `pitcher_walks`, `pitcher_earned_runs`, `pitcher_strikeouts_alternate` | ✅ |
+| `batter_total_bases` | ✅ |
+| `pitcher_record_a_win` | supported; no lines posted when probed |
+| `pitcher_saves` | ❌ not a market on The Odds API |
+
+Quota is ~500 requests/month. `get_events()` is free; each build costs roughly
+one credit per prop market requested. Without a key — or if the quota runs out —
+the report degrades to projections-only and says so rather than inventing a line.
