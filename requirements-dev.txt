@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Test suite. Run with: pytest
+pytest>=8.0.0
