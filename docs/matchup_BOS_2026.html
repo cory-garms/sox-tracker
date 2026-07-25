@@ -3,127 +3,272 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-  <title>Boston Red Sox vs Baltimore Orioles — Today's Pre-Game Matchup Preview</title>
+  <title>Boston Red Sox vs Toronto Blue Jays — Today's Pre-Game Matchup Preview</title>
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Share+Tech+Mono&family=Graduate&display=swap" rel="stylesheet">
   <style>
+    
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      background: #0c1829;
-      color: #f0f6fc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(0,0,0,0) 0 38px,
+          rgba(255,255,255,0.012) 38px 39px),
+        #0E1714;
+      color: #F6F1E3;
+      font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
       min-height: 100vh;
       width: 100%;
       overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
     }
-    body {
-      padding: clamp(12px, 3vw, 28px);
-    }
+    body { padding: clamp(12px, 3vw, 28px); }
+
+    /* ---- navigation ---- */
     .nav-bar { margin-bottom: 16px; }
     .nav-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #58a6ff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 6px 12px;
-      background: #14243b;
-      border: 1px solid #243854;
-      border-radius: 8px;
+      display: inline-flex; align-items: center; gap: 6px;
+      color: #F6F1E3; text-decoration: none;
+      font-family: 'Graduate', Georgia, serif; font-size: 0.78rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 7px 14px;
+      background: #00483A;
+      border: 1px solid #C5A059;
+      border-radius: 3px;
+      transition: background 0.18s ease;
     }
+    .nav-back:hover { background: #4E9F3D; color: #06120d; }
+
+    /* ---- Green Monster header ---- */
     header {
-      border-bottom: 2px solid #00804c;
-      padding-bottom: 16px;
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(0,0,0,0.16) 0 2px,
+          rgba(0,0,0,0) 2px 46px),
+        linear-gradient(180deg, #00483A 0%, #013528 100%);
+      background-color: #00483A;
+      border: 1px solid #C5A059;
+      border-bottom-width: 3px;
+      border-radius: 4px;
+      padding: clamp(14px, 3vw, 24px);
       margin-bottom: clamp(20px, 4vw, 32px);
-      display: flex;
-      align-items: center;
-      gap: 16px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     }
     .team-logo {
-      height: clamp(48px, 10vw, 64px);
-      width: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+      height: clamp(46px, 9vw, 64px); width: auto;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.55));
     }
     header h1 {
-      font-size: clamp(1.4rem, 4vw, 2.2rem);
-      font-weight: 800;
-      line-height: 1.25;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
+      font-family: 'Alfa Slab One', Georgia, 'Times New Roman', serif;
+      font-size: clamp(1.15rem, 3.4vw, 1.9rem);
+      font-weight: 400; color: #F6F1E3;
+      line-height: 1.2; letter-spacing: 0.01em;
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+      text-shadow: 0 2px 0 rgba(0,0,0,0.45);
     }
     header p {
-      color: #94a7b8;
-      margin-top: 6px;
-      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
+      color: #cfe0d4; margin-top: 8px;
+      font-size: clamp(0.84rem, 2.2vw, 0.98rem); line-height: 1.5;
     }
+
+    /* ---- scoreboard number plate ---- */
     .badge {
-      background: #00804c;
-      color: #ffffff;
-      font-weight: 800;
-      font-size: clamp(0.75rem, 2vw, 0.85rem);
-      padding: 4px 10px;
-      border-radius: 12px;
+      background: #b08a02; color: #16130a;
+      font-family: 'Share Tech Mono', 'Courier New', monospace; font-weight: 400;
+      padding: 4px 11px; border-radius: 2px;
+      border: 1px solid rgba(0,0,0,0.35);
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.28);
+      font-size: clamp(0.72rem, 1.9vw, 0.84rem);
+      letter-spacing: 0.06em; white-space: nowrap;
     }
-    .badge.dh { background: #d22d36; color: #ffffff; }
-    .card {
-      background: #14243b;
-      border: 1px solid #243854;
-      border-radius: 12px;
-      padding: clamp(14px, 3vw, 24px);
-      margin-bottom: clamp(16px, 3vw, 24px);
+
+    /* ---- ticket-stub card ---- */
+    .chart-card, .card {
+      background: #152620;
+      border: 2px dashed #C5A059;
+      border-radius: 6px;
+      padding: clamp(12px, 3vw, 24px);
+      margin-bottom: clamp(16px, 3vw, 28px);
       width: 100%;
       overflow-x: auto;
+      position: relative;
     }
-    .card h2 {
-      font-size: clamp(0.9rem, 2.2vw, 1.15rem);
-      font-weight: 700;
-      color: #58a6ff;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 16px;
+    /* corner notches — the stub tear */
+    .chart-card::before, .chart-card::after {
+      content: ""; position: absolute; top: 50%;
+      width: 13px; height: 13px; border-radius: 50%;
+      background: #0E1714; transform: translateY(-50%);
+    }
+    .chart-card::before { left: -8px; }
+    .chart-card::after  { right: -8px; }
+
+    .chart-card h2, .card h2 {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.8rem, 2vw, 1.0rem);
+      font-weight: 400; color: #b08a02;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 18px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(197,160,89,0.28);
+    }
+
+    /* ---- tables ----
+       Wide stat tables can't fit a phone. Rather than shrink them into
+       illegibility they scroll sideways inside .table-scroll, with the player
+       column pinned so you never lose track of whose row you're reading. */
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      scrollbar-color: #C5A059 transparent;
+    }
+    .table-scroll::-webkit-scrollbar { height: 7px; }
+    .table-scroll::-webkit-scrollbar-thumb {
+      background: #C5A059; border-radius: 4px;
+    }
+    .scroll-hint {
+      display: none;
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.64rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #C5A059;
+      opacity: 0.8; margin-bottom: 8px;
     }
     .report-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: clamp(0.82rem, 2.2vw, 0.95rem);
+      width: 100%; border-collapse: collapse;
+      font-size: clamp(0.78rem, 2vw, 0.9rem);
     }
-    .report-table th, .report-table td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #30363d;
+    .report-table th:first-child,
+    .report-table td:first-child {
+      position: sticky; left: 0; z-index: 2;
+      background: #152620;
+      box-shadow: 1px 0 0 rgba(197,160,89,0.28);
     }
     .report-table th {
-      color: #8b949e;
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.78rem;
+      font-family: 'Graduate', Georgia, serif;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.72rem; font-weight: 400;
+      color: #b08a02;
+      text-align: left; padding: 10px 8px;
+      border-bottom: 2px solid #C5A059;
+      white-space: nowrap;
     }
-    .starter-name { color: #ffffff; font-weight: 700; font-size: 0.9rem; text-transform: none; }
-    .highlight-ops { color: #3fb950; font-weight: 700; }
-    .delta-pos { color: #3fb950; font-weight: 700; }
-    .delta-neg { color: #f85149; font-weight: 700; }
-    .delta-neu { color: #8b949e; }
-    .status-badge { font-size: 0.8rem; font-weight: 700; border-radius: 4px; padding: 2px 6px; }
-    .status-badge.fresh { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
-    .status-badge.mod { background: rgba(210, 153, 34, 0.2); color: #d29922; }
-    .status-badge.heavy { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+    .report-table td {
+      padding: 9px 8px;
+      border-bottom: 1px solid rgba(197,160,89,0.16);
+      color: #F6F1E3;
+    }
+    .report-table tbody tr:hover { background: rgba(0,72,58,0.42); }
+    .report-table td:nth-child(n+2) { font-family: 'Share Tech Mono', 'Courier New', monospace; }
+
+    .prop-line, .edge-val { font-family: 'Share Tech Mono', 'Courier New', monospace; color: #b08a02; }
+    .no-line { color: #9DB0A5; }
+    .table-note {
+      margin-top: 14px; font-size: 0.82rem; line-height: 1.55;
+      color: #9DB0A5;
+      border-left: 3px solid #C5A059;
+      padding: 8px 0 8px 12px;
+    }
+    .table-note code {
+      font-family: 'Share Tech Mono', 'Courier New', monospace; color: #b08a02;
+      background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 2px;
+    }
+
+    /* ---- stat tiles ---- */
+    .kpi-grid, .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .kpi-card, .stat-tile {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid #C5A059;
+      border-radius: 4px;
+      padding: 14px 12px; text-align: center;
+    }
+    .kpi-value, .stat-value {
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      font-size: clamp(1.1rem, 3.2vw, 1.6rem);
+      color: #b08a02; line-height: 1.2;
+    }
+    /* long values (date ranges) — step down so the tile stays one line */
+    .stat-value.compact {
+      font-size: clamp(0.82rem, 2.1vw, 1.02rem);
+      letter-spacing: -0.01em;
+    }
+    .kpi-label, .stat-label {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.64rem, 1.8vw, 0.72rem);
+      color: #9DB0A5;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      margin-top: 7px;
+    }
+
+    /* ---- badges ---- */
+    .rec-badge {
+      display: inline-block; padding: 3px 9px; border-radius: 2px;
+      font-family: 'Graduate', Georgia, serif; font-size: 0.72rem;
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .rec-badge.over { background: #4E9F3D; color: #06120d; }
+    .rec-badge.under { background: #4391e9; color: #04101d; }
+    .rec-badge.neu { background: rgba(197,160,89,0.2); color: #C5A059; border: 1px solid #C5A059; }
+    .delta-pos { color: #4E9F3D; }
+    .delta-neg { color: #BD3039; }
+    .delta-neu { color: #9DB0A5; }
+
+    .plotly-graph-div { width: 100% !important; }
+
     footer {
-      text-align: center;
-      color: #8b949e;
-      font-size: 0.85rem;
-      margin-top: 40px;
-      padding-top: 16px;
-      border-top: 1px solid #30363d;
+      text-align: center; color: #9DB0A5;
+      font-size: 0.82rem; margin-top: 42px; padding-top: 18px;
+      border-top: 1px solid #C5A059;
     }
-    footer a { color: #58a6ff; text-decoration: none; }
+    footer a { color: #b08a02; text-decoration: none; }
+    .stamp {
+      font-family: 'Graduate', Georgia, serif; font-size: 0.68rem;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: #C5A059; opacity: 0.75; margin-top: 8px;
+    }
+
+    @media (max-width: 700px) {
+      .scroll-hint { display: block; }
+      /* tighter cells so more columns land in the first screenful */
+      .report-table { font-size: 0.76rem; }
+      .report-table th, .report-table td { padding: 7px 6px; }
+      .report-table th { font-size: 0.64rem; }
+    }
 
     @media (max-width: 600px) {
       body { padding: 10px 8px; }
-      .card { padding: 10px 6px; border-radius: 8px; }
-      .report-table th, .report-table td { padding: 8px 6px; }
+      .chart-card, .card { padding: 10px 8px; border-radius: 4px; }
+      /* the stub notches read as clipping artefacts at phone width */
+      .chart-card::before, .chart-card::after { display: none; }
+      header { padding: 12px; }
+      .kpi-grid, .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .starter-name {
+      font-family: 'Alfa Slab One', Georgia, 'Times New Roman', serif;
+      font-size: clamp(1rem, 2.8vw, 1.3rem);
+      color: #F6F1E3;
+      margin: 6px 0 4px 0;
+    }
+    .highlight-ops {
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      color: #b08a02;
+      font-size: 1.05em;
+    }
+    .dh {
+      display: inline-block;
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.66rem; letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #C5A059;
+      border: 1px solid #C5A059;
+      border-radius: 2px;
+      padding: 1px 7px; margin-left: 8px;
     }
   </style>
 </head>
@@ -135,40 +280,43 @@
   <header>
     <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
     <div>
-      <h1>⚾ Boston Red Sox vs Baltimore Orioles <span class="badge dh">⚡ SPLIT DOUBLEHEADER</span></h1>
-      <p>Game Date: <strong>2026-07-22</strong> &nbsp;·&nbsp; Venue: <strong>Fenway Park (Home)</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
+      <h1>⚾ Boston Red Sox vs Toronto Blue Jays <span class="badge">In Progress</span></h1>
+      <p>Game Date: <strong>2026-07-24</strong> &nbsp;·&nbsp; Venue: <strong>Fenway Park (Home)</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
     </div>
   </header>
 
   <section class="card">
     <h2>⚾ Probable Starters Comparison</h2>
     
-        <table class="report-table">
+        <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
           <thead>
             <tr>
               <th>Metric</th>
-              <th>G1 BOS<br><span class="starter-name">Jake Bennett</span></th>
-              <th>G1 BAL<br><span class="starter-name">Dean Kremer</span></th>
-              <th>G2 BOS<br><span class="starter-name">Eduardo Rivera</span></th>
-              <th>G2 BAL<br><span class="starter-name">Kyle Bradish</span></th>
+              <th>BOS Starter<br><span class="starter-name">Patrick Sandoval</span></th>
+              <th>TOR Starter<br><span class="starter-name">Trey Yesavage</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>Throwing Hand</td><td>L</td><td>R</td><td>L</td><td>R</td></tr>
-            <tr><td>Season W-L</td><td>6-3</td><td>1-3</td><td>0-0</td><td>6-9</td></tr>
-            <tr><td>ERA</td><td>2.58</td><td>5.06</td><td>2.89</td><td>3.61</td></tr>
-            <tr><td>WHIP</td><td>0.94</td><td>1.19</td><td>0.96</td><td>1.35</td></tr>
-            <tr><td>K / 9</td><td>6.40</td><td>9.56</td><td>8.90</td><td>8.91</td></tr>
-            <tr><td>BB / 9</td><td>1.37</td><td>2.25</td><td>3.96</td><td>4.20</td></tr>
-            <tr><td>IP</td><td>59.1</td><td>32.0</td><td>9.1</td><td>107.1</td></tr>
+            <tr><td>Throwing Hand</td><td>L</td><td>R</td></tr>
+            <tr><td>Season W-L</td><td>0-0</td><td>4-5</td></tr>
+            <tr><td>ERA</td><td>4.35</td><td>3.89</td></tr>
+            <tr><td>WHIP</td><td>1.74</td><td>1.17</td></tr>
+            <tr><td>K / 9</td><td>10.69</td><td>8.67</td></tr>
+            <tr><td>BB / 9</td><td>3.56</td><td>4.56</td></tr>
+            <tr><td>Innings Pitched</td><td>10.1</td><td>81.0</td></tr>
           </tbody>
         </table>
+    </div>
         
   </section>
 
   <section class="card">
     <h2>💥 BOS Platoon Hitting Advantage (vs RHP Pitching)</h2>
     
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -274,12 +422,15 @@
             
       </tbody>
     </table>
+    </div>
     
   </section>
 
   <section class="card">
     <h2>🛡️ BOS Bullpen Workload Capacity & Availability</h2>
     
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -294,24 +445,6 @@
       <tbody>
         
             <tr>
-              <td><strong>Alec Gamboa</strong></td>
-              <td>0</td>
-              <td>0</td>
-              <td>0</td>
-              <td><strong>0</strong></td>
-              <td><span class="status-badge fresh">🟢 FRESH</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Brayan Bello</strong></td>
-              <td>0</td>
-              <td>0</td>
-              <td>0</td>
-              <td><strong>0</strong></td>
-              <td><span class="status-badge fresh">🟢 FRESH</span></td>
-            </tr>
-            
-            <tr>
               <td><strong>Danny Coulombe</strong></td>
               <td>0</td>
               <td>0</td>
@@ -322,6 +455,15 @@
             
             <tr>
               <td><strong>Eduardo Rivera</strong></td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td><strong>0</strong></td>
+              <td><span class="status-badge fresh">🟢 FRESH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Greg Weissert</strong></td>
               <td>0</td>
               <td>0</td>
               <td>0</td>
@@ -384,6 +526,15 @@
             </tr>
             
             <tr>
+              <td><strong>Tyron Guerrero</strong></td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td><strong>0</strong></td>
+              <td><span class="status-badge fresh">🟢 FRESH</span></td>
+            </tr>
+            
+            <tr>
               <td><strong>Zack Kelly</strong></td>
               <td>0</td>
               <td>0</td>
@@ -393,76 +544,79 @@
             </tr>
             
             <tr>
-              <td><strong>Greg Weissert</strong></td>
-              <td>0</td>
+              <td><strong>Garrett Whitlock</strong></td>
               <td>0</td>
               <td>12</td>
+              <td>0</td>
               <td><strong>12</strong></td>
+              <td><span class="status-badge fresh">🟢 FRESH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Aroldis Chapman</strong></td>
+              <td>0</td>
+              <td>13</td>
+              <td>0</td>
+              <td><strong>13</strong></td>
+              <td><span class="status-badge fresh">🟢 FRESH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Alec Gamboa</strong></td>
+              <td>0</td>
+              <td>14</td>
+              <td>0</td>
+              <td><strong>14</strong></td>
+              <td><span class="status-badge fresh">🟢 FRESH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Ryan Watson</strong></td>
+              <td>0</td>
+              <td>14</td>
+              <td>0</td>
+              <td><strong>14</strong></td>
+              <td><span class="status-badge fresh">🟢 FRESH</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Justin Slaten</strong></td>
+              <td>0</td>
+              <td>19</td>
+              <td>0</td>
+              <td><strong>19</strong></td>
               <td><span class="status-badge fresh">🟢 FRESH</span></td>
             </tr>
             
             <tr>
               <td><strong>Jovani Morán</strong></td>
               <td>0</td>
-              <td>0</td>
-              <td>15</td>
-              <td><strong>15</strong></td>
-              <td><span class="status-badge fresh">🟢 FRESH</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Justin Slaten</strong></td>
-              <td>19</td>
-              <td>0</td>
-              <td>0</td>
-              <td><strong>19</strong></td>
-              <td><span class="status-badge mod">🟡 MODERATE</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Ryan Watson</strong></td>
-              <td>0</td>
-              <td>0</td>
-              <td>19</td>
-              <td><strong>19</strong></td>
-              <td><span class="status-badge fresh">🟢 FRESH</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Tyron Guerrero</strong></td>
-              <td>0</td>
-              <td>19</td>
-              <td>0</td>
-              <td><strong>19</strong></td>
-              <td><span class="status-badge fresh">🟢 FRESH</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Garrett Whitlock</strong></td>
-              <td>12</td>
-              <td>11</td>
+              <td>23</td>
               <td>0</td>
               <td><strong>23</strong></td>
               <td><span class="status-badge mod">🟡 MODERATE</span></td>
             </tr>
             
             <tr>
-              <td><strong>Aroldis Chapman</strong></td>
-              <td>13</td>
-              <td>22</td>
+              <td><strong>Brayan Bello</strong></td>
               <td>0</td>
-              <td><strong>35</strong></td>
+              <td>85</td>
+              <td>0</td>
+              <td><strong>85</strong></td>
               <td><span class="status-badge mod">🟡 MODERATE</span></td>
             </tr>
             
       </tbody>
     </table>
+    </div>
     
   </section>
 
   <section class="card">
-    <h2>📊 2026 Head-to-Head Series History vs BAL</h2>
+    <h2>📊 2026 Head-to-Head Series History vs TOR</h2>
     
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -476,15 +630,16 @@
       </thead>
       <tbody>
         <tr>
-          <td>8</td>
-          <td><strong style="color: #3fb950;">5 - 3</strong></td>
-          <td>0.625</td>
-          <td>49</td>
-          <td>35</td>
-          <td><strong style="color: #58a6ff;">+14</strong></td>
+          <td>6</td>
+          <td><strong style="color: #3fb950;">1 - 5</strong></td>
+          <td>0.167</td>
+          <td>10</td>
+          <td>24</td>
+          <td><strong style="color: #58a6ff;">-14</strong></td>
         </tr>
       </tbody>
     </table>
+    </div>
     
   </section>
 
