@@ -14,6 +14,7 @@ from viz import theme
 from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
+from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
     MAX_PLAUSIBLE_EDGE_K,
     MIN_STARTS_FOR_PROP,
@@ -74,6 +75,19 @@ def generate_betting_html(
     # relievers who will not pitch and have no prop line. A doubleheader
     # legitimately has two probables, so this is a list.
     probables = probable_starters(client, team_id, date_str)
+
+    # First pitch is what makes the "lines as of" timestamp legible: a reader
+    # needs both to judge how stale the odds on this page really are.
+    try:
+        previews = fetch_doubleheader_previews(client, team_id, date_str)
+    except Exception:
+        previews = []
+    if len(previews) > 1:
+        first_pitch = " · ".join(
+            f"G{i}: {format_first_pitch(p)}" for i, p in enumerate(previews, start=1)
+        )
+    else:
+        first_pitch = format_first_pitch(previews[0]) if previews else "TBD"
     k_df = pitcher_strikeout_model(
         pitching, batting, games, client, odds_client, team_id, season,
         # Deliberately a set even when empty: an unresolved probable must yield
@@ -139,11 +153,12 @@ def generate_betting_html(
         who = " and ".join(p["name"] for p in probables)
         starter_line_html = (
             f'<p class="table-note">Probable starter for {date_str}: '
-            f"<strong>{who}</strong>.</p>"
+            f"<strong>{who}</strong>. First pitch <strong>{first_pitch}</strong>.</p>"
         )
     else:
         starter_line_html = (
-            f'<p class="table-note">No probable starter announced for {date_str}.</p>'
+            f'<p class="table-note">No probable starter announced for {date_str}. '
+            f"First pitch <strong>{first_pitch}</strong>.</p>"
         )
 
     lines_live = bool(not k_df.empty and k_df["has_line"].any())

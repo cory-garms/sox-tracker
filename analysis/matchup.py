@@ -5,6 +5,9 @@ probable pitcher comparisons, platoon advantages, bullpen rest, and head-to-head
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pandas as pd
 from typing import Any
 
@@ -14,6 +17,11 @@ from analysis.offense import platoon_table, pivoted_platoon_summary
 
 
 _ID_TO_ABBR: dict[int, str] = {v["id"]: k for k, v in TEAMS.items()}
+
+# First pitch is reported in the team's home timezone regardless of where the
+# game is played — a Boston reader wants to know when to turn it on, not what
+# the clock says in Seattle.
+TEAM_TZ = ZoneInfo("America/New_York")
 
 
 # ---------------------------------------------------------------------------
@@ -59,9 +67,16 @@ def _parse_single_preview(
         "hand": opp_prob_raw.get("pitchHand", {}).get("code", "R") if isinstance(opp_prob_raw.get("pitchHand"), dict) else "R",
     }
 
+    status = raw_game.get("status", {}) or {}
+
     return {
         "game_pk": raw_game.get("gamePk"),
         "game_date": raw_game.get("officialDate", date_str),
+        # UTC instant of first pitch. The MLB schedule flags a genuinely
+        # undecided start with startTimeTBD, which is not the same as a missing
+        # field — carry it so the page can say "TBD" honestly.
+        "game_time_utc": raw_game.get("gameDate"),
+        "start_time_tbd": bool(status.get("startTimeTBD", False)),
         "game_number": game_n,
         "venue": raw_game.get("venue", {}).get("name", "TBD"),
         "status": raw_game.get("status", {}).get("detailedState", "Scheduled"),
@@ -72,6 +87,34 @@ def _parse_single_preview(
         "our_probable": our_prob,
         "opp_probable": opp_prob,
     }
+
+
+def format_first_pitch(preview: dict[str, Any]) -> str:
+    """
+    First pitch as "4:10 PM ET (20:10 UTC)", for a preview from
+    _parse_single_preview().
+
+    Returns "TBD" when the schedule says the start time is undecided or the
+    field is missing or unparseable — an honest TBD beats a guessed time, and a
+    reader planning around this needs to know which one they are looking at.
+
+    UTC is shown alongside because the betting page timestamps its odds in UTC,
+    and comparing "lines as of" to first pitch is the whole point of having both.
+    """
+    if preview.get("start_time_tbd"):
+        return "TBD"
+
+    raw = preview.get("game_time_utc")
+    if not raw:
+        return "TBD"
+    try:
+        stamp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return "TBD"
+
+    local = stamp.astimezone(TEAM_TZ)
+    # %-I is a GNU extension; it drops the leading zero on the hour.
+    return f"{local.strftime('%-I:%M %p')} ET ({stamp.strftime('%H:%M')} UTC)"
 
 
 def fetch_doubleheader_previews(

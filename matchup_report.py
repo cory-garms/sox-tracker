@@ -16,6 +16,7 @@ from client.mlb_client import MLBClient
 from data.fetcher import Fetcher
 from analysis.matchup import (
     fetch_doubleheader_previews,
+    format_first_pitch,
     starter_season_summary,
     platoon_recommendations,
     bullpen_availability,
@@ -63,6 +64,15 @@ def generate_matchup_html(
     is_home = p1.get("is_home", True)
     loc_str = "Fenway Park (Home)" if is_home else f"{p1.get('venue', 'Away')}"
     game_date = p1.get("game_date", date_str)
+
+    # A doubleheader has two first pitches; label them rather than showing only
+    # game one's.
+    if is_dh:
+        first_pitch = " &nbsp;·&nbsp; ".join(
+            f"G{i}: {format_first_pitch(p)}" for i, p in enumerate(previews, start=1)
+        )
+    else:
+        first_pitch = format_first_pitch(p1)
 
     # 1. Probable Starters HTML
     starters_html = ""
@@ -287,7 +297,7 @@ def generate_matchup_html(
     <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
     <div>
       <h1>⚾ {team_name} vs {opp_name} {status_badge}</h1>
-      <p>Game Date: <strong>{game_date}</strong> &nbsp;·&nbsp; Venue: <strong>{loc_str}</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
+      <p>Game Date: <strong>{game_date}</strong> &nbsp;·&nbsp; First Pitch: <strong>{first_pitch}</strong> &nbsp;·&nbsp; Venue: <strong>{loc_str}</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
     </div>
   </header>
 
