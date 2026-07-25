@@ -1,18 +1,23 @@
 # 🎲 Odds Sprint — Handoff for the Next Agent
 
-> Updated 2026-07-25 after the model sprint. General project state lives in
+> Updated 2026-07-25 after the consistency sprint. General project state lives in
 > [HANDOFF_GUIDE.md](HANDOFF_GUIDE.md); this document covers only live odds.
 
 ---
 
 ## 1. TL;DR
 
-The live odds pipeline works end to end, and the strikeout model has now been
-debugged, backtested, and guarded.
+The live odds pipeline works end to end. Two prop models — strikeouts and batter
+total bases — are debugged, backtested against held-out data, and guarded by
+their own measured error bars. Neither currently calls a side, which is the
+accurate description of what they can prove rather than a fault. Every other
+section of the page has had its invented lines and hand-picked thresholds
+removed. Every build's prices are now logged to
+`data/cache/odds_history.parquet`, so the page can report line movement.
 
-**The one thing still outstanding is not code: `ODDS_API_KEY` is not yet a
-GitHub Actions secret.** Until someone adds it, CI builds projections-only. See
-§6.
+`ODDS_API_KEY` is set both locally (`.env`) and as a GitHub Actions secret, so CI
+builds with real lines. Cost is now **2 credits per build** — one per prop market
+— which is ~240/month against the 500 quota.
 
 ---
 
@@ -186,22 +191,109 @@ decompose RMSE against Poisson scatter`) after any modelling change, and update
 
 ---
 
+## 4b. ✅ The batter total-bases model — now measured too
+
+This was the largest remaining piece of the same disease the strikeout model was
+cured of. The old version called `OVER 1.5 🔥` whenever a projection cleared 1.65
+or a ten-game hit rate cleared 60%. **The 1.5 was invented** — no book price, no
+edge, no EV — and both thresholds were picked by hand.
+`OddsAPIClient.batter_total_base_lines()` had existed and been tested for weeks,
+returning real DraftKings lines, and was called by nothing.
+
+### What changed
+
+1. **Real lines.** `fetch_book_lines()` makes one trip to the provider for the
+   whole page and hands both markets to the models, which is also the only
+   sane place to log the snapshot from.
+2. **The edge is in probability, not bases.** Every hitter is posted at 1.5;
+   DraftKings had seven of them at 1.5 with prices from +124 to +152. The book
+   moves the *price*, so "projection minus line" would have ranked hitters by
+   quality the price already charges for — which is exactly what the old
+   `proj_tb >= 1.65` rule was doing. The model compares its own
+   over-probability to the de-vigged price.
+3. **A distribution, not a point estimate.** Total bases are not Poisson — a
+   home run pays four at once — so the model convolves per-plate-appearance
+   outcomes (out / 1B / 2B / 3B / HR) and mixes over how often the hitter has
+   had each number of appearances.
+4. **Starts only.** A prop is offered on a hitter who is *in the lineup*. The old
+   model averaged over bench and pinch-hit games, dividing every regular's
+   production by games they never batted in.
+5. **Rates regressed to the team's own.** A hitter's per-PA mix is shrunk toward
+   the team's measured mix with a 50-PA prior — swept out of sample, not chosen.
+
+### The error bar — measured, and it says the same thing
+
+`python scripts/backtest_batter_tb.py` reproduces all of this: walk-forward over
+the 2026 cached starts, projecting each start from only the starts before it, 714
+held out.
+
+```
+parameter noise (bootstrap)   0.049   <- MODEL_ERROR_TB_PROB, in probability
+calibration resolution        0.043       (measured gap 0.032, below its own
+                                            noise floor — so unresolvable finer)
+demonstrated information      0.051   <- MAX_PLAUSIBLE_EDGE_TB_PROB
+                                          (recalibration slope 0.74 x sd 0.069)
+AUC                           0.57    <- 0.50 is a coin flip
+Brier skill vs the base rate  +0.012
+```
+
+**The floor and the ceiling nearly meet again** — 4.9 points of noise against 5.1
+points of demonstrated opinion — so the total-bases table publishes the line,
+both probabilities and the gap, and **no bet**, exactly as the strikeout table
+does. Rows inside the band read `NO CALL ⚖️`; rows past the ceiling read
+`REVIEW ⚠️` and publish no EV. On 2026-07-25 Wilyer Abreu came out `NO CALL`
+(+2.4 points) and Ceddanne Rafaela `REVIEW` (+6.4 points).
+
+That the two models arrived at the same shape independently is worth noting: it
+is what a model with no opponent, park or platoon context looks like when it is
+honestly measured against a market that has all three.
+
+The backtest also found that recency weighting buys nothing here either — the
+0.4-season / 0.6-last-10 blend was *worse* out of sample (MAE 1.297) than a plain
+season rate (1.281). Do not spend effort tuning blend weights on this page.
+
+---
+
+## 4c. ✅ The rest of the page
+
+- **First 5 Innings.** The `OVER 4.5 🟢` call is gone. It compared a prorated
+  full-start ERA — not a measured first-five split, as the code comment already
+  admitted — against a 4.5 no book had quoted. The estimate is still published
+  and labelled as an estimate. A separate bug went with it: an unreadable ERA
+  used to fall back to a flat **4.00**, inventing a number in precisely the
+  situation where the page knew nothing. It now reports nothing.
+- **Home runs / RBI.** The `🚀 HIGH` badge (two homers in ten games, or one per
+  18 PA) is gone; the section is labelled as the usage-and-form leaderboard it
+  always was. The rates underneath are fine and were kept.
+- **Market vs model, rendered.** Both prop tables now show the book's de-vigged
+  probability beside the model's, and — because a fourteen-column table on a
+  390px phone hides everything past column two — repeat it in prose above the
+  table.
+
+---
+
 ## 5. What the code does now
 
 - `client/odds_api_client.py` — The Odds API v4 wrapper, confirmed against a
-  live payload. `_parse_player_lines()` now carries the bookmaker's
-  `last_update` through.
+  live payload. `_parse_player_lines()` carries the bookmaker's `last_update`
+  through. `batter_total_base_lines()` is finally wired up.
 - `client/odds_math.py` — conversion, de-vig, EV. Unchanged.
-- `analysis/betting.py` — `_innings()`, `_poisson_over_push()`, `_prop_ev()`,
-  `MODEL_ERROR_K`, `MAX_PLAUSIBLE_EDGE_K`, and the guard.
-- `betting_report.py` — renders the timestamp banner, the REVIEW state, and the
-  error-bar note.
+- `analysis/betting.py` — `fetch_book_lines()` (one provider trip for the whole
+  page), `_innings()`, `_poisson_over_push()`, `_prop_ev()`, the strikeout guard
+  and its constants; `project_batter_tb()`, `_tb_pmf()`, `_pmf_over_push()` and
+  the total-bases guard and its constants.
+- `data/odds_history.py` — append-only snapshot log and `line_movement()`.
+- `scripts/backtest_batter_tb.py` — the measurement behind the total-bases
+  constants. Re-run it after any change to that model and copy what it prints.
+- `betting_report.py` — timestamp banner, movement notes, the model-vs-market
+  read, REVIEW states, error-bar notes.
 - `client/draftkings_client.py` — dormant, 403-blocked. Leave it alone.
 
-**145 tests, all passing, fully offline** (`pytest`, ~0.3s).
+**230 tests, all passing, fully offline** (`pytest`, ~0.7s).
 
-> Environment note: this repo's deps were missing from the system Python and had
-> to be `pip install -r requirements.txt`'d before tests would even collect.
+> Environment note: this repo's deps have gone missing from the system Python
+> before now, and `pip install -r requirements.txt` fixes it. Pandas imports also
+> emit NumPy 1.x/2.x ABI warnings from system numexpr/bottleneck; they are noise.
 
 ---
 
@@ -213,13 +305,16 @@ GitHub Pages serves a file, so the page shows odds **as of its last build**.
    the bookmaker's `last_update`, plus its own build time, and says the odds do
    not update after publication. When the book sends no timestamp it says so
    rather than inventing one.
-2. ✅ **Builds run near first pitch.** `refresh.yml` now runs at 07:00, 12:00,
-   15:00 and 17:30 ET — a build within ~90 minutes of every common start time.
-   ~120 credits/month against the 500 quota.
-3. ⛔ **The repo secret is still missing.** Settings → Secrets and variables →
-   Actions → New repository secret → `ODDS_API_KEY`. `refresh.yml` already
-   reads `${{ secrets.ODDS_API_KEY }}`; it is empty, so CI builds
-   projections-only. **This is the only outstanding item in the sprint.**
+2. ✅ **Builds run near first pitch.** `refresh.yml` runs at 07:00, 12:00, 15:00
+   and 17:30 ET — a build within ~90 minutes of every common start time. At 2
+   credits a build that is ~240/month against the 500 quota, up from ~120 now
+   that total bases is priced as well.
+3. ✅ **The repo secret is set.** CI builds with real lines.
+4. ⚠️ **Check the history file is actually being committed.** `refresh.yml` now
+   runs `git add data/cache/odds_history.parquet` alongside `docs/`; before that
+   line the runner would have taken a snapshot and thrown it away with the
+   workspace. Confirm after the first scheduled run that the file grows — it is
+   the one artefact on this page that cannot be reconstructed later.
 
 ---
 
@@ -232,7 +327,10 @@ GitHub Pages serves a file, so the page shows odds **as of its last build**.
   (the chart palette) — do not reorder or extend it; there is deliberately no
   5th hue. Badge classes are separate and safe to add to.
 - **Never invent a number to fill a slot.** If data is unavailable, the page
-  says so. This now includes model constants: `MODEL_ERROR_K` is measured, and
-  the invented 0.12 sensitivity is gone.
+  says so. This includes model constants: `MODEL_ERROR_K`, `MODEL_ERROR_TB_PROB`
+  and `MAX_PLAUSIBLE_EDGE_TB_PROB` are all outputs of a backtest, and the last
+  two are printed by `scripts/backtest_batter_tb.py`. Any new threshold needs the
+  same treatment or it does not ship.
 - **Treat "our model beat the market" as a bug report.** It was right twice.
-- Run `pytest` before committing.
+- Run `pytest` before committing. Each test class docstring names the bug it
+  guards against; keep that convention.

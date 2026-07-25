@@ -122,6 +122,13 @@ event on 2026-07-25:
 | `pitcher_record_a_win` | supported; no lines posted when probed |
 | `pitcher_saves` | ❌ not a market on The Odds API |
 
-Quota is ~500 requests/month. `get_events()` is free; each build costs roughly
-one credit per prop market requested. Without a key — or if the quota runs out —
-the report degrades to projections-only and says so rather than inventing a line.
+Quota is ~500 requests/month. `get_events()` is free; each build costs one
+credit per prop market requested. The betting page prices two markets —
+`pitcher_strikeouts` and `batter_total_bases` — so a build costs 2 credits, and
+the four scheduled builds a day come to ~240/month. Count the cost before adding
+a third market. Without a key, or if the quota runs out, the report degrades to
+projections-only and says so rather than inventing a line.
+
+Every build's lines are appended to `data/cache/odds_history.parquet`
+(`data/odds_history.py`), which is what lets the page report line movement. The
+workflow commits that file; if you build locally with a key, expect it to change.

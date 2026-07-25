@@ -159,8 +159,10 @@ sox_tracker/
 │   ├── odds_math.py           # Odds conversion + de-vig, pure functions
 │   └── draftkings_client.py   # DORMANT — 403 blocked, see §2
 ├── data/                  # schema.py, roster.py, fetcher.py, cache/
+│   └── odds_history.py    # append-only log of every build's lines
 ├── analysis/              # standings, offense, pitching, defense,
 │                          # streaks, matchup, history, betting
+├── scripts/               # verify_odds.py, backtest_batter_tb.py
 └── viz/
     ├── theme.py           # ★ palette, fonts, Plotly base, page CSS
     ├── charts.py          # Plotly chart builders
@@ -182,8 +184,9 @@ python matchup_report.py --team BOS --season 2026
 python betting_report.py --team BOS --season 2026    # needs ODDS_API_KEY for lines
 python streak_report.py                              # no --team flag yet
 
-pytest                                               # 170 tests, offline, ~0.4s
+pytest                                               # 230 tests, offline, ~0.7s
 python scripts/verify_odds.py                        # live odds pipeline + quota
+python scripts/backtest_batter_tb.py                 # re-measure the total-bases error bar
 ```
 
 **Run `pytest` before every commit.** The suite is fully offline — no network, no
@@ -199,12 +202,15 @@ deleted by the next person who finds it inconvenient.
 
 ## 📋 8. Known Gaps / Next Up
 
-1. **The strikeout model has no opponent, park, or platoon adjustment.**
-   (`roadmap.md` item 1, never built.) A walk-forward backtest puts the model's
-   own error at **±1.43 K per start**, which is larger than any edge it has
-   found — so it now declines to recommend a side at all. Closing this gap is
-   the only route back to a page that can call anything. See
-   [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md).
+1. **Neither prop model has an opponent, park, or platoon adjustment.**
+   (`roadmap.md` item 1, never built.) Walk-forward backtests put the strikeout
+   model's own error at **±1.43 K per start** and the total-bases model's at
+   **±4.9 probability points**, both larger than any edge either has found — so
+   neither recommends a side at all, and the tables publish the line, both
+   probabilities and the gap instead. Closing this gap is the only route back to
+   a page that can call anything. See
+   [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md) and
+   [ODDS_PAGE_PLAN.md](ODDS_PAGE_PLAN.md).
 2. **Repo weight.** Pages embed the full ~4.7 MB Plotly bundle
    (`include_plotlyjs=True`), and the daily Action commits them, so history grows
    ~5 MB/page/day. This is deliberate — a code comment notes it avoids CDN
