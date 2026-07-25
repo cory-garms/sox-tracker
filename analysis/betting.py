@@ -16,7 +16,11 @@ import pandas as pd
 import config
 from client.mlb_client import MLBClient
 from client.odds_math import american_to_decimal, no_vig_probability
-from analysis.matchup import fetch_game_preview, starter_season_summary
+from analysis.matchup import (
+    fetch_doubleheader_previews,
+    fetch_game_preview,
+    starter_season_summary,
+)
 
 if TYPE_CHECKING:
     from client.odds_api_client import OddsAPIClient
@@ -125,6 +129,38 @@ def _prop_ev(p_win: float, p_push: float, american_odds: int) -> float:
     return round((p_win * profit - p_lose) * 100.0, 2)
 
 
+def probable_starters(
+    client: MLBClient | None,
+    team_id: int = config.TEAM_ID,
+    date_str: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    The team's probable starting pitcher(s) for `date_str`.
+
+    Returns a list, not a single pitcher, because a doubleheader has two — and
+    quietly dropping the second game's starter is exactly the class of
+    doubleheader bug this repo has already been bitten by.
+
+    Empty when no client is available, the lookup fails, or the probable is
+    still listed as TBD. Callers should say so rather than guessing at a name.
+    """
+    if client is None or not date_str:
+        return []
+    try:
+        previews = fetch_doubleheader_previews(client, team_id, date_str)
+    except Exception as e:                      # network down, schedule missing
+        log.warning("Could not read probable starters for %s: %s", date_str, e)
+        return []
+
+    starters: list[dict[str, Any]] = []
+    for preview in previews:
+        prob = (preview or {}).get("our_probable") or {}
+        pid = prob.get("id")
+        if pid:
+            starters.append({"id": int(pid), "name": prob.get("name", "TBD")})
+    return starters
+
+
 def _match_prop_line(player_name: str, book_lines: dict[str, dict]) -> dict | None:
     """
     Look a pitcher up in the book's prop map. Exact match first, then a
@@ -156,9 +192,15 @@ def pitcher_strikeout_model(
     team_id: int = config.TEAM_ID,
     season: int = config.SEASON,
     min_starts: int = MIN_STARTS_FOR_PROP,
+    only_player_ids: set[int] | None = None,
 ) -> pd.DataFrame:
     """
     Strikeout prop model for the team's starting pitchers.
+
+    `only_player_ids` restricts the table to specific pitchers — in practice
+    the probable starter(s) for the day, via probable_starters(). Without it
+    every arm that has ever started qualifies, which sweeps in openers and
+    long relievers who will not throw tonight and have no prop line.
 
     Projects strikeouts by blending the season and last-5-start K/9, weighting
     the rolling split by how many innings stand behind it, then applying the
@@ -181,6 +223,8 @@ def pitcher_strikeout_model(
         return pd.DataFrame()
 
     starters = pitching[pitching["is_starter"] == True].copy()
+    if only_player_ids is not None:
+        starters = starters[starters["player_id"].isin(only_player_ids)]
     if starters.empty:
         return pd.DataFrame()
 

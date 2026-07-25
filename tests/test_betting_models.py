@@ -22,6 +22,7 @@ from analysis.betting import (
     batter_total_bases_model,
     nrfi_yrfi_tracker,
     pitcher_strikeout_model,
+    probable_starters,
 )
 from conftest import FakeMLBClient, game, games_df, linescore
 
@@ -389,6 +390,125 @@ class TestLineTimestamp:
         df = pitcher_strikeout_model(five_starts(), pd.DataFrame(), games_df([]))
 
         assert df.iloc[0]["line_last_update"] is None
+
+
+class FakePreviewClient:
+    """Serves canned MLB schedule previews for probable-starter lookups."""
+
+    def __init__(self, previews: list[dict] | None = None,
+                 fail: bool = False) -> None:
+        self.previews = previews or []
+        self.fail = fail
+
+    def get_game_previews(self, team_id: int, date_str: str) -> list[dict]:
+        if self.fail:
+            raise RuntimeError("simulated schedule failure")
+        return self.previews
+
+
+def preview(pitcher_id: int | None, name: str = "Sonny Gray",
+            *, game_pk: int = 1) -> dict:
+    """One raw schedule game with the Red Sox at home."""
+    probable = ({"id": pitcher_id, "fullName": name, "pitchHand": {"code": "R"}}
+                if pitcher_id else {})
+    return {
+        "gamePk": game_pk,
+        "officialDate": "2026-07-25",
+        "teams": {
+            "home": {"team": {"id": 111}, "probablePitcher": probable},
+            "away": {"team": {"id": 141},
+                     "probablePitcher": {"id": 99, "fullName": "Dylan Cease"}},
+        },
+    }
+
+
+class TestProbableStarters:
+    def test_returns_the_listed_starter(self):
+        found = probable_starters(FakePreviewClient([preview(1)]),
+                                  team_id=111, date_str="2026-07-25")
+
+        assert found == [{"id": 1, "name": "Sonny Gray"}]
+
+    def test_doubleheader_returns_both_starters(self):
+        """
+        Dropping game two's starter is the doubleheader bug this repo keeps
+        re-learning. Both probables must come back.
+        """
+        client = FakePreviewClient([
+            preview(1, "Sonny Gray", game_pk=1),
+            preview(2, "Payton Tolle", game_pk=2),
+        ])
+
+        found = probable_starters(client, team_id=111, date_str="2026-07-25")
+
+        assert [p["name"] for p in found] == ["Sonny Gray", "Payton Tolle"]
+
+    def test_unannounced_starter_yields_nothing(self):
+        found = probable_starters(FakePreviewClient([preview(None)]),
+                                  team_id=111, date_str="2026-07-25")
+
+        assert found == []
+
+    def test_schedule_failure_yields_nothing_rather_than_raising(self):
+        found = probable_starters(FakePreviewClient(fail=True),
+                                  team_id=111, date_str="2026-07-25")
+
+        assert found == []
+
+    def test_no_client_or_no_date_yields_nothing(self):
+        assert probable_starters(None, team_id=111, date_str="2026-07-25") == []
+        assert probable_starters(FakePreviewClient([preview(1)]),
+                                 team_id=111, date_str=None) == []
+
+
+class TestTableCoversOnlyTodaysStarter:
+    """
+    The table used to list every arm that had ever started — openers and long
+    relievers included, none of whom would pitch or had a prop line.
+    """
+
+    def _rotation(self) -> pd.DataFrame:
+        gray = [start(1, "Sonny Gray", f"2026-07-{i:02d}", 6.0, 7, game_pk=i)
+                for i in range(1, 6)]
+        tolle = [start(2, "Payton Tolle", f"2026-07-{i:02d}", 5.0, 6, game_pk=20 + i)
+                 for i in range(1, 6)]
+        opener = [start(3, "Jovani Morán", f"2026-07-{i:02d}", 1.0, 2, game_pk=40 + i)
+                  for i in range(1, 6)]
+        return pitching_df(gray + tolle + opener)
+
+    def test_only_the_named_starter_appears(self):
+        df = pitcher_strikeout_model(self._rotation(), pd.DataFrame(), games_df([]),
+                                     only_player_ids={1})
+
+        assert df["player_name"].tolist() == ["Sonny Gray"]
+
+    def test_openers_and_the_rest_of_the_rotation_are_excluded(self):
+        df = pitcher_strikeout_model(self._rotation(), pd.DataFrame(), games_df([]),
+                                     only_player_ids={1})
+
+        assert "Jovani Morán" not in df["player_name"].tolist()
+        assert "Payton Tolle" not in df["player_name"].tolist()
+
+    def test_doubleheader_shows_both_starters(self):
+        df = pitcher_strikeout_model(self._rotation(), pd.DataFrame(), games_df([]),
+                                     only_player_ids={1, 2})
+
+        assert sorted(df["player_name"].tolist()) == ["Payton Tolle", "Sonny Gray"]
+
+    def test_empty_filter_shows_nobody_rather_than_the_whole_rotation(self):
+        """
+        An unresolved probable must produce an empty table the page can explain
+        — never a silent fallback to everyone who has ever started.
+        """
+        df = pitcher_strikeout_model(self._rotation(), pd.DataFrame(), games_df([]),
+                                     only_player_ids=set())
+
+        assert df.empty
+
+    def test_omitting_the_filter_keeps_every_starter(self):
+        df = pitcher_strikeout_model(self._rotation(), pd.DataFrame(), games_df([]))
+
+        assert len(df) == 3
 
 
 class TestPropLineMatching:

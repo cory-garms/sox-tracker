@@ -16,8 +16,10 @@ from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
 from analysis.betting import (
     MAX_PLAUSIBLE_EDGE_K,
+    MIN_STARTS_FOR_PROP,
     MODEL_ERROR_K,
     pitcher_strikeout_model,
+    probable_starters,
     first_5_innings_analysis,
     nrfi_yrfi_tracker,
     batter_total_bases_model,
@@ -65,8 +67,20 @@ def generate_betting_html(
     batting = fetcher.load("batting")
     pitching = fetcher.load("pitching")
 
-    # Run analytical models
-    k_df = pitcher_strikeout_model(pitching, batting, games, client, odds_client, team_id, season)
+    # Run analytical models.
+    #
+    # The strikeout table covers whoever actually takes the mound today, not
+    # every arm that has ever started — that swept in openers and long
+    # relievers who will not pitch and have no prop line. A doubleheader
+    # legitimately has two probables, so this is a list.
+    probables = probable_starters(client, team_id, date_str)
+    k_df = pitcher_strikeout_model(
+        pitching, batting, games, client, odds_client, team_id, season,
+        # Deliberately a set even when empty: an unresolved probable must yield
+        # an empty table the page can explain, never a fallback to the whole
+        # rotation.
+        only_player_ids={p["id"] for p in probables},
+    )
     f5_res = first_5_innings_analysis(pitching, games, client, team_id, season, date_str)
     nrfi_res = nrfi_yrfi_tracker(games, pitching, client, team_id, season)
     tb_df = batter_total_bases_model(batting, season)
@@ -111,9 +125,26 @@ def generate_betting_html(
               <td><span class="rec-badge {rec_class}">{rec}</span></td>
             </tr>
             """
+    elif not probables:
+        k_rows = (f'<tr><td colspan="10">No probable starter could be resolved for '
+                  f'{date_str}. The table is left empty rather than falling back to '
+                  f'the rest of the rotation.</td></tr>')
     else:
-        k_rows = ('<tr><td colspan="10">No starting pitcher has enough starts '
-                  'for a projection yet.</td></tr>')
+        listed = " and ".join(p["name"] for p in probables)
+        k_rows = (f'<tr><td colspan="10">{listed} listed as probable, but has fewer '
+                  f'than {MIN_STARTS_FOR_PROP} starts this season — too few for a '
+                  f'projection worth publishing.</td></tr>')
+
+    if probables:
+        who = " and ".join(p["name"] for p in probables)
+        starter_line_html = (
+            f'<p class="table-note">Probable starter for {date_str}: '
+            f"<strong>{who}</strong>.</p>"
+        )
+    else:
+        starter_line_html = (
+            f'<p class="table-note">No probable starter announced for {date_str}.</p>'
+        )
 
     lines_live = bool(not k_df.empty and k_df["has_line"].any())
 
@@ -506,7 +537,8 @@ def generate_betting_html(
   </header>
 
   <section class="card">
-    <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) Prop Model</h2>
+    <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) &mdash; Today's Starter</h2>
+    {starter_line_html}
     {k_html}
   </section>
 
