@@ -361,6 +361,12 @@ def page_css() -> str:
     .rec-badge.over {{ background: {OUTFIELD_GREEN}; color: #06120d; }}
     .rec-badge.under {{ background: {NAVY_BLUE}; color: #04101d; }}
     .rec-badge.neu {{ background: rgba(197,160,89,0.2); color: {BRASS}; border: 1px solid {BRASS}; }}
+    /* A model disagreeing with the market by more than its own error bar —
+       reported as a defect, so it must not look like a pick. */
+    .rec-badge.review {{
+      background: transparent; color: {FENWAY_CRIMSON};
+      border: 1px dashed {FENWAY_CRIMSON};
+    }}
     .delta-pos {{ color: {OUTFIELD_GREEN}; }}
     .delta-neg {{ color: {FENWAY_CRIMSON}; }}
     .delta-neu {{ color: {INK_MUTED}; }}

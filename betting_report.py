@@ -6,7 +6,7 @@ betting report saved to docs/betting_BOS_2026.html.
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import config
@@ -15,12 +15,30 @@ from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
 from analysis.betting import (
+    MAX_PLAUSIBLE_EDGE_K,
+    MODEL_ERROR_K,
     pitcher_strikeout_model,
     first_5_innings_analysis,
     nrfi_yrfi_tracker,
     batter_total_bases_model,
     batter_hr_rbi_props,
 )
+
+
+def _format_line_timestamp(raw: str | None) -> str | None:
+    """
+    Render a bookmaker's ISO-8601 `last_update` as "15:01 UTC on 25 Jul 2026".
+
+    Returns None if the provider sent nothing parseable — an unlabelled line is
+    better than a made-up timestamp.
+    """
+    if not raw:
+        return None
+    try:
+        stamp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return stamp.astimezone(timezone.utc).strftime("%H:%M UTC on %d %b %Y")
 
 
 def generate_betting_html(
@@ -59,7 +77,14 @@ def generate_betting_html(
     if not k_df.empty:
         for _, r in k_df.iterrows():
             rec = r["recommendation"]
-            rec_class = "over" if "OVER" in rec else ("under" if "UNDER" in rec else "neu")
+            if r.get("flagged"):
+                rec_class = "review"
+            elif "OVER" in rec:
+                rec_class = "over"
+            elif "UNDER" in rec:
+                rec_class = "under"
+            else:
+                rec_class = "neu"
             src = r.get("line_source", "No line available")
 
             # Line/edge cells only carry meaning when a book actually quoted one.
@@ -91,15 +116,50 @@ def generate_betting_html(
                   'for a projection yet.</td></tr>')
 
     lines_live = bool(not k_df.empty and k_df["has_line"].any())
+
+    # A GitHub Pages build serves a static file, so these odds are only ever as
+    # fresh as the last build. Say which moment they came from rather than
+    # letting the page imply they are live.
+    stamp_html = ""
     if lines_live:
-        k_note = ("Edge is the model projection minus the sportsbook line. EV is "
-                  "computed against the book's posted price, de-vigged across both sides.")
+        stamps = [s for s in k_df["line_last_update"].tolist() if s]
+        shown = _format_line_timestamp(max(stamps)) if stamps else None
+        built = datetime.now(timezone.utc).strftime("%H:%M UTC on %d %b %Y")
+        if shown:
+            stamp_html = (
+                f'<p class="table-note"><strong>Lines as of {shown}.</strong> '
+                f"This page is a static build (generated {built}) — the odds "
+                "above do not update after it is published. Re-check the book "
+                "before acting on anything here.</p>"
+            )
+        else:
+            stamp_html = (
+                f'<p class="table-note"><strong>Line timestamp unavailable.</strong> '
+                f"The book did not report when it last moved these prices; the page "
+                f"itself was built {built}. Treat the odds as stale.</p>"
+            )
+
+    if lines_live:
+        k_note = (
+            "Edge is the model projection minus the sportsbook line. EV comes from a "
+            "Poisson distribution around the projection, priced against the book's "
+            "posted odds. "
+            f"<strong>The model's own measured error is &plusmn;{MODEL_ERROR_K:.1f} K "
+            "per start</strong> (walk-forward backtest over the 2026 starts, after "
+            "removing irreducible scatter), so an edge smaller than that is inside "
+            "the noise and the EV should be read as indicative only. Projections that "
+            f"disagree with the market by more than {MAX_PLAUSIBLE_EDGE_K:.1f} K are "
+            "flagged <span class=\"rec-badge review\">REVIEW</span> rather than "
+            "recommended — at that size the model is reporting its own bug. "
+            "There is still no opponent, park, or platoon adjustment."
+        )
     else:
         k_note = ("<strong>No sportsbook lines connected.</strong> These are model "
                   "projections only — no edge or EV can be computed without a real "
                   "line to compare against. Set <code>ODDS_API_KEY</code> to enable them.")
 
     k_html = f"""
+    {stamp_html}
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -109,7 +169,7 @@ def generate_betting_html(
           <th>Starts</th>
           <th>Season K/9</th>
           <th>L5 K/9</th>
-          <th>Avg IP</th>
+          <th>Proj IP</th>
           <th>Proj K's</th>
           <th>Prop Line (Odds)</th>
           <th>Edge</th>

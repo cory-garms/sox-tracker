@@ -205,21 +205,32 @@ def _safe_int(val: Any, default: int | None = None) -> int | None:
 def _parse_player_lines(payload: dict, market_key: str) -> dict[str, dict[str, Any]]:
     """
     Flatten The Odds API's bookmakers -> markets -> outcomes nesting into
-    {player_name: {"line": float, "over_odds": int, "under_odds": int, "book": str}}.
+    {player_name: {"line": float, "over_odds": int, "under_odds": int,
+                   "book": str, "last_update": str}}.
+
+    `last_update` is the bookmaker's own ISO-8601 timestamp for when it last
+    moved these prices. It is carried through because a statically built page
+    can only ever show odds as of its last build, and must say which moment
+    that was rather than implying the numbers are live.
     """
     lines: dict[str, dict[str, Any]] = {}
     for book in payload.get("bookmakers", []) or []:
         book_title = book.get("title", book.get("key", ""))
+        book_updated = book.get("last_update")
         for market in book.get("markets", []) or []:
             if market.get("key") != market_key:
                 continue
+            # Market-level timestamps are more precise when present.
+            updated = market.get("last_update") or book_updated
             for outcome in market.get("outcomes", []) or []:
                 # `description` carries the player name; `name` is Over/Under.
                 player = outcome.get("description") or outcome.get("name", "")
                 if not player:
                     continue
                 side = str(outcome.get("name", "")).lower()
-                entry = lines.setdefault(player, {"line": None, "book": book_title})
+                entry = lines.setdefault(
+                    player, {"line": None, "book": book_title, "last_update": updated}
+                )
                 point = outcome.get("point")
                 if point is not None:
                     entry["line"] = float(point)
