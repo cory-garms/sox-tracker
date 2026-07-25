@@ -72,3 +72,36 @@ python report.py
 ```
 
 That's it.  All analysis, charts, and reports will reflect your chosen team.
+
+> **Note:** `streak_report.py` still hardcodes Red Sox franchise records and has
+> no `--team` flag. Every other report is team-agnostic.
+
+---
+
+## Optional — live sportsbook lines
+
+The betting report works without any key: it shows model projections and
+reports the line as unavailable. To compute a real edge and EV it needs actual
+book prices.
+
+DraftKings' public endpoints are **not** usable — they sit behind an Akamai edge
+that returns `403` to non-browser clients on every host and API version. Live
+lines therefore come from [The Odds API](https://the-odds-api.com/), which
+aggregates DraftKings prices and has a free tier (~500 requests/month).
+
+```bash
+# 1. Get a free key at https://the-odds-api.com/
+# 2. Export it (never commit it)
+export ODDS_API_KEY="your_key_here"
+
+# 3. Build the betting page — it will now show real lines, edge, and EV
+python betting_report.py --team BOS --season 2026
+```
+
+For the GitHub Action, add the same value as a repository secret named
+`ODDS_API_KEY` (Settings → Secrets and variables → Actions).
+
+Note that **player prop markets** (pitcher strikeouts, batter total bases) are
+gated to The Odds API's paid tiers. On the free tier, game-level markets work and
+prop lines come back empty — the report degrades to projections-only rather than
+inventing a line.

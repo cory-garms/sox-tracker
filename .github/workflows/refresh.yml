@@ -31,8 +31,21 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
 
-      - name: Build dashboard
-        run: python viz_report.py --team ${{ vars.TEAM_ABBR || 'BOS' }} --season ${{ vars.SEASON || '2026' }}
+      # Every page is data-driven, so refreshing only the dashboard left the
+      # matchup / leaders / streak / betting pages showing stale figures.
+      - name: Build all pages
+        env:
+          TEAM: ${{ vars.TEAM_ABBR || 'BOS' }}
+          SEASON: ${{ vars.SEASON || '2026' }}
+          # Optional: set this repo secret to pull live sportsbook lines.
+          # Without it the betting page builds with projections only.
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          python viz_report.py     --team "$TEAM" --season "$SEASON"
+          python leaders_report.py --team "$TEAM" --season "$SEASON"
+          python matchup_report.py --team "$TEAM" --season "$SEASON"
+          python betting_report.py --team "$TEAM" --season "$SEASON"
+          python streak_report.py
 
       - name: Commit updated dashboard
         run: |
