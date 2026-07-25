@@ -16,7 +16,7 @@ from plotly.subplots import make_subplots
 
 from config import OUTPUT_DIR, TEAM_ABBR, SEASON
 from viz.charts import (
-    _apply_theme, _BG, _PAPER_BG, _GRID, _TEXT, _GREEN, _RED, _BLUE, _YELLOW, _DIM,
+    _apply_theme, _BG, _PAPER_BG, _GRID, _TEXT, _GREEN, _RED, _BLUE, _YELLOW, _DIM, theme,
     season_timeline,
     rolling_win_pct_chart,
     run_differential_chart,
@@ -41,7 +41,8 @@ def _fig_div(fig: go.Figure, div_id: str, height: int = 450) -> str:
     """Return a standalone <div> with embedded Plotly chart (no CDN script tag)."""
     import plotly.io as pio
     fig.update_layout(height=height)
-    return pio.to_html(fig, full_html=False, include_plotlyjs=False, div_id=div_id)
+    return pio.to_html(fig, full_html=False, include_plotlyjs=False, div_id=div_id,
+                       config=theme.PLOTLY_CONFIG)
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +153,12 @@ def build(
         include_js = True if i == 0 else False
         fig.update_layout(
             height=height,
+            # The <h2 class="chart-title"> above already names this chart, so the
+            # in-figure title is a duplicate that overflows a phone viewport.
+            # Dropping it also frees the top margin the modebar sits in.
+            title=None,
+            # r leaves room for the last x tick label to sit inside the plot
+            margin=dict(l=10, r=46, t=34, b=56),
             legend=dict(
                 orientation="h",
                 yanchor="top",
@@ -159,10 +166,11 @@ def build(
                 xanchor="center",
                 x=0.5,
                 bgcolor="rgba(0,0,0,0)",
-                bordercolor="#30363d",
+                bordercolor=theme.TURF_GRID,
             ),
         )
-        chart_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id)
+        chart_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id,
+                             config=theme.PLOTLY_CONFIG)
         divs_html += f"""
         <section class="chart-section">
             <h2 class="chart-title">{title}</h2>
@@ -176,99 +184,33 @@ def build(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} — {season} Dashboard</title>
+  {theme.FONTS_LINK}
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <style>
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    html, body {{
-      background: {_BG};
-      color: {_TEXT};
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      min-height: 100vh;
-      width: 100%;
-      overflow-x: hidden;
-    }}
-    body {{
-      padding: clamp(12px, 3vw, 24px);
-    }}
-    .nav-bar {{
-      margin-bottom: 16px;
-    }}
-    .nav-back {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: {_BLUE};
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 6px 12px;
-      background: {_PAPER_BG};
-      border: 1px solid {_GRID};
-      border-radius: 8px;
-      transition: background 0.2s ease;
-    }}
-    .nav-back:hover {{
-      background: {_GRID};
-    }}
-    header {{
-      border-bottom: 2px solid {_GREEN};
-      padding-bottom: 16px;
-      margin-bottom: clamp(20px, 4vw, 32px);
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }}
-    .team-logo {{
-      height: clamp(48px, 10vw, 64px);
-      width: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
-    }}
-    header h1 {{
-      font-size: clamp(1.4rem, 4vw, 2.0rem);
-      font-weight: 800;
-      color: {_TEXT};
-      line-height: 1.25;
-    }}
-    header p {{
-      color: {_DIM};
-      margin-top: 6px;
-      font-size: clamp(0.85rem, 2.5vw, 0.95rem);
-      line-height: 1.4;
-    }}
+    {theme.page_css()}
+    /* dashboard-specific: chart sections reuse the ticket-stub treatment */
     .chart-section {{
       background: {_PAPER_BG};
-      border: 1px solid {_GRID};
-      border-radius: 12px;
-      padding: clamp(12px, 3vw, 20px);
-      margin-bottom: clamp(16px, 3vw, 24px);
+      border: 2px dashed {theme.BRASS};
+      border-radius: 6px;
+      padding: clamp(12px, 3vw, 22px);
+      margin-bottom: clamp(16px, 3vw, 26px);
       width: 100%;
       overflow-x: auto;
     }}
     .chart-title {{
-      font-size: clamp(0.85rem, 2.2vw, 1.0rem);
-      font-weight: 700;
-      color: {_DIM};
+      font-family: {theme.FONT_STENCIL};
+      font-size: clamp(0.8rem, 2vw, 1.0rem);
+      font-weight: 400;
+      color: {theme.SCOREBOARD_GOLD};
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       margin-bottom: 24px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(197,160,89,0.28);
     }}
-    .plotly-graph-div {{
-      width: 100% !important;
-    }}
-    footer {{
-      text-align: center;
-      color: {_DIM};
-      font-size: 0.85rem;
-      margin-top: 40px;
-      padding-top: 16px;
-      border-top: 1px solid {_GRID};
-      line-height: 1.5;
-    }}
-    footer a {{ color: {_BLUE}; text-decoration: none; font-weight: 600; }}
-
     @media (max-width: 600px) {{
-      body {{ padding: 10px 8px; }}
-      .chart-section {{ padding: 8px 4px; border-radius: 8px; }}
+      .chart-section {{ padding: 10px 6px; border-radius: 4px; }}
     }}
   </style>
 </head>
@@ -291,6 +233,7 @@ def build(
     <p>Generated by <a href="https://github.com/cory-garms/sox-tracker">sox-tracker</a> &mdash;
     data via <a href="https://statsapi.mlb.com">MLB Stats API</a> &amp;
     <a href="https://baseballsavant.mlb.com">Baseball Savant</a></p>
+    <p class="stamp">Est. 1912 &middot; Fenway Park &middot; Boston</p>
   </footer>
 
   <script>

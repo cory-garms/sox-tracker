@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 import config
+from viz import theme
 from client.mlb_client import MLBClient
 from data.fetcher import Fetcher
 from analysis.matchup import (
@@ -73,7 +74,9 @@ def generate_matchup_html(
         s2_opp = starter_season_summary(client, p2.get("opp_probable", {}).get("id"), season)
 
         starters_html = f"""
-        <table class="report-table">
+        <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
           <thead>
             <tr>
               <th>Metric</th>
@@ -93,6 +96,7 @@ def generate_matchup_html(
             <tr><td>IP</td><td>{s1_our.get('ip',0)}</td><td>{s1_opp.get('ip',0)}</td><td>{s2_our.get('ip',0)}</td><td>{s2_opp.get('ip',0)}</td></tr>
           </tbody>
         </table>
+    </div>
         """
     else:
         our_prob = p1.get("our_probable", {})
@@ -101,7 +105,9 @@ def generate_matchup_html(
         s_opp = starter_season_summary(client, opp_prob.get("id"), season)
 
         starters_html = f"""
-        <table class="report-table">
+        <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
           <thead>
             <tr>
               <th>Metric</th>
@@ -119,6 +125,7 @@ def generate_matchup_html(
             <tr><td>Innings Pitched</td><td>{s_our.get('ip',0)}</td><td>{s_opp.get('ip',0)}</td></tr>
           </tbody>
         </table>
+    </div>
         """
 
     # 2. Platoon Lineup Advantage HTML
@@ -145,6 +152,8 @@ def generate_matchup_html(
             """
 
     plat_html = f"""
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -162,6 +171,7 @@ def generate_matchup_html(
         {plat_rows}
       </tbody>
     </table>
+    </div>
     """
 
     # 3. Bullpen Availability HTML
@@ -183,6 +193,8 @@ def generate_matchup_html(
             """
 
     bp_html = f"""
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -198,11 +210,14 @@ def generate_matchup_html(
         {bp_rows}
       </tbody>
     </table>
+    </div>
     """
 
     # 4. Head-to-Head HTML
     h2h = head_to_head_summary(games, opp_id)
     h2h_html = f"""
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -225,6 +240,7 @@ def generate_matchup_html(
         </tr>
       </tbody>
     </table>
+    </div>
     """
 
     status_badge = '<span class="badge dh">⚡ SPLIT DOUBLEHEADER</span>' if is_dh else f'<span class="badge">{p1.get("status", "Scheduled")}</span>'
@@ -236,125 +252,29 @@ def generate_matchup_html(
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} vs {opp_name} — Today's Pre-Game Matchup Preview</title>
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  {theme.FONTS_LINK}
   <style>
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    html, body {{
-      background: #0c1829;
-      color: #f0f6fc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      min-height: 100vh;
-      width: 100%;
-      overflow-x: hidden;
+    {theme.page_css()}
+    .starter-name {{
+      font-family: {theme.FONT_DISPLAY};
+      font-size: clamp(1rem, 2.8vw, 1.3rem);
+      color: {theme.PARCHMENT};
+      margin: 6px 0 4px 0;
     }}
-    body {{
-      padding: clamp(12px, 3vw, 28px);
+    .highlight-ops {{
+      font-family: {theme.FONT_MONO};
+      color: {theme.SCOREBOARD_GOLD};
+      font-size: 1.05em;
     }}
-    .nav-bar {{ margin-bottom: 16px; }}
-    .nav-back {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #58a6ff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 6px 12px;
-      background: #14243b;
-      border: 1px solid #243854;
-      border-radius: 8px;
-    }}
-    header {{
-      border-bottom: 2px solid #00804c;
-      padding-bottom: 16px;
-      margin-bottom: clamp(20px, 4vw, 32px);
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }}
-    .team-logo {{
-      height: clamp(48px, 10vw, 64px);
-      width: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
-    }}
-    header h1 {{
-      font-size: clamp(1.4rem, 4vw, 2.2rem);
-      font-weight: 800;
-      line-height: 1.25;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-    }}
-    header p {{
-      color: #94a7b8;
-      margin-top: 6px;
-      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
-    }}
-    .badge {{
-      background: #00804c;
-      color: #ffffff;
-      font-weight: 800;
-      font-size: clamp(0.75rem, 2vw, 0.85rem);
-      padding: 4px 10px;
-      border-radius: 12px;
-    }}
-    .badge.dh {{ background: #d22d36; color: #ffffff; }}
-    .card {{
-      background: #14243b;
-      border: 1px solid #243854;
-      border-radius: 12px;
-      padding: clamp(14px, 3vw, 24px);
-      margin-bottom: clamp(16px, 3vw, 24px);
-      width: 100%;
-      overflow-x: auto;
-    }}
-    .card h2 {{
-      font-size: clamp(0.9rem, 2.2vw, 1.15rem);
-      font-weight: 700;
-      color: #58a6ff;
+    .dh {{
+      display: inline-block;
+      font-family: {theme.FONT_STENCIL};
+      font-size: 0.66rem; letter-spacing: 0.1em;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 16px;
-    }}
-    .report-table {{
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: clamp(0.82rem, 2.2vw, 0.95rem);
-    }}
-    .report-table th, .report-table td {{
-      padding: 10px 12px;
-      border-bottom: 1px solid #30363d;
-    }}
-    .report-table th {{
-      color: #8b949e;
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.78rem;
-    }}
-    .starter-name {{ color: #ffffff; font-weight: 700; font-size: 0.9rem; text-transform: none; }}
-    .highlight-ops {{ color: #3fb950; font-weight: 700; }}
-    .delta-pos {{ color: #3fb950; font-weight: 700; }}
-    .delta-neg {{ color: #f85149; font-weight: 700; }}
-    .delta-neu {{ color: #8b949e; }}
-    .status-badge {{ font-size: 0.8rem; font-weight: 700; border-radius: 4px; padding: 2px 6px; }}
-    .status-badge.fresh {{ background: rgba(63, 185, 80, 0.2); color: #3fb950; }}
-    .status-badge.mod {{ background: rgba(210, 153, 34, 0.2); color: #d29922; }}
-    .status-badge.heavy {{ background: rgba(248, 81, 73, 0.2); color: #f85149; }}
-    footer {{
-      text-align: center;
-      color: #8b949e;
-      font-size: 0.85rem;
-      margin-top: 40px;
-      padding-top: 16px;
-      border-top: 1px solid #30363d;
-    }}
-    footer a {{ color: #58a6ff; text-decoration: none; }}
-
-    @media (max-width: 600px) {{
-      body {{ padding: 10px 8px; }}
-      .card {{ padding: 10px 6px; border-radius: 8px; }}
-      .report-table th, .report-table td {{ padding: 8px 6px; }}
+      color: {theme.BRASS};
+      border: 1px solid {theme.BRASS};
+      border-radius: 2px;
+      padding: 1px 7px; margin-left: 8px;
     }}
   </style>
 </head>

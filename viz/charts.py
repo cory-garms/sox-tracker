@@ -16,44 +16,28 @@ from plotly.subplots import make_subplots
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Shared theme
+# Shared theme — values live in viz.theme; these are local aliases so the
+# ~60 call sites below read the same as they always have.
 # ---------------------------------------------------------------------------
 
-_BG       = "#0e1117"
-_PAPER_BG = "#161b22"
-_GRID     = "#30363d"
-_TEXT     = "#e6edf3"
-_GREEN    = "#3fb950"
-_RED      = "#f85149"
-_YELLOW   = "#d29922"
-_BLUE     = "#58a6ff"
-_DIM      = "#8b949e"
+from viz import theme
+from analysis.streaks import played_in_order
 
-_LAYOUT_BASE = dict(
-    paper_bgcolor=_PAPER_BG,
-    plot_bgcolor=_BG,
-    font=dict(color=_TEXT, family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"),
-    xaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    yaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    margin=dict(l=40, r=20, t=65, b=70),
-    legend=dict(
-        orientation="h",
-        yanchor="top",
-        y=-0.22,
-        xanchor="center",
-        x=0.5,
-        bgcolor="rgba(0,0,0,0)",
-        bordercolor=_GRID,
-    ),
-)
+_BG       = theme.PRESS_BOX
+_PAPER_BG = theme.MONSTER_CARD
+_GRID     = theme.TURF_GRID
+_TEXT     = theme.PARCHMENT
+_GREEN    = theme.WIN
+_RED      = theme.LOSS
+_YELLOW   = theme.SCOREBOARD_GOLD
+_BLUE     = theme.NAVY_BLUE
+_DIM      = theme.INK_MUTED
+
+_LAYOUT_BASE = theme.LAYOUT_BASE
 
 
 def _apply_theme(fig: go.Figure, **extra) -> go.Figure:
-    layout = {**_LAYOUT_BASE, **extra}
-    fig.update_layout(**layout)
-    fig.update_xaxes(gridcolor=_GRID, zerolinecolor=_GRID)
-    fig.update_yaxes(gridcolor=_GRID, zerolinecolor=_GRID)
-    return fig
+    return theme.apply(fig, **extra)
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +49,7 @@ def season_timeline(games: pd.DataFrame, team_name: str) -> go.Figure:
     Cumulative wins and losses over the season.
     Includes a .500 pace reference line.
     """
-    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
+    f = played_in_order(games)
     if f.empty:
         return go.Figure()
 
@@ -129,7 +113,7 @@ def rolling_win_pct_chart(
     if windows is None:
         windows = [7, 15]
 
-    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
+    f = played_in_order(games)
     if f.empty:
         return go.Figure()
 
@@ -147,7 +131,6 @@ def rolling_win_pct_chart(
     f["game_label"] = labels
 
     f["win_flag"] = (f["result"] == "W").astype(int)
-    colors = [_BLUE, _YELLOW, _GREEN, _RED]
 
     fig = go.Figure()
     for i, w in enumerate(windows):
@@ -156,11 +139,12 @@ def rolling_win_pct_chart(
             x=f["game_label"], y=roll,
             name=f"{w}-Game Win%",
             mode="lines",
-            line=dict(color=colors[i % len(colors)], width=2),
+            # Fixed order, never cycled — raises past the validated set.
+            line=dict(color=theme.categorical(i), width=2),
             hovertemplate="%{x}<br>Win%%: %{y:.3f}<extra></extra>",
         ))
 
-    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500")
+    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500", annotation_position="top left")
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Rolling Win%", font=dict(size=16)),
@@ -181,7 +165,7 @@ def run_differential_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
     Per-game bar chart: runs scored vs. allowed, colored by W/L.
     Overlays cumulative run differential as a line.
     """
-    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
+    f = played_in_order(games)
     if f.empty:
         return go.Figure()
 
@@ -501,7 +485,8 @@ def era_split_chart(team_era_split: dict, team_name: str) -> go.Figure:
         hovertemplate="%{x}: %{y:.2f} ERA<extra></extra>",
     ))
     fig.add_hline(y=league_avg, line_dash="dot", line_color=_DIM,
-                  annotation_text=f"Lg Avg ({league_avg:.2f})")
+                  annotation_text=f"Lg Avg ({league_avg:.2f})",
+                  annotation_position="top left")
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — ERA by Role", font=dict(size=16)),
@@ -553,7 +538,7 @@ def multi_season_win_pct(
                     text=f"🏆", showarrow=False, font=dict(size=14),
                 )
 
-    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500")
+    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500", annotation_position="top left")
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Win% by Season", font=dict(size=16)),
@@ -611,7 +596,7 @@ def pace_comparison_chart(
         line=dict(color=_TEXT, width=3),
     ))
 
-    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500")
+    fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500", annotation_position="top left")
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Season Pace Comparison", font=dict(size=16)),
@@ -695,22 +680,27 @@ def momentum_curve_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
     ))
 
     # .500 Reference line
-    fig.add_hline(y=0, line_dash="dash", line_color=_DIM, annotation_text=".500 Baseline")
+    fig.add_hline(y=0, line_dash="dash", line_color=_DIM, annotation_text=".500 Baseline", annotation_position="top left")
 
-    # Annotate low point
+    # Annotate low point — short label + right anchor so it stays inside the
+    # plot on a narrow screen wherever the low point happens to fall.
     fig.add_annotation(
         x=min_game, y=min_val,
-        text=f"Low Point: {min_val:+d} (Game {min_game})",
+        text=f"Low: {min_val:+d} (G{min_game})",
         showarrow=True, arrowhead=2, ax=0, ay=35,
-        bgcolor=_PAPER_BG, bordercolor=_RED, font=dict(color=_RED, size=12)
+        xanchor="right",
+        bgcolor=_PAPER_BG, bordercolor=_RED, font=dict(color=_RED, size=11)
     )
 
-    # Annotate current peak/streak
+    # Annotate current peak/streak. It sits on the last game — the right edge of
+    # the plot — so anchor the label to its right and pull it left, otherwise it
+    # renders past the container and clips on a phone.
     fig.add_annotation(
         x=last_game, y=last_val,
-        text=f"Current Peak: {last_val:+d} (Game {last_game})",
-        showarrow=True, arrowhead=2, ax=-40, ay=-35,
-        bgcolor=_PAPER_BG, bordercolor=_GREEN, font=dict(color=_GREEN, size=12)
+        text=f"Latest: {last_val:+d} (Game {last_game})",
+        showarrow=True, arrowhead=2, ax=-50, ay=-35,
+        xanchor="right",
+        bgcolor=_PAPER_BG, bordercolor=_GREEN, font=dict(color=_GREEN, size=11)
     )
 
     _apply_theme(fig,
@@ -783,7 +773,7 @@ def rolling_synergy_chart(
     Dual-axis rolling time-series: Rolling 7-Game Team OPS (Primary Y)
     vs Rolling 7-Game Team ERA (Secondary Y, inverted).
     """
-    f = games[games["status"] == "Final"].sort_values(["game_date", "game_pk"]).reset_index(drop=True)
+    f = played_in_order(games)
     if f.empty or batting.empty or pitching.empty:
         return go.Figure()
 

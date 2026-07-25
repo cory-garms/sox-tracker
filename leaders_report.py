@@ -18,42 +18,25 @@ from analysis.offense import player_season_totals
 # ---------------------------------------------------------------------------
 # Theme configuration
 # ---------------------------------------------------------------------------
-_BG       = "#0c1829"  # Fenway Midnight Navy
-_PAPER_BG = "#14243b"  # Dark Navy Card Background
-_GRID     = "#243854"  # Fenway Seam Navy Border
-_TEXT     = "#f0f6fc"  # Silver White Text
-_GREEN    = "#00804c"  # Green Monster Green
-_RED      = "#d22d36"  # Red Sox Crimson Red
-_YELLOW   = "#f5c242"  # Fenway Gold
-_BLUE     = "#58a6ff"  # Navy Accent Blue
-_PURPLE   = "#bc8cff"  # Accent Purple
-_DIM      = "#94a7b8"  # Muted Slate Text
+from viz import theme
 
-_LAYOUT_BASE = dict(
-    paper_bgcolor=_PAPER_BG,
-    plot_bgcolor=_BG,
-    font=dict(color=_TEXT, family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"),
-    xaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    yaxis=dict(gridcolor=_GRID, zerolinecolor=_GRID),
-    margin=dict(l=40, r=20, t=65, b=70),
-    legend=dict(
-        orientation="h",
-        yanchor="top",
-        y=-0.22,
-        xanchor="center",
-        x=0.5,
-        bgcolor="rgba(0,0,0,0)",
-        bordercolor=_GRID,
-    ),
-)
+_BG       = theme.PRESS_BOX
+_PAPER_BG = theme.MONSTER_CARD
+_GRID     = theme.TURF_GRID
+_TEXT     = theme.PARCHMENT
+_GREEN    = theme.WIN
+_RED      = theme.LOSS
+_YELLOW   = theme.SCOREBOARD_GOLD
+_BLUE     = theme.NAVY_BLUE
+_DIM      = theme.INK_MUTED
+
+# Each leaderboard is its own single-series chart, so hues here carry no
+# cross-chart identity — they cycle the validated categorical order for variety.
+_PURPLE   = theme.NAVY_BLUE
 
 
 def _apply_theme(fig: go.Figure, **extra) -> go.Figure:
-    layout = {**_LAYOUT_BASE, **extra}
-    fig.update_layout(**layout)
-    fig.update_xaxes(gridcolor=_GRID, zerolinecolor=_GRID)
-    fig.update_yaxes(gridcolor=_GRID, zerolinecolor=_GRID)
-    return fig
+    return theme.apply(fig, **extra)
 
 
 def build_leader_bar_chart(
@@ -208,7 +191,8 @@ def generate_leaders_html(
                 bordercolor=_GRID,
             ),
         )
-        c_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id)
+        c_div = pio.to_html(fig, full_html=False, include_plotlyjs=include_js, div_id=div_id,
+                          config=theme.PLOTLY_CONFIG)
         cards_html += f"""
         <div class="chart-card">
           <h2>{title}</h2>
@@ -223,104 +207,13 @@ def generate_leaders_html(
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} — 2026 Team Stat Leaders</title>
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  {theme.FONTS_LINK}
   <style>
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    html, body {{
-      background: {_BG};
-      color: {_TEXT};
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      min-height: 100vh;
-      width: 100%;
-      overflow-x: hidden;
-    }}
-    body {{
-      padding: clamp(12px, 3vw, 28px);
-    }}
-    .nav-bar {{ margin-bottom: 16px; }}
-    .nav-back {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: {_BLUE};
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 6px 12px;
-      background: {_PAPER_BG};
-      border: 1px solid {_GRID};
-      border-radius: 8px;
-    }}
-    header {{
-      border-bottom: 2px solid {_GREEN};
-      padding-bottom: 16px;
-      margin-bottom: clamp(20px, 4vw, 32px);
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }}
-    .team-logo {{
-      height: clamp(48px, 10vw, 64px);
-      width: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
-    }}
-    header h1 {{
-      font-size: clamp(1.4rem, 4vw, 2.2rem);
-      font-weight: 800;
-      color: {_TEXT};
-      line-height: 1.25;
-    }}
-    header p {{
-      color: {_DIM};
-      margin-top: 6px;
-      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
-    }}
-    .badge {{
-      background: {_GREEN};
-      color: #000;
-      font-weight: 800;
-      font-size: clamp(0.75rem, 2vw, 0.85rem);
-      padding: 3px 10px;
-      border-radius: 12px;
-    }}
+    {theme.page_css()}
     .grid-container {{
-      display: flex;
-      flex-direction: column;
-      gap: clamp(16px, 3vw, 28px);
-      max-width: 900px;
-      margin: 0 auto;
-      width: 100%;
-    }}
-    .chart-card {{
-      background: {_PAPER_BG};
-      border: 1px solid {_GRID};
-      border-radius: 12px;
-      padding: clamp(12px, 3vw, 20px);
-      width: 100%;
-      overflow-x: auto;
-    }}
-    .chart-card h2 {{
-      font-size: clamp(0.9rem, 2.2vw, 1.1rem);
-      font-weight: 700;
-      color: {_BLUE};
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 24px;
-    }}
-    .plotly-graph-div {{ width: 100% !important; }}
-    footer {{
-      text-align: center;
-      color: {_DIM};
-      font-size: 0.85rem;
-      margin-top: 40px;
-      padding-top: 16px;
-      border-top: 1px solid {_GRID};
-    }}
-    footer a {{ color: {_BLUE}; text-decoration: none; font-weight: 600; }}
-
-    @media (max-width: 600px) {{
-      body {{ padding: 10px 8px; }}
-      .grid-container {{ grid-template-columns: 1fr; }}
-      .chart-card {{ padding: 8px 4px; border-radius: 8px; }}
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(16px, 3vw, 26px);
     }}
   </style>
 </head>
