@@ -2,8 +2,24 @@ name: Daily Data Refresh
 
 on:
   schedule:
-    # Runs at 7:00 AM ET (11:00 UTC) every day during baseball season
-    - cron: "0 11 * * *"
+    # GitHub cron is always UTC. The regular season sits entirely inside EDT,
+    # so ET = UTC-4 below.
+    #
+    # The betting page is a static file: it shows the odds of its last build and
+    # can never be more current than that. A single 07:00 ET run left the lines
+    # ~9 hours stale by a 16:00 ET first pitch, so the schedule now puts a build
+    # within roughly 90 minutes of every common start time.
+    - cron: "0 11 * * *"    # 07:00 ET — daily refresh, picks up last night's finals
+    - cron: "0 16 * * *"    # 12:00 ET — before 13:35 ET afternoon starts
+    - cron: "0 19 * * *"    # 15:00 ET — before 16:10 ET late-afternoon starts
+    - cron: "30 21 * * *"   # 17:30 ET — before 19:10 ET evening starts
+    #
+    # Quota: The Odds API allows 500 requests/month. get_events() is free; each
+    # build spends roughly one credit per prop market. Four builds a day is
+    # ~120/month, comfortably inside the budget. Count the cost before adding a
+    # fifth, and note that scheduled runs can be delayed when GitHub is busy —
+    # another reason the page states its own timestamp rather than promising
+    # freshness.
   workflow_dispatch:       # allow manual trigger from the GitHub UI
 
 jobs:
@@ -37,8 +53,10 @@ jobs:
         env:
           TEAM: ${{ vars.TEAM_ABBR || 'BOS' }}
           SEASON: ${{ vars.SEASON || '2026' }}
-          # Optional: set this repo secret to pull live sportsbook lines.
-          # Without it the betting page builds with projections only.
+          # Set this repo secret to pull live sportsbook lines:
+          #   Settings -> Secrets and variables -> Actions -> New repository secret
+          # Without it the betting page builds with projections only and states
+          # that no lines were connected — it never invents one.
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           python viz_report.py     --team "$TEAM" --season "$SEASON"
