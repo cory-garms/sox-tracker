@@ -72,6 +72,89 @@ def _safe_float(val, default=0.0) -> float:
 # Fetcher
 # ---------------------------------------------------------------------------
 
+def parse_schedule(raw_games: list[dict], team_id: int, season: int) -> list[dict]:
+    """
+    Turn a raw MLB schedule payload into game rows, in true playing order.
+
+    Pure function — no network, no cache — so the awkward parts are testable:
+    postponed-game filtering, gamePk de-duplication, doubleheader ordering, and
+    W/L/T assignment.
+    """
+    # A postponed game keeps abstractGameState "Final" while carrying its
+    # original date, and reappears under its makeup date with the same gamePk.
+    # Filtering on detailedState drops the stale entry; the dedupe below is a
+    # safety net so one gamePk can never contribute two rows.
+    completed = [
+        g for g in raw_games
+        if g.get("status", {}).get("abstractGameState") == "Final"
+        and g.get("status", {}).get("detailedState") not in _UNPLAYED_STATES
+    ]
+    by_pk: dict[int, dict] = {}
+    for g in completed:
+        by_pk[g["gamePk"]] = g
+
+    # Chronological order: officialDate, then gameNumber so doubleheader
+    # game 1 always precedes game 2 (gamePk does NOT order them correctly).
+    ordered = sorted(
+        by_pk.values(),
+        key=lambda g: (
+            g.get("officialDate") or g.get("gameDate", "")[:10],
+            _safe_int(g.get("gameNumber"), 1),
+        ),
+    )
+
+    rows: list[dict] = []
+    for i, game in enumerate(ordered):
+        gp          = game["gamePk"]
+        official_dt = game.get("officialDate") or game.get("gameDate", "")[:10]
+        teams       = game.get("teams", {})
+        home        = teams.get("home", {})
+        away        = teams.get("away", {})
+        home_id     = home.get("team", {}).get("id")
+        away_id     = away.get("team", {}).get("id")
+        is_home     = home_id == team_id
+        our_side    = home if is_home else away
+        their_side  = away if is_home else home
+        runs_scored  = _safe_int(our_side.get("score"))
+        runs_allowed = _safe_int(their_side.get("score"))
+
+        # Never infer a loss from a scoreless/undecided game — a tie is "T".
+        if runs_scored > runs_allowed:
+            result = "W"
+        elif runs_scored < runs_allowed:
+            result = "L"
+        else:
+            result = "T"
+
+        decisions = game.get("decisions", {})
+        linescore = game.get("linescore", {})
+
+        rows.append({
+            "game_pk":        gp,
+            "game_date":      official_dt,
+            "season":         season,
+            "game_num":       i + 1,
+            "game_number":    _safe_int(game.get("gameNumber"), 1),
+            "home_team_id":   home_id,
+            "away_team_id":   away_id,
+            "team_id":        team_id,
+            "opponent_id":    their_side.get("team", {}).get("id"),
+            "is_home":        is_home,
+            "runs_scored":    runs_scored,
+            "runs_allowed":   runs_allowed,
+            "result":         result,
+            "win_pitcher":    decisions.get("winner", {}).get("fullName", ""),
+            "loss_pitcher":   decisions.get("loser",  {}).get("fullName", ""),
+            "save_pitcher":   decisions.get("save",   {}).get("fullName", ""),
+            "innings":        _safe_int(linescore.get("currentInning", 9), 9),
+            "day_night":      game.get("dayNight", "").upper()[:1] or "N",
+            "game_type":      game.get("gameType", "R"),
+            "venue":          game.get("venue", {}).get("name", ""),
+            "status":         game.get("status", {}).get("detailedState", "Final"),
+        })
+    return rows
+
+
 class Fetcher:
     def __init__(
         self,
@@ -125,80 +208,8 @@ class Fetcher:
 
         log.info("Fetching schedule for team %d season %d", self.team_id, self.season)
         raw_games = self.client.get_schedule(self.team_id, self.season)
-        rows: list[dict] = []
-
-        # A postponed game keeps abstractGameState "Final" while carrying its
-        # original date, and reappears under its makeup date with the same gamePk.
-        # Filtering on detailedState drops the stale entry; the dedupe below is a
-        # safety net so one gamePk can never contribute two rows.
-        completed = [
-            g for g in raw_games
-            if g.get("status", {}).get("abstractGameState") == "Final"
-            and g.get("status", {}).get("detailedState") not in _UNPLAYED_STATES
-        ]
-        by_pk: dict[int, dict] = {}
-        for g in completed:
-            by_pk[g["gamePk"]] = g
-
-        # Chronological order: officialDate, then gameNumber so doubleheader
-        # game 1 always precedes game 2 (gamePk does NOT order them correctly).
-        completed = sorted(
-            by_pk.values(),
-            key=lambda g: (
-                g.get("officialDate") or g.get("gameDate", "")[:10],
-                _safe_int(g.get("gameNumber"), 1),
-            ),
-        )
-        log.info("Processing %d completed games", len(completed))
-
-        for i, game in enumerate(completed):
-            gp          = game["gamePk"]
-            official_dt = game.get("officialDate") or game.get("gameDate", "")[:10]
-            teams       = game.get("teams", {})
-            home        = teams.get("home", {})
-            away        = teams.get("away", {})
-            home_id     = home.get("team", {}).get("id")
-            away_id     = away.get("team", {}).get("id")
-            is_home     = home_id == self.team_id
-            our_side    = home if is_home else away
-            their_side  = away if is_home else home
-            runs_scored  = _safe_int(our_side.get("score"))
-            runs_allowed = _safe_int(their_side.get("score"))
-
-            # Never infer a loss from a scoreless/undecided game — a tie is "T".
-            if runs_scored > runs_allowed:
-                result = "W"
-            elif runs_scored < runs_allowed:
-                result = "L"
-            else:
-                result = "T"
-
-            decisions = game.get("decisions", {})
-            linescore = game.get("linescore", {})
-
-            rows.append({
-                "game_pk":        gp,
-                "game_date":      official_dt,
-                "season":         self.season,
-                "game_num":       i + 1,
-                "game_number":    _safe_int(game.get("gameNumber"), 1),
-                "home_team_id":   home_id,
-                "away_team_id":   away_id,
-                "team_id":        self.team_id,
-                "opponent_id":    their_side.get("team", {}).get("id"),
-                "is_home":        is_home,
-                "runs_scored":    runs_scored,
-                "runs_allowed":   runs_allowed,
-                "result":         result,
-                "win_pitcher":    decisions.get("winner", {}).get("fullName", ""),
-                "loss_pitcher":   decisions.get("loser",  {}).get("fullName", ""),
-                "save_pitcher":   decisions.get("save",   {}).get("fullName", ""),
-                "innings":        _safe_int(linescore.get("currentInning", 9), 9),
-                "day_night":      game.get("dayNight", "").upper()[:1] or "N",
-                "game_type":      game.get("gameType", "R"),
-                "venue":          game.get("venue", {}).get("name", ""),
-                "status":         game.get("status", {}).get("detailedState", "Final"),
-            })
+        rows = parse_schedule(raw_games, self.team_id, self.season)
+        log.info("Processing %d completed games", len(rows))
 
         df = pd.DataFrame(rows)
         df = enforce_schema(df, GAMES_SCHEMA)
