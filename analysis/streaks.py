@@ -32,7 +32,12 @@ def played_in_order(games: pd.DataFrame) -> pd.DataFrame:
     nightcap it precedes. MLB's gameNumber is the authoritative tiebreaker.
 
     Falls back to game_pk for caches written before game_number was captured.
+    An empty or column-less frame returns as-is rather than raising, so callers
+    work before the first game of a season has been played.
     """
+    if games.empty or "status" not in games.columns:
+        return games
+
     finished = games[games["status"] == "Final"]
     tiebreak = "game_number" if "game_number" in finished.columns else "game_pk"
     return finished.sort_values(["game_date", tiebreak]).reset_index(drop=True)

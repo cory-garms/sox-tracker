@@ -6,6 +6,25 @@ Shared by every odds provider so the conversion logic lives in exactly one place
 
 from __future__ import annotations
 
+import math
+
+
+def _clean_odds(odds: int | float) -> float | None:
+    """
+    Coerce an odds value to a usable float, or None if it isn't one.
+
+    float("nan") converts without raising and then poisons every downstream
+    comparison — nan < 0 is False, so a NaN would silently sail through as a
+    positive price and yield a NaN probability. Reject non-finite values here.
+    """
+    try:
+        value = float(odds)
+    except (ValueError, TypeError):
+        return None
+    if not math.isfinite(value) or value == 0:
+        return None
+    return value
+
 
 def american_to_implied_prob(odds: int | float) -> float:
     """
@@ -15,28 +34,22 @@ def american_to_implied_prob(odds: int | float) -> float:
     two-sided market's implied probabilities sum to >1. Use no_vig_probability()
     when you need a fair baseline.
     """
-    try:
-        odds = float(odds)
-    except (ValueError, TypeError):
+    value = _clean_odds(odds)
+    if value is None:
         return 0.50
-    if odds == 0:
-        return 0.50
-    if odds < 0:
-        return abs(odds) / (abs(odds) + 100.0)
-    return 100.0 / (odds + 100.0)
+    if value < 0:
+        return abs(value) / (abs(value) + 100.0)
+    return 100.0 / (value + 100.0)
 
 
 def american_to_decimal(odds: int | float) -> float:
     """Convert American odds to a decimal payout multiplier (+100 -> 2.0)."""
-    try:
-        odds = float(odds)
-    except (ValueError, TypeError):
+    value = _clean_odds(odds)
+    if value is None:
         return 2.0
-    if odds == 0:
-        return 2.0
-    if odds > 0:
-        return (odds / 100.0) + 1.0
-    return (100.0 / abs(odds)) + 1.0
+    if value > 0:
+        return (value / 100.0) + 1.0
+    return (100.0 / abs(value)) + 1.0
 
 
 def no_vig_probability(odds_a: int | float, odds_b: int | float) -> tuple[float, float]:
