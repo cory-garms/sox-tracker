@@ -10,6 +10,20 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# ---------------------------------------------------------------------------
+# .env loading
+# ---------------------------------------------------------------------------
+# Python does not read .env files on its own, so a key sitting in .env is
+# invisible to os.environ without this.
+#
+# override=False (the default) is the property that matters: a real environment
+# variable always wins over the file. CI passes ODDS_API_KEY in the environment,
+# and a stale local .env must never shadow it.
+load_dotenv(Path(__file__).parent / ".env", override=False)
+
+
 # ---------------------------------------------------------------------------
 # Primary team — change these two values to follow any team
 # ---------------------------------------------------------------------------

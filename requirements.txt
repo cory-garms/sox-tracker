@@ -6,3 +6,4 @@ rich>=13.7.0
 click>=8.1.7
 python-dateutil>=2.8.2
 tenacity>=8.2.3
+python-dotenv>=1.0.0
