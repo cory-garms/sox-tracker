@@ -141,17 +141,20 @@ def generate_betting_html(
 
     if lines_live:
         k_note = (
-            "Edge is the model projection minus the sportsbook line. EV comes from a "
-            "Poisson distribution around the projection, priced against the book's "
-            "posted odds. "
-            f"<strong>The model's own measured error is &plusmn;{MODEL_ERROR_K:.1f} K "
-            "per start</strong> (walk-forward backtest over the 2026 starts, after "
-            "removing irreducible scatter), so an edge smaller than that is inside "
-            "the noise and the EV should be read as indicative only. Projections that "
-            f"disagree with the market by more than {MAX_PLAUSIBLE_EDGE_K:.1f} K are "
-            "flagged <span class=\"rec-badge review\">REVIEW</span> rather than "
-            "recommended — at that size the model is reporting its own bug. "
-            "There is still no opponent, park, or platoon adjustment."
+            "Edge is the model projection minus the sportsbook line. "
+            f"<strong>This model does not currently call sides.</strong> Its own "
+            f"measured error is &plusmn;{MODEL_ERROR_K:.2f} K per start — from a "
+            "walk-forward backtest over the 2026 starts, after removing the "
+            "irreducible scatter a perfect projection would still show. An edge "
+            "smaller than that cannot be told apart from zero, and an edge larger "
+            f"than {MAX_PLAUSIBLE_EDGE_K:.1f} K against a liquid market means the "
+            "model is reporting its own bug, which the table marks "
+            "<span class=\"rec-badge review\">REVIEW</span>. Those two limits "
+            "nearly meet, which leaves no honest window to recommend from, so the "
+            "table publishes the projection, the line, and the gap between them — "
+            "and no bet. Restoring recommendations needs a sharper model, starting "
+            "with the opponent strikeout-rate adjustment that has never been built; "
+            "there is also no park or platoon context."
         )
     else:
         k_note = ("<strong>No sportsbook lines connected.</strong> These are model "

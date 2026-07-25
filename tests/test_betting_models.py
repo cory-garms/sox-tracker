@@ -14,6 +14,8 @@ import pytest
 
 from analysis.betting import (
     MAX_PLAUSIBLE_EDGE_K,
+    MIN_EDGE_K,
+    MODEL_ERROR_K,
     _match_prop_line,
     _poisson_over_push,
     _prop_ev,
@@ -256,18 +258,68 @@ class TestPlausibilityGuard:
         assert row["prop_line"] == 3.5
         assert row["edge"] is not None
 
-    def test_plausible_edge_still_recommends_a_side(self):
-        """The guard must not swallow ordinary edges."""
+    def test_edge_inside_the_band_is_not_flagged(self):
+        """The guard must not swallow edges it was never meant to catch."""
         row = model_with_line(five_starts(ip=6.0, so=7), book(6.0))
 
         assert not row["flagged"]
         assert "REVIEW" not in row["recommendation"]
 
-    def test_small_edge_is_neutral_and_unflagged(self):
-        row = model_with_line(five_starts(ip=6.0, so=7), book(7.0))
 
-        assert not row["flagged"]
-        assert row["recommendation"] == "NEUTRAL ⚖️"
+class TestNoiseFloor:
+    """
+    An edge smaller than the model's own error bar cannot be told apart from
+    zero. Calling a side on it would dress up noise as a read.
+    """
+
+    def test_edge_inside_the_error_bar_calls_no_side(self):
+        """Projection 7.0 against a 6.0 line — a +1.0 edge, under the 1.43 floor."""
+        row = model_with_line(five_starts(ip=6.0, so=7), book(6.0))
+
+        assert 0 < row["edge"] < MIN_EDGE_K
+        assert row["recommendation"] == "NO CALL ⚖️"
+
+    def test_no_call_publishes_no_ev(self):
+        row = model_with_line(five_starts(ip=6.0, so=7), book(6.0))
+
+        assert row["ev_pct"] is None
+
+    def test_no_call_still_shows_the_projection_line_and_edge(self):
+        """Withholding the bet is not withholding the evidence."""
+        row = model_with_line(five_starts(ip=6.0, so=7), book(6.0))
+
+        assert row["proj_k"] == pytest.approx(7.0)
+        assert row["prop_line"] == 6.0
+        assert row["edge"] == pytest.approx(1.0)
+
+    def test_negative_edge_inside_the_error_bar_calls_no_side(self):
+        row = model_with_line(five_starts(ip=6.0, so=7), book(8.0))
+
+        assert -MIN_EDGE_K < row["edge"] < 0
+        assert row["recommendation"] == "NO CALL ⚖️"
+
+    def test_floor_and_ceiling_leave_almost_no_room_to_recommend(self):
+        """
+        The finding this whole state encodes: an edge big enough to clear the
+        model's noise is already big enough to look implausible. If a future
+        model narrows MODEL_ERROR_K, this assertion is the thing to revisit.
+        """
+        assert MIN_EDGE_K == MODEL_ERROR_K
+        assert MAX_PLAUSIBLE_EDGE_K - MIN_EDGE_K < 0.1
+
+    def test_an_edge_inside_the_narrow_band_would_still_recommend(self):
+        """
+        The band is near-empty, not switched off — the machinery still works, so
+        recommendations resume on their own once the model earns a smaller error
+        bar. Derived from the constants so it survives them being retuned.
+        """
+        proj = 7.0
+        line = round(proj - (MIN_EDGE_K + MAX_PLAUSIBLE_EDGE_K) / 2, 2)
+
+        row = model_with_line(five_starts(ip=6.0, so=7), book(line))
+
+        assert "OVER" in row["recommendation"]
+        assert row["ev_pct"] is not None
 
 
 class TestStrikeoutProbability:

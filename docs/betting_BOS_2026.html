@@ -328,7 +328,7 @@
   <section class="card">
     <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) Prop Model</h2>
     
-    <p class="table-note"><strong>Lines as of 15:39 UTC on 25 Jul 2026.</strong> This page is a static build (generated 15:40 UTC on 25 Jul 2026) — the odds above do not update after it is published. Re-check the book before acting on anything here.</p>
+    <p class="table-note"><strong>Lines as of 16:09 UTC on 25 Jul 2026.</strong> This page is a static build (generated 16:10 UTC on 25 Jul 2026) — the odds above do not update after it is published. Re-check the book before acting on anything here.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -358,7 +358,7 @@
               <td><span class="prop-line">4.5</span> (-137)</td>
               <td><span class="edge-val">+1.16</span></td>
               <td><span style="font-size: 0.8rem; font-weight: 600;">DraftKings 🟢</span></td>
-              <td><span class="rec-badge over">OVER (+15.5% EV) 🔥</span></td>
+              <td><span class="rec-badge neu">NO CALL ⚖️</span></td>
             </tr>
             
             <tr>
@@ -468,7 +468,7 @@
       </tbody>
     </table>
     </div>
-    <p class="table-note">Edge is the model projection minus the sportsbook line. EV comes from a Poisson distribution around the projection, priced against the book's posted odds. <strong>The model's own measured error is &plusmn;1.4 K per start</strong> (walk-forward backtest over the 2026 starts, after removing irreducible scatter), so an edge smaller than that is inside the noise and the EV should be read as indicative only. Projections that disagree with the market by more than 1.5 K are flagged <span class="rec-badge review">REVIEW</span> rather than recommended — at that size the model is reporting its own bug. There is still no opponent, park, or platoon adjustment.</p>
+    <p class="table-note">Edge is the model projection minus the sportsbook line. <strong>This model does not currently call sides.</strong> Its own measured error is &plusmn;1.43 K per start — from a walk-forward backtest over the 2026 starts, after removing the irreducible scatter a perfect projection would still show. An edge smaller than that cannot be told apart from zero, and an edge larger than 1.5 K against a liquid market means the model is reporting its own bug, which the table marks <span class="rec-badge review">REVIEW</span>. Those two limits nearly meet, which leaves no honest window to recommend from, so the table publishes the projection, the line, and the gap between them — and no bet. Restoring recommendations needs a sharper model, starting with the opponent strikeout-rate adjustment that has never been built; there is also no park or platoon context.</p>
     
   </section>
 

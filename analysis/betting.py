@@ -38,26 +38,31 @@ MIN_STARTS_FOR_PROP = 3   # below this the rolling K/9 is noise, not signal
 # roughly a third of the weight rather than the 60% it used to be handed.
 L5_REGRESSION_INNINGS = 60.0
 
-# Smallest projection-vs-line gap worth calling a side at all.
-MIN_EDGE_K = 0.3
-
 # The model's own measured error bar, in strikeouts.
 #
 # Measured by walk-forward backtest over the 2026 cached starts: project each
 # start from only the starts before it, then decompose the residual. Total RMSE
 # was 2.63 K, of which 2.20 K is the irreducible Poisson scatter a perfect
 # projection would still show. The rest — 1.43 K — is the model being wrong.
-#
-# Nothing smaller than this is a signal, so it is also the honest ceiling on
-# any edge the model can claim to have found.
 MODEL_ERROR_K = 1.43
 
-# Above this, the disagreement is a bug report rather than a betting edge.
-# A liquid market does not misprice a starter's strikeout line by more than the
-# model's own error bar, so when the model claims it has, the model is what's
-# broken. Rows past this threshold are flagged for review instead of
-# recommending a side.
+# Floor: an edge must clear the model's own error before it counts as a signal.
+# A gap smaller than the model's typical miss is indistinguishable from zero,
+# and calling a side on it would be dressing up noise as a read.
+MIN_EDGE_K = MODEL_ERROR_K
+
+# Ceiling: above this the disagreement is a bug report rather than a betting
+# edge. A liquid market does not misprice a starter's strikeout line by this
+# much, so when the model claims it has, the model is what's broken.
 MAX_PLAUSIBLE_EDGE_K = 1.5
+
+# Note what those two lines mean together: the floor and the ceiling are almost
+# the same number. Any edge big enough to clear this model's noise is already
+# big enough to be implausible, so in practice it recommends nothing — which is
+# the honest description of a model with a ±1.43 K error. The band is written as
+# two named constants rather than hardcoded off, so that when an opponent K-rate
+# adjustment (roadmap.md item 1) shrinks MODEL_ERROR_K, recommendations resume
+# on their own — but only once the accuracy has been re-measured to justify it.
 
 
 def _innings(frame: pd.DataFrame) -> float:
@@ -282,7 +287,10 @@ def pitcher_strikeout_model(
                 ev_pct = _prop_ev(p_under, p_push, under_odds)
                 rec, odds_used, flagged = f"UNDER ({ev_pct:+.1f}% EV) 🧊", under_odds, False
             else:
-                ev_pct, rec, odds_used, flagged = None, "NEUTRAL ⚖️", over_odds, False
+                # Not "neutral" — the model has an opinion, it just cannot show
+                # that opinion is worth more than its own error bar. Say that
+                # rather than implying a coin flip.
+                ev_pct, rec, odds_used, flagged = None, "NO CALL ⚖️", over_odds, False
 
             row.update({
                 "prop_line": line,
