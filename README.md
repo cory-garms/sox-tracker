@@ -138,7 +138,8 @@ Use `analysis.streaks.played_in_order(games)`, which sorts by `(game_date, game_
 
 ## 🔮 Roadmap
 
-See **[roadmap.md](roadmap.md)** for planned betting & prop modelling features, and [HANDOFF_GUIDE.md §8](HANDOFF_GUIDE.md#-8-known-gaps--next-up) for known gaps — the largest being that the strikeout model has **no opponent, park, or platoon adjustment**, which is why it currently declines to recommend any side.
+See **[ODDS_PAGE_PLAN.md](ODDS_PAGE_PLAN.md)** for the prioritised plan for the
+betting page, **[roadmap.md](roadmap.md)** for longer-term prop modelling ideas, and [HANDOFF_GUIDE.md §8](HANDOFF_GUIDE.md#-8-known-gaps--next-up) for known gaps — the largest being that the strikeout model has **no opponent, park, or platoon adjustment**, which is why it currently declines to recommend any side.
 
 ---
 
