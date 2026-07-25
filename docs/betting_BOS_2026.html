@@ -299,6 +299,18 @@
       font-family: 'Alfa Slab One', Georgia, 'Times New Roman', serif;
       font-size: 1.25rem; color: #BD3039;
     }
+    /* The model-vs-market read, for a phone that will not see column ten. */
+    .market-read {
+      list-style: none; margin: 0 0 16px 0; padding: 0;
+    }
+    .market-read li {
+      background: rgba(0,0,0,0.22);
+      border-left: 3px solid #C5A059;
+      border-radius: 3px;
+      padding: 10px 12px; margin-bottom: 8px;
+      font-size: 0.88rem; line-height: 1.75;
+    }
+    .market-read strong { font-family: 'Share Tech Mono', 'Courier New', monospace; color: #b08a02; }
     .f5-total-bar {
       margin-top: 16px; padding-top: 14px;
       border-top: 1px solid #C5A059;
@@ -329,7 +341,9 @@
     <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) &mdash; Today's Starter</h2>
     <p class="table-note">Probable starter for 2026-07-25: <strong>Sonny Gray</strong>. First pitch <strong>4:10 PM ET (20:10 UTC)</strong>.</p>
     
-    <p class="table-note"><strong>Lines as of 17:59 UTC on 25 Jul 2026.</strong> This page is a static build (generated 17:59 UTC on 25 Jul 2026) — the odds above do not update after it is published. Re-check the book before acting on anything here.</p>
+    <p class="table-note"><strong>Lines as of 18:37 UTC on 25 Jul 2026.</strong> This page is a static build (generated 18:38 UTC on 25 Jul 2026) — the odds above do not update after it is published. Re-check the book before acting on anything here.</p>
+    <ul class="market-read"><li><strong>Sonny Gray</strong> &nbsp;<span class="prop-line">4.5 (-154)</span><br>market <strong>57.3%</strong> over &nbsp;·&nbsp; model <strong>66.7%</strong> &nbsp;·&nbsp; gap <strong>+1.16 K</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li></ul>
+    <p class="table-note">📈 <strong>No line movement.</strong> 4 builds have logged this game, and the 1 line above have not moved between them.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -342,6 +356,8 @@
           <th>Proj IP</th>
           <th>Proj K's</th>
           <th>Prop Line (Odds)</th>
+          <th>Market Over %</th>
+          <th>Model Over %</th>
           <th>Edge</th>
           <th>Line Source</th>
           <th>Recommendation (+EV)</th>
@@ -357,6 +373,8 @@
               <td>5.9</td>
               <td><strong>5.66</strong></td>
               <td><span class="prop-line">4.5</span> (-154)</td>
+              <td>57.3%</td>
+              <td><strong>66.7%</strong></td>
               <td><span class="edge-val">+1.16</span></td>
               <td><span style="font-size: 0.8rem; font-weight: 600;">DraftKings 🟢</span></td>
               <td><span class="rec-badge neu">NO CALL ⚖️</span></td>
@@ -365,27 +383,33 @@
       </tbody>
     </table>
     </div>
-    <p class="table-note">Edge is the model projection minus the sportsbook line. <strong>This model does not currently call sides.</strong> Its own measured error is &plusmn;1.43 K per start — from a walk-forward backtest over the 2026 starts, after removing the irreducible scatter a perfect projection would still show. An edge smaller than that cannot be told apart from zero, and an edge larger than 1.5 K against a liquid market means the model is reporting its own bug, which the table marks <span class="rec-badge review">REVIEW</span>. Those two limits nearly meet, which leaves no honest window to recommend from, so the table publishes the projection, the line, and the gap between them — and no bet. Restoring recommendations needs a sharper model, starting with the opponent strikeout-rate adjustment that has never been built; there is also no park or platoon context.</p>
+    <p class="table-note"><strong>Market %</strong> is the book's own price with the vig stripped out — what DraftKings really thinks the chance of the over is. <strong>Model %</strong> is this page's Poisson probability around its projection. Reading them side by side is the point of the table: it shows exactly where, and by how much, the model disagrees with the market. Edge is the model projection minus the sportsbook line. <strong>This model does not currently call sides.</strong> Its own measured error is &plusmn;1.43 K per start — from a walk-forward backtest over the 2026 starts, after removing the irreducible scatter a perfect projection would still show. An edge smaller than that cannot be told apart from zero, and an edge larger than 1.5 K against a liquid market means the model is reporting its own bug, which the table marks <span class="rec-badge review">REVIEW</span>. Those two limits nearly meet, which leaves no honest window to recommend from, so the table publishes the projection, the line, and the gap between them — and no bet. Restoring recommendations needs a sharper model, starting with the opponent strikeout-rate adjustment that has never been built; there is also no park or platoon context.</p>
     
   </section>
 
   <section class="card">
-    <h2>💥 Batter Total Bases (TB) &amp; 1+ Hit Prop Intelligence</h2>
+    <h2>💥 Batter Total Bases (TB) &mdash; Model vs Market</h2>
     
+    <ul class="market-read"><li><strong>Wilyer Abreu</strong> &nbsp;<span class="prop-line">1.5 (+137)</span><br>market <strong>39.4%</strong> over &nbsp;·&nbsp; model <strong>41.9%</strong> &nbsp;·&nbsp; gap <strong>+2.4 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Ceddanne Rafaela</strong> &nbsp;<span class="prop-line">1.5 (+150)</span><br>market <strong>37.5%</strong> over &nbsp;·&nbsp; model <strong>43.9%</strong> &nbsp;·&nbsp; gap <strong>+6.4 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (+6.4 pts vs market)</span></li></ul>
+    <p class="table-note">📈 <strong>No line movement.</strong> 4 builds have logged this game, and the 2 lines above have not moved between them.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
           <th>Hitter</th>
-          <th>Games</th>
+          <th>Starts</th>
           <th>AVG</th>
           <th>SLG</th>
-          <th>Season TB/G</th>
-          <th>L10 TB/G</th>
-          <th>L10 Over 1.5 TB %</th>
+          <th>TB / Start</th>
+          <th>L10 TB / Start</th>
+          <th>L10 2+ TB %</th>
           <th>L10 1+ Hit %</th>
           <th>Proj TB</th>
+          <th>Prop Line (Odds)</th>
+          <th>Market Over %</th>
+          <th>Model Over %</th>
+          <th>Edge (pts)</th>
           <th>Recommendation</th>
         </tr>
       </thead>
@@ -400,21 +424,12 @@
               <td>2.60</td>
               <td><span class="delta-pos">40.0%</span></td>
               <td>50.0%</td>
-              <td><strong>2.25</strong></td>
-              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Jarren Duran</strong></td>
-              <td>94</td>
-              <td>0.190</td>
-              <td>0.342</td>
-              <td>1.32</td>
-              <td>0.60</td>
-              <td><span class="delta-pos">10.0%</span></td>
-              <td>40.0%</td>
-              <td><strong>0.89</strong></td>
-              <td><span class="rec-badge under">UNDER 1.5 🧊</span></td>
+              <td><strong>1.70</strong></td>
+              <td><span class="prop-line">1.5</span> (+137)</td>
+              <td>39.4%</td>
+              <td><strong>41.9%</strong></td>
+              <td><span class="edge-val">+2.4</span></td>
+              <td><span class="rec-badge neu">NO CALL ⚖️</span></td>
             </tr>
             
             <tr>
@@ -426,109 +441,159 @@
               <td>1.80</td>
               <td><span class="delta-pos">60.0%</span></td>
               <td>90.0%</td>
-              <td><strong>1.75</strong></td>
-              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+              <td><strong>1.68</strong></td>
+              <td><span class="prop-line">1.5</span> (+150)</td>
+              <td>37.5%</td>
+              <td><strong>43.9%</strong></td>
+              <td><span class="edge-val">+6.4</span></td>
+              <td><span class="rec-badge review">REVIEW ⚠️ (+6.4 pts vs market)</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Jarren Duran</strong></td>
+              <td>92</td>
+              <td>0.190</td>
+              <td>0.345</td>
+              <td>1.34</td>
+              <td>0.60</td>
+              <td><span class="delta-pos">10.0%</span></td>
+              <td>40.0%</td>
+              <td><strong>1.36</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
             </tr>
             
             <tr>
               <td><strong>Willson Contreras</strong></td>
-              <td>94</td>
+              <td>86</td>
               <td>0.293</td>
-              <td>0.559</td>
-              <td>1.97</td>
-              <td>2.70</td>
-              <td><span class="delta-pos">80.0%</span></td>
-              <td>80.0%</td>
-              <td><strong>2.41</strong></td>
-              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+              <td>0.561</td>
+              <td>2.05</td>
+              <td>3.00</td>
+              <td><span class="delta-pos">90.0%</span></td>
+              <td>90.0%</td>
+              <td><strong>2.01</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
             </tr>
             
             <tr>
               <td><strong>Caleb Durbin</strong></td>
-              <td>94</td>
-              <td>0.237</td>
-              <td>0.397</td>
-              <td>1.32</td>
+              <td>85</td>
+              <td>0.240</td>
+              <td>0.404</td>
+              <td>1.39</td>
               <td>1.50</td>
               <td><span class="delta-pos">50.0%</span></td>
               <td>70.0%</td>
-              <td><strong>1.43</strong></td>
-              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+              <td><strong>1.41</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
             </tr>
             
             <tr>
               <td><strong>Marcelo Mayer</strong></td>
-              <td>70</td>
-              <td>0.220</td>
-              <td>0.312</td>
-              <td>0.91</td>
-              <td>1.00</td>
-              <td><span class="delta-pos">30.0%</span></td>
+              <td>58</td>
+              <td>0.230</td>
+              <td>0.315</td>
+              <td>0.97</td>
+              <td>1.10</td>
+              <td><span class="delta-pos">40.0%</span></td>
               <td>60.0%</td>
-              <td><strong>0.97</strong></td>
-              <td><span class="rec-badge under">UNDER 1.5 🧊</span></td>
+              <td><strong>1.05</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
             </tr>
             
             <tr>
               <td><strong>Masataka Yoshida</strong></td>
-              <td>67</td>
-              <td>0.268</td>
-              <td>0.394</td>
-              <td>1.16</td>
-              <td>1.90</td>
-              <td><span class="delta-pos">30.0%</span></td>
-              <td>70.0%</td>
-              <td><strong>1.61</strong></td>
-              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Carlos Narváez</strong></td>
-              <td>56</td>
-              <td>0.198</td>
-              <td>0.290</td>
-              <td>0.84</td>
-              <td>0.80</td>
-              <td><span class="delta-pos">10.0%</span></td>
-              <td>30.0%</td>
-              <td><strong>0.82</strong></td>
-              <td><span class="rec-badge under">UNDER 1.5 🧊</span></td>
-            </tr>
-            
-            <tr>
-              <td><strong>Andruw Monasterio</strong></td>
-              <td>61</td>
-              <td>0.247</td>
-              <td>0.440</td>
-              <td>1.20</td>
-              <td>2.40</td>
-              <td><span class="delta-pos">60.0%</span></td>
-              <td>80.0%</td>
-              <td><strong>1.92</strong></td>
-              <td><span class="rec-badge over">OVER 1.5 🔥</span></td>
+              <td>48</td>
+              <td>0.253</td>
+              <td>0.361</td>
+              <td>1.19</td>
+              <td>2.30</td>
+              <td><span class="delta-pos">40.0%</span></td>
+              <td>90.0%</td>
+              <td><strong>1.21</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
             </tr>
             
             <tr>
               <td><strong>Trevor Story</strong></td>
-              <td>41</td>
-              <td>0.206</td>
-              <td>0.303</td>
-              <td>1.22</td>
+              <td>39</td>
+              <td>0.205</td>
+              <td>0.308</td>
+              <td>1.23</td>
               <td>1.20</td>
               <td><span class="delta-pos">20.0%</span></td>
               <td>70.0%</td>
-              <td><strong>1.21</strong></td>
-              <td><span class="rec-badge neu">NEUTRAL ⚖️</span></td>
+              <td><strong>1.29</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Carlos Narváez</strong></td>
+              <td>47</td>
+              <td>0.181</td>
+              <td>0.268</td>
+              <td>0.79</td>
+              <td>0.90</td>
+              <td><span class="delta-pos">10.0%</span></td>
+              <td>40.0%</td>
+              <td><strong>0.94</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
+            </tr>
+            
+            <tr>
+              <td><strong>Andruw Monasterio</strong></td>
+              <td>49</td>
+              <td>0.254</td>
+              <td>0.444</td>
+              <td>1.29</td>
+              <td>2.40</td>
+              <td><span class="delta-pos">60.0%</span></td>
+              <td>80.0%</td>
+              <td><strong>1.29</strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="no-line">&mdash;</span></td>
+              <td><strong><span class="no-line">&mdash;</span></strong></td>
+              <td><span class="no-line">—</span></td>
+              <td><span class="rec-badge neu">NO LINE ⏳</span></td>
             </tr>
             
       </tbody>
     </table>
     </div>
+    <p class="table-note">Lines are DraftKings' own, fetched with the strikeout market. <strong>Edge</strong> here is a difference in probability, not in bases: nearly every hitter is posted at 1.5, so what separates them is the price, and comparing a projection to the line would just rank hitters by quality the book has already charged for. <strong>This model does not call sides either.</strong> Its own over-probability moves by &plusmn;4.9 points when its inputs are resampled, and the entire spread of opinion it has been shown to hold out of sample is 5.1 points (walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 for a coin flip). An edge has to be larger than the first and smaller than the second to mean anything, and almost nothing is. The honest reading of this table is the two probability columns side by side, not the last one.</p>
     
   </section>
 
   <section class="card">
-    <h2>🚀 Home Run &amp; RBI Prop Target Leaderboard</h2>
+    <h2>🚀 Home Run, RBI &amp; Runs &mdash; Usage and Form</h2>
     
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
@@ -536,130 +601,136 @@
       <thead>
         <tr>
           <th>Hitter</th>
+          <th>Games</th>
           <th>Season HR</th>
           <th>PA / HR</th>
           <th>L10 HR</th>
           <th>L10 RBI</th>
           <th>L10 1+ RBI %</th>
           <th>L10 1+ Run %</th>
-          <th>HR Prop Target</th>
         </tr>
       </thead>
       <tbody>
         
             <tr>
               <td><strong>Willson Contreras</strong></td>
+              <td>94</td>
               <td>22</td>
               <td>17.6</td>
               <td><strong>4</strong></td>
               <td>13</td>
               <td><span class="delta-pos">60.0%</span></td>
               <td>80.0%</td>
-              <td><span class="rec-badge over">🚀 HIGH</span></td>
             </tr>
             
             <tr>
               <td><strong>Wilyer Abreu</strong></td>
+              <td>99</td>
               <td>15</td>
               <td>28.5</td>
               <td><strong>5</strong></td>
               <td>9</td>
               <td><span class="delta-pos">40.0%</span></td>
               <td>50.0%</td>
-              <td><span class="rec-badge over">🚀 HIGH</span></td>
             </tr>
             
             <tr>
               <td><strong>Jarren Duran</strong></td>
+              <td>94</td>
               <td>13</td>
               <td>31.0</td>
               <td><strong>0</strong></td>
               <td>8</td>
               <td><span class="delta-pos">40.0%</span></td>
               <td>20.0%</td>
-              <td><span class="rec-badge neu">LOW</span></td>
             </tr>
             
             <tr>
               <td><strong>Caleb Durbin</strong></td>
+              <td>94</td>
               <td>10</td>
               <td>34.6</td>
               <td><strong>1</strong></td>
               <td>5</td>
               <td><span class="delta-pos">40.0%</span></td>
               <td>50.0%</td>
-              <td><span class="rec-badge under">MODERATE</span></td>
             </tr>
             
             <tr>
               <td><strong>Ceddanne Rafaela</strong></td>
+              <td>97</td>
               <td>9</td>
               <td>44.1</td>
               <td><strong>1</strong></td>
               <td>4</td>
               <td><span class="delta-pos">40.0%</span></td>
               <td>80.0%</td>
-              <td><span class="rec-badge under">MODERATE</span></td>
             </tr>
             
             <tr>
               <td><strong>Andruw Monasterio</strong></td>
+              <td>61</td>
               <td>5</td>
               <td>36.0</td>
               <td><strong>2</strong></td>
               <td>5</td>
               <td><span class="delta-pos">40.0%</span></td>
               <td>40.0%</td>
-              <td><span class="rec-badge over">🚀 HIGH</span></td>
             </tr>
             
             <tr>
               <td><strong>Masataka Yoshida</strong></td>
+              <td>67</td>
               <td>4</td>
               <td>55.5</td>
               <td><strong>2</strong></td>
               <td>7</td>
               <td><span class="delta-pos">50.0%</span></td>
               <td>50.0%</td>
-              <td><span class="rec-badge over">🚀 HIGH</span></td>
             </tr>
             
             <tr>
               <td><strong>Carlos Narváez</strong></td>
+              <td>56</td>
               <td>3</td>
               <td>60.7</td>
               <td><strong>1</strong></td>
               <td>5</td>
               <td><span class="delta-pos">30.0%</span></td>
               <td>10.0%</td>
-              <td><span class="rec-badge under">MODERATE</span></td>
             </tr>
             
             <tr>
               <td><strong>Trevor Story</strong></td>
+              <td>41</td>
               <td>3</td>
               <td>58.7</td>
               <td><strong>1</strong></td>
               <td>2</td>
               <td><span class="delta-pos">20.0%</span></td>
               <td>40.0%</td>
-              <td><span class="rec-badge under">MODERATE</span></td>
             </tr>
             
             <tr>
               <td><strong>Marcelo Mayer</strong></td>
+              <td>70</td>
               <td>3</td>
               <td>75.7</td>
               <td><strong>0</strong></td>
               <td>5</td>
               <td><span class="delta-pos">30.0%</span></td>
               <td>20.0%</td>
-              <td><span class="rec-badge neu">LOW</span></td>
             </tr>
             
       </tbody>
     </table>
     </div>
+    <p class="table-note">Rate stats, not picks. This table used to end in a
+    <em>HR Prop Target</em> badge of HIGH / MODERATE / LOW, keyed off thresholds
+    — two homers in ten games, one per eighteen plate appearances — that nobody
+    had measured, against a home-run line this page never fetched. The rates
+    themselves are honest form and usage numbers, so they stayed; the verdict on
+    top of them did not.</p>
     
   </section>
 
@@ -668,7 +739,7 @@
     
     
         <div class="matchup-banner">
-          <h3>⚡ Today's F5 Starter Matchup Projection</h3>
+          <h3>⚡ Today's F5 Starter Matchup Estimate</h3>
           <div class="matchup-grid">
             <div class="team-card">
               <div class="team-title">BOS Starter</div>
@@ -685,11 +756,18 @@
             </div>
           </div>
           <div class="f5-total-bar">
-            <span>Projected F5 Total Runs: <strong>2.86</strong></span>
-            <span class="rec-badge over">UNDER 4.5 🔵</span>
+            <span>Estimated F5 Total Runs: <strong>2.86</strong></span>
           </div>
         </div>
-        
+        <p class="table-note"><strong>An estimate, not a bet.</strong> This card
+        used to call OVER or UNDER against a hardcoded 4.5 that no book had
+        quoted, and it did so from full-start ERA divided down to five innings —
+        not a measured first-five split, since the cached box scores carry no
+        inning breakdown. Both halves of that call were made up, so the call is
+        gone. A real F5 total would have to come from the book's own
+        first-five market, and a projection worth pricing against it would need
+        its error measured first, exactly as the strikeout and total-bases
+        models now do.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table" style="margin-top: 16px;">

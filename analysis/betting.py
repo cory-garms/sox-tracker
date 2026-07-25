@@ -3,6 +3,13 @@ Sports Betting & Prop Intelligence module — provides models for:
 1. Pitcher Strikeout Over/Under (K/9 vs. opposing team K-rate & rolling trends).
 2. First 5 Innings (F5) Starter Matchup Card.
 3. NRFI / YRFI (No Run First Inning) 1st-inning run rate tracker.
+4. Batter Total Bases, priced against the book's own line.
+
+Every model here holds to one rule: a number is only published when something
+real stands behind it. A projection is real work; an edge requires a line a
+book actually quoted; and a *recommendation* requires the model's error to have
+been measured against held-out data and to be smaller than the edge claimed.
+Where a model cannot clear that bar it says so instead of picking a side.
 """
 
 from __future__ import annotations
@@ -11,6 +18,8 @@ import logging
 import math
 import unicodedata
 from typing import Any, TYPE_CHECKING
+
+import numpy as np
 import pandas as pd
 
 import config
@@ -183,12 +192,65 @@ def _match_prop_line(player_name: str, book_lines: dict[str, dict]) -> dict | No
     return None
 
 
+MARKET_K = "pitcher_strikeouts"
+MARKET_TB = "batter_total_bases"
+
+
+def fetch_book_lines(
+    odds_client: "OddsAPIClient | None",
+    team_id: int = config.TEAM_ID,
+) -> dict[str, Any]:
+    """
+    One trip to the odds provider for the whole page.
+
+    Returns ``{"event": {...} | None, "pitcher_strikeouts": {...},
+    "batter_total_bases": {...}}`` — the parsed line maps each model needs,
+    plus the event they came from.
+
+    Each model used to look the event up and fetch its own market, which meant
+    repeating the lookup and left nowhere to log the snapshot from. The odds
+    history log (data/odds_history.py) wants exactly this payload, so the fetch
+    happens once, here, and the result is handed to whoever needs it.
+
+    Never raises. A provider outage, a spent quota or a missing key degrades the
+    page to projections-only, which every caller already handles.
+
+    Cost: one API credit per market, so two per build.
+    """
+    empty: dict[str, Any] = {"event": None, MARKET_K: {}, MARKET_TB: {}}
+    if odds_client is None or not getattr(odds_client, "configured", False):
+        return empty
+
+    try:
+        team_name = config.TEAMS.get(
+            _ID_TO_ABBR.get(team_id, ""), {}
+        ).get("name", config.TEAM_NAME)
+        event = odds_client.find_event(team_name)
+    except Exception as e:                          # provider down / quota spent
+        log.warning("Could not reach the odds provider: %s", e)
+        return empty
+    if not event:
+        log.info("No upcoming event found for team %s", team_id)
+        return empty
+
+    out: dict[str, Any] = {"event": event, MARKET_K: {}, MARKET_TB: {}}
+    for market, fetch in (
+        (MARKET_K, odds_client.pitcher_strikeout_lines),
+        (MARKET_TB, odds_client.batter_total_base_lines),
+    ):
+        try:
+            out[market] = fetch(event["id"]) or {}
+        except Exception as e:
+            log.warning("Could not fetch %s lines: %s", market, e)
+    return out
+
+
 def pitcher_strikeout_model(
     pitching: pd.DataFrame,
     batting: pd.DataFrame,
     games: pd.DataFrame,
     client: MLBClient | None = None,
-    odds_client: "OddsAPIClient | None" = None,
+    book_lines: dict[str, dict] | None = None,
     team_id: int = config.TEAM_ID,
     season: int = config.SEASON,
     min_starts: int = MIN_STARTS_FOR_PROP,
@@ -196,6 +258,11 @@ def pitcher_strikeout_model(
 ) -> pd.DataFrame:
     """
     Strikeout prop model for the team's starting pitchers.
+
+    `book_lines` is the parsed strikeout market from fetch_book_lines() —
+    a map of pitcher name to line and prices. Passing it in rather than
+    fetching here keeps every provider call in one place, so the same payload
+    can be logged to the odds history.
 
     `only_player_ids` restricts the table to specific pitchers — in practice
     the probable starter(s) for the day, via probable_starters(). Without it
@@ -228,16 +295,7 @@ def pitcher_strikeout_model(
     if starters.empty:
         return pd.DataFrame()
 
-    # One request for the whole slate, not one per pitcher.
-    book_lines: dict[str, dict] = {}
-    if odds_client is not None and odds_client.configured:
-        try:
-            event = odds_client.find_event(config.TEAMS.get(
-                _ID_TO_ABBR.get(team_id, ""), {}).get("name", config.TEAM_NAME))
-            if event:
-                book_lines = odds_client.pitcher_strikeout_lines(event["id"])
-        except Exception as e:                      # provider down / quota spent
-            log.warning("Could not fetch strikeout prop lines: %s", e)
+    book_lines = book_lines or {}
 
     rows = []
     for (pid, pname), group in starters.groupby(["player_id", "player_name"]):
@@ -362,6 +420,25 @@ def pitcher_strikeout_model(
 # 2. First 5 Innings (F5) Starter Matchup Card
 # ---------------------------------------------------------------------------
 
+def _prorated_f5_runs(era: Any) -> float | None:
+    """
+    A starter's ERA prorated to five innings, or None when no ERA is available.
+
+    This is *not* a measured first-five split — the cached box scores carry no
+    inning breakdown — and starters are typically worse the third time through
+    the order, so it runs optimistic about the fifth inning. Named and returned
+    as an estimate for that reason.
+
+    Returning None matters: an unreadable ERA used to fall back to a flat 4.00,
+    which put a made-up number on the page in the one situation where the page
+    knew nothing.
+    """
+    try:
+        return round((float(era) / 9.0) * 5.0, 2)
+    except (ValueError, TypeError):
+        return None
+
+
 def first_5_innings_analysis(
     pitching: pd.DataFrame,
     games: pd.DataFrame,
@@ -432,32 +509,29 @@ def first_5_innings_analysis(
             s_our = starter_season_summary(client, our_prob.get("id"), season)
             s_opp = starter_season_summary(client, opp_prob.get("id"), season)
 
-            try:
-                our_era = float(s_our.get("era"))
-            except (ValueError, TypeError):
-                our_era = 4.00
+            our_f5_exp = _prorated_f5_runs(s_our.get("era"))
+            opp_f5_exp = _prorated_f5_runs(s_opp.get("era"))
+            both = None
+            if our_f5_exp is not None and opp_f5_exp is not None:
+                both = round(our_f5_exp + opp_f5_exp, 2)
 
-            try:
-                opp_era = float(s_opp.get("era"))
-            except (ValueError, TypeError):
-                opp_era = 4.00
-
-            our_f5_exp = (our_era / 9.0) * 5.0
-            opp_f5_exp = (opp_era / 9.0) * 5.0
-
+            # No f5_line_recommendation. It used to compare this total against a
+            # hardcoded 4.5 that no book had quoted, and the total itself is
+            # prorated full-start ERA rather than a measured first-five split —
+            # a bet call built on two numbers that were never real. The estimate
+            # is still worth showing, labelled as the estimate it is.
             matchup_data = {
                 "our_starter": s_our.get("name", "TBD"),
                 "our_hand": s_our.get("hand", "R"),
                 "our_era": s_our.get("era", "-"),
                 "our_whip": s_our.get("whip", "-"),
-                "our_f5_exp_runs": round(our_f5_exp, 2),
+                "our_f5_exp_runs": our_f5_exp,
                 "opp_starter": s_opp.get("name", "TBD"),
                 "opp_hand": s_opp.get("hand", "R"),
                 "opp_era": s_opp.get("era", "-"),
                 "opp_whip": s_opp.get("whip", "-"),
-                "opp_f5_exp_runs": round(opp_f5_exp, 2),
-                "f5_total_proj": round(our_f5_exp + opp_f5_exp, 2),
-                "f5_line_recommendation": "OVER 4.5 🟢" if (our_f5_exp + opp_f5_exp) > 4.5 else "UNDER 4.5 🔵",
+                "opp_f5_exp_runs": opp_f5_exp,
+                "f5_total_proj": both,
             }
 
     return {
@@ -604,90 +678,357 @@ def nrfi_yrfi_tracker(
 
 
 # ---------------------------------------------------------------------------
-# 4. Batter Total Bases & 1+ Hit Prop Model
+# 4. Batter Total Bases — priced against the book's own line
 # ---------------------------------------------------------------------------
+
+MIN_PA_FOR_TB_PROP = 20   # below this the per-PA rates are noise, not signal
+
+# How much prior to regress a hitter's per-PA outcome mix toward the team's own
+# rates, in plate appearances. Swept out of sample by walk-forward backtest at
+# 0, 25, 50, 100, 200 and 400 PA: every value from 25 to 200 lands within 0.004
+# TB of the others (MAE 1.270-1.274) and all of them beat no regression at all
+# (1.284). 50 is the lightest prior that collects that improvement, which is the
+# right side to err on for a model whose problem is already too little
+# separation between hitters. scripts/backtest_batter_tb.py reproduces the sweep.
+TB_REGRESSION_PA = 50.0
+
+# The model's own measured error, in probability points, on the question the
+# market actually asks: will this hitter clear the total-bases line?
+#
+# Measured by walk-forward backtest over the 2026 cached starts (project each
+# start from only the starts before it, 714 held-out starts). Bootstrapping each
+# hitter's own prior sample puts the standard deviation of the model's own
+# over-probability at 0.049 — that is how much the number moves on resampling
+# the very data it was built from. A reliability check agreed to within its own
+# resolution: the measured calibration gap was 0.032 against a sampling-noise
+# floor of 0.043, so nothing finer than about four points can even be resolved
+# by this test. The floor is the larger of the two.
+MODEL_ERROR_TB_PROB = 0.049
+
+# Floor: an edge over the book's de-vigged price must clear the model's own
+# error before it counts as a signal.
+MIN_EDGE_TB_PROB = MODEL_ERROR_TB_PROB
+
+# Ceiling: past here the disagreement is a bug report, not an edge — and unlike
+# the strikeout model's ceiling this one is measured rather than judged. Out of
+# sample the model's over-probabilities have a standard deviation of 0.069, and
+# a logistic recalibration slope of 0.74 says only about three quarters of that
+# spread is real information: 0.74 x 0.069 = 0.051. That is the entire range of
+# genuine opinion the model has been shown to hold, so a claimed edge larger
+# than it is a claim the model has no standing to make.
+MAX_PLAUSIBLE_EDGE_TB_PROB = 0.051
+
+# Note what those two lines mean together, exactly as for strikeouts: the floor
+# and the ceiling are almost the same number. Two tenths of a percentage point
+# separate them, so the window an edge would have to land in is narrower than
+# the rounding on either constant, and in practice the model calls nothing.
+# That is unsurprising: it has no opposing-pitcher, park or platoon
+# context while the book's price does, and its out-of-sample AUC on "will this
+# hitter clear 1.5 bases" is 0.57 against 0.50 for a coin flip. Recommendations
+# resume on their own if a sharper model re-measures these constants apart —
+# not before, and never by editing them here.
+
+# Bases by hit type, in the order the mix vector carries them.
+_TB_BASES = (1, 2, 3, 4)
+
+
+def _total_bases(frame: pd.DataFrame) -> pd.Series:
+    """Total bases per row: H + 2B + 2*3B + 3*HR (`h` already counts each hit)."""
+    return frame["h"] + frame["doubles"] + (2 * frame["triples"]) + (3 * frame["hr"])
+
+
+def _lineup_starts(batting: pd.DataFrame) -> pd.DataFrame:
+    """
+    Only the games a hitter started.
+
+    A total-bases prop is offered on a hitter who is in the lineup, so the rate
+    that matters is per *start*. Averaging over pinch-hit and bench games —
+    which the old model did — quietly divided every regular's production by
+    games they never batted in, and gave bench players a projection built almost
+    entirely from one-plate-appearance cameos.
+    """
+    if "batting_order" in batting.columns:
+        return batting[batting["batting_order"] >= 1]
+    return batting[batting["pa"] > 0]
+
+
+def _per_pa_mix(frame: pd.DataFrame) -> tuple[float, float, float, float] | None:
+    """
+    Per-plate-appearance probability of a single, double, triple and home run.
+
+    None when there are no plate appearances to divide by.
+    """
+    pa = float(frame["pa"].sum())
+    if pa <= 0:
+        return None
+    singles = float((frame["h"] - frame["doubles"] - frame["triples"] - frame["hr"]).sum())
+    return (
+        max(singles, 0.0) / pa,
+        float(frame["doubles"].sum()) / pa,
+        float(frame["triples"].sum()) / pa,
+        float(frame["hr"].sum()) / pa,
+    )
+
+
+def _regress_mix(
+    mix: tuple[float, float, float, float],
+    pa: float,
+    prior_mix: tuple[float, float, float, float] | None,
+    prior_pa: float = TB_REGRESSION_PA,
+) -> tuple[float, float, float, float]:
+    """
+    Shrink a hitter's own rates toward the team's, weighting by sample size.
+
+    A hitter with 400 PA keeps almost all of his own shape; one with 40 PA is
+    pulled most of the way to the team's. The prior is the team's own measured
+    mix, not a made-up league constant.
+    """
+    if prior_mix is None or prior_pa <= 0:
+        return mix
+    denom = pa + prior_pa
+    return tuple(  # type: ignore[return-value]
+        ((m * pa) + (p * prior_pa)) / denom for m, p in zip(mix, prior_mix)
+    )
+
+
+def _pa_distribution(frame: pd.DataFrame) -> dict[int, int]:
+    """How often the hitter has had 1, 2, 3... plate appearances in a start."""
+    counts = frame.loc[frame["pa"] > 0, "pa"].astype(int).value_counts().to_dict()
+    return {int(k): int(v) for k, v in counts.items()}
+
+
+def _tb_pmf(
+    mix: tuple[float, float, float, float],
+    pa_counts: dict[int, int],
+) -> np.ndarray:
+    """
+    Distribution of total bases in a start.
+
+    Each plate appearance is one draw from {out, single, double, triple, homer}
+    with the hitter's own probabilities, so the total over n appearances is an
+    n-fold convolution of that per-PA distribution — and the number of
+    appearances is itself uncertain, so the result is mixed over how often the
+    hitter has had each count.
+
+    This replaces comparing a point projection to a line, which for total bases
+    is close to meaningless: books post 1.5 for nearly every hitter and move the
+    *price*, not the number. The question is what probability to put on clearing
+    it, so the model has to produce a distribution.
+
+    The independence assumption is the same approximation Poisson is for
+    strikeouts: plate appearances within a game share a pitcher, a park and a
+    lineup, so real total bases are somewhat more clustered than this. It is a
+    first approximation, not a calibrated model.
+    """
+    total_weight = float(sum(pa_counts.values()))
+    if total_weight <= 0:
+        return np.array([1.0])
+
+    p_out = max(0.0, 1.0 - sum(mix))
+    per_pa = np.array([p_out, *mix], dtype=float)
+
+    max_pa = max(pa_counts)
+    out = np.zeros(4 * max_pa + 1)
+    current = np.array([1.0])
+    for n in range(1, max_pa + 1):
+        current = np.convolve(current, per_pa)
+        weight = pa_counts.get(n, 0)
+        if weight:
+            out[: len(current)] += (weight / total_weight) * current
+    return out
+
+
+def _pmf_mean(pmf: np.ndarray) -> float:
+    return float((pmf * np.arange(len(pmf))).sum())
+
+
+def _pmf_over_push(pmf: np.ndarray, line: float) -> tuple[float, float]:
+    """(P(total bases > line), P(total bases == line)) — pushes need a whole line."""
+    floor_line = int(math.floor(line))
+    if floor_line >= len(pmf):
+        return 0.0, 0.0
+    p_over = float(pmf[floor_line + 1:].sum())
+    p_push = float(pmf[floor_line]) if float(line).is_integer() else 0.0
+    return p_over, p_push
+
+
+def project_batter_tb(
+    player_starts: pd.DataFrame,
+    team_mix: tuple[float, float, float, float] | None = None,
+) -> dict[str, Any] | None:
+    """
+    Project one hitter's total bases in a start, as a full distribution.
+
+    Returns None when there is nothing to project from. The projection is the
+    mean of the distribution, so the number on the page and the probability
+    behind it can never drift apart.
+
+    Kept separate from the table-building model so that
+    scripts/backtest_batter_tb.py measures the code that actually ships, rather
+    than a re-implementation of it that could quietly disagree.
+    """
+    if player_starts.empty:
+        return None
+    pa = float(player_starts["pa"].sum())
+    mix = _per_pa_mix(player_starts)
+    pa_counts = _pa_distribution(player_starts)
+    if mix is None or not pa_counts:
+        return None
+
+    regressed = _regress_mix(mix, pa, team_mix)
+    pmf = _tb_pmf(regressed, pa_counts)
+    return {
+        "pmf": pmf,
+        "proj_tb": _pmf_mean(pmf),
+        "mix": regressed,
+        "pa": pa,
+        "starts": len(player_starts),
+    }
+
 
 def batter_total_bases_model(
     batting: pd.DataFrame,
+    book_lines: dict[str, dict] | None = None,
     season: int = config.SEASON,
+    min_pa: int = MIN_PA_FOR_TB_PROP,
 ) -> pd.DataFrame:
     """
-    Computes Total Bases (TB) and Hit prop hit rates for Red Sox hitters.
-    TB formula: H + 2B + 2*3B + 3*HR.
-    Evaluates:
-    - Season TB per game & SLG
-    - Last 10 games TB per game
-    - Last 10 games Over 1.5 TB Hit % (games with 2+ Total Bases)
-    - Last 10 games 1+ Hit Rate % (games with 1+ Hit)
-    - Model recommendation for Over 1.5 TB prop
+    Total-bases prop model for the team's hitters, priced against real lines.
+
+    `book_lines` is the parsed batter_total_bases market from
+    fetch_book_lines(). Without it the table publishes projections and says no
+    line was available — it never invents one. The 1.5 it used to assume was
+    exactly that: an invented line, with hand-picked 1.65-projection and
+    60%-hit-rate thresholds standing in for an edge nobody had measured.
+
+    With a line, the model compares its own over-probability to the book's
+    de-vigged price and reports the gap. It calls a side only when that gap
+    clears MIN_EDGE_TB_PROB, the model's own measured error — which, as the
+    constants above record, it essentially never does.
     """
     if batting.empty:
         return pd.DataFrame()
 
+    starts = _lineup_starts(batting)
+    if starts.empty:
+        return pd.DataFrame()
+
+    book_lines = book_lines or {}
+    # The regression prior is the team's own per-PA mix, measured from the same
+    # frame — nothing imported from outside the data.
+    team_mix = _per_pa_mix(starts)
+
     rows = []
-    for (pid, pname), group in batting.groupby(["player_id", "player_name"]):
+    for (pid, pname), group in starts.groupby(["player_id", "player_name"]):
         tot_pa = int(group["pa"].sum())
-        if tot_pa < 20:
+        if tot_pa < min_pa:
             continue
 
-        sorted_g = group.sort_values("game_date", ascending=True)
-        games_cnt = len(sorted_g)
+        sorted_g = group.sort_values("game_date", ascending=True).copy()
+        sorted_g["tb"] = _total_bases(sorted_g)
+        starts_cnt = len(sorted_g)
 
-        # Calculate Total Bases for each game log row
-        # H + 2B + 2*3B + 3*HR
-        tb_series = sorted_g["h"] + sorted_g["doubles"] + (2 * sorted_g["triples"]) + (3 * sorted_g["hr"])
-        sorted_g["tb"] = tb_series
+        projection = project_batter_tb(sorted_g, team_mix)
+        if projection is None:
+            continue
 
-        season_tb = int(tb_series.sum())
-        season_tb_per_g = season_tb / games_cnt if games_cnt > 0 else 0.0
-        season_avg = float(sorted_g["h"].sum() / sorted_g["ab"].sum()) if sorted_g["ab"].sum() > 0 else 0.0
-        season_slg = float(season_tb / sorted_g["ab"].sum()) if sorted_g["ab"].sum() > 0 else 0.0
+        abs_ = float(sorted_g["ab"].sum())
+        season_avg = float(sorted_g["h"].sum()) / abs_ if abs_ > 0 else 0.0
+        season_slg = float(sorted_g["tb"].sum()) / abs_ if abs_ > 0 else 0.0
+        tb_per_start = float(sorted_g["tb"].sum()) / starts_cnt
 
-        # Last 10 games
         l10 = sorted_g.tail(10)
         l10_cnt = len(l10)
-        l10_tb = int(l10["tb"].sum())
-        l10_tb_per_g = l10_tb / l10_cnt if l10_cnt > 0 else season_tb_per_g
+        l10_tb_start = float(l10["tb"].sum()) / l10_cnt if l10_cnt else tb_per_start
+        l10_o15_tb_pct = float((l10["tb"] >= 2).sum()) / l10_cnt * 100.0 if l10_cnt else 0.0
+        l10_1hit_pct = float((l10["h"] >= 1).sum()) / l10_cnt * 100.0 if l10_cnt else 0.0
 
-        l10_o15_tb = int((l10["tb"] >= 2).sum())
-        l10_o15_tb_pct = (l10_o15_tb / l10_cnt * 100.0) if l10_cnt > 0 else 0.0
-
-        l10_1hit = int((l10["h"] >= 1).sum())
-        l10_1hit_pct = (l10_1hit / l10_cnt * 100.0) if l10_cnt > 0 else 0.0
-
-        # Projected TB
-        proj_tb = (season_tb_per_g * 0.4) + (l10_tb_per_g * 0.6)
-
-        if proj_tb >= 1.65 or l10_o15_tb_pct >= 60.0:
-            rec = "OVER 1.5 🔥"
-        elif proj_tb <= 1.10 and l10_o15_tb_pct <= 30.0:
-            rec = "UNDER 1.5 🧊"
-        else:
-            rec = "NEUTRAL ⚖️"
-
-        rows.append({
+        row = {
             "player_id": pid,
             "player_name": pname,
-            "games": games_cnt,
+            "starts": starts_cnt,
             "pa": tot_pa,
             "season_avg": round(season_avg, 3),
             "season_slg": round(season_slg, 3),
-            "season_tb_g": round(season_tb_per_g, 2),
-            "l10_tb_g": round(l10_tb_per_g, 2),
+            "tb_per_start": round(tb_per_start, 2),
+            "l10_tb_start": round(l10_tb_start, 2),
             "l10_o15_tb_pct": round(l10_o15_tb_pct, 1),
             "l10_1hit_pct": round(l10_1hit_pct, 1),
-            "proj_tb": round(proj_tb, 2),
-            "recommendation": rec,
-        })
+            "proj_tb": round(projection["proj_tb"], 2),
+            "prop_line": None,
+            "line_source": "No line available",
+            "line_last_update": None,
+            "american_odds": None,
+            "model_over_prob": None,
+            "book_over_prob": None,
+            "prob_edge": None,
+            "ev_pct": None,
+            "recommendation": "NO LINE ⏳",
+            "has_line": False,
+            "flagged": False,
+        }
+
+        entry = _match_prop_line(pname, book_lines)
+        if entry:
+            line = float(entry["line"])
+            over_odds = entry.get("over_odds")
+            under_odds = entry.get("under_odds")
+
+            p_over, p_push = _pmf_over_push(projection["pmf"], line)
+            p_under = max(0.0, 1.0 - p_over - p_push)
+
+            if over_odds is not None and under_odds is not None:
+                fair_over, _ = no_vig_probability(over_odds, under_odds)
+            else:
+                fair_over = None
+
+            # The edge lives in probability space, not in bases. Every hitter's
+            # line is 1.5; what separates them is the price, so "projection
+            # minus line" would rank hitters by quality the book has already
+            # charged for.
+            edge = (p_over - fair_over) if fair_over is not None else None
+
+            if edge is None:
+                ev_pct, odds_used, flagged = None, over_odds, False
+                rec = "NO CALL ⚖️"
+            elif abs(edge) > MAX_PLAUSIBLE_EDGE_TB_PROB:
+                ev_pct, odds_used, flagged = None, over_odds, True
+                rec = f"REVIEW ⚠️ ({edge * 100:+.1f} pts vs market)"
+            elif edge >= MIN_EDGE_TB_PROB and over_odds is not None:
+                ev_pct = _prop_ev(p_over, p_push, over_odds)
+                rec, odds_used, flagged = f"OVER ({ev_pct:+.1f}% EV) 🔥", over_odds, False
+            elif edge <= -MIN_EDGE_TB_PROB and under_odds is not None:
+                ev_pct = _prop_ev(p_under, p_push, under_odds)
+                rec, odds_used, flagged = f"UNDER ({ev_pct:+.1f}% EV) 🧊", under_odds, False
+            else:
+                ev_pct, rec, odds_used, flagged = None, "NO CALL ⚖️", over_odds, False
+
+            row.update({
+                "prop_line": line,
+                "line_source": f"{entry.get('book', 'Book')} 🟢",
+                "line_last_update": entry.get("last_update"),
+                "american_odds": f"{odds_used:+d}" if odds_used is not None else None,
+                "model_over_prob": round(p_over, 4),
+                "book_over_prob": round(fair_over, 4) if fair_over is not None else None,
+                "prob_edge": round(edge, 4) if edge is not None else None,
+                "ev_pct": ev_pct,
+                "recommendation": rec,
+                "has_line": True,
+                "flagged": flagged,
+            })
+
+        rows.append(row)
 
     df = pd.DataFrame(rows)
     if not df.empty:
-        df = df.sort_values("pa", ascending=False).reset_index(drop=True)
+        # Hitters the book actually quoted come first — they are the only rows
+        # with anything to price.
+        df = df.sort_values(["has_line", "pa"], ascending=[False, False]).reset_index(drop=True)
     return df
 
 
 # ---------------------------------------------------------------------------
-# 5. Home Run & RBI Prop Target Predictor
+# 5. Home Run, RBI and Runs — usage and form
 # ---------------------------------------------------------------------------
 
 def batter_hr_rbi_props(
@@ -695,7 +1036,13 @@ def batter_hr_rbi_props(
     season: int = config.SEASON,
 ) -> pd.DataFrame:
     """
-    Tracks Home Run, RBI, and Run Scored prop metrics over last 10 games and season totals.
+    Home run, RBI and run-scored rates over the season and the last 10 games.
+
+    Rate stats only. This used to end in a `hr_rating` of HIGH / MODERATE / LOW,
+    keyed off "2 homers in the last 10 games" or "one per 18 plate appearances"
+    — thresholds nobody measured, rendered as a badge that read like a pick
+    against a home-run line the page never fetched. The rates underneath are
+    honest usage and form numbers, so they stay; the verdict on top does not.
     """
     if batting.empty:
         return pd.DataFrame()
@@ -725,8 +1072,6 @@ def batter_hr_rbi_props(
         l10_rbi_hit_pct = ((l10["rbi"] >= 1).sum() / l10_cnt * 100.0) if l10_cnt > 0 else 0.0
         l10_r_hit_pct = ((l10["r"] >= 1).sum() / l10_cnt * 100.0) if l10_cnt > 0 else 0.0
 
-        hr_rating = "🚀 HIGH" if (l10_hr >= 2 or pa_per_hr <= 18.0) else ("MODERATE" if (l10_hr == 1 or pa_per_hr <= 28.0) else "LOW")
-
         rows.append({
             "player_id": pid,
             "player_name": pname,
@@ -738,7 +1083,6 @@ def batter_hr_rbi_props(
             "l10_rbi": l10_rbi,
             "l10_rbi_hit_pct": round(l10_rbi_hit_pct, 1),
             "l10_r_hit_pct": round(l10_r_hit_pct, 1),
-            "hr_rating": hr_rating,
         })
 
     df = pd.DataFrame(rows)

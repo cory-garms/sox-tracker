@@ -4,7 +4,10 @@ Betting models — chiefly that they refuse to invent numbers.
 The regression these guard: the strikeout model used to derive the prop line
 from its own projection, pinning the edge within ±0.25 so it could never reach
 the ±0.3 recommendation threshold, and then computed an "EV" against a hardcoded
--115 that no book had quoted.
+-115 that no book had quoted. The same disease was still loose elsewhere on the
+page long after the strikeout model was cured — an assumed 1.5 total-bases line,
+a hardcoded 4.5 for first-five runs, a home-run badge on invented thresholds —
+so most of what follows exists to keep any of it from coming back.
 """
 
 from __future__ import annotations
@@ -14,12 +17,20 @@ import pytest
 
 from analysis.betting import (
     MAX_PLAUSIBLE_EDGE_K,
+    MAX_PLAUSIBLE_EDGE_TB_PROB,
     MIN_EDGE_K,
+    MIN_EDGE_TB_PROB,
     MODEL_ERROR_K,
+    MODEL_ERROR_TB_PROB,
     _match_prop_line,
+    _pmf_over_push,
     _poisson_over_push,
     _prop_ev,
+    _tb_pmf,
+    batter_hr_rbi_props,
     batter_total_bases_model,
+    fetch_book_lines,
+    first_5_innings_analysis,
     nrfi_yrfi_tracker,
     pitcher_strikeout_model,
     probable_starters,
@@ -54,18 +65,35 @@ def five_starts(player_id=1, name="Sonny Gray", ip=6.0, so=7) -> pd.DataFrame:
 
 
 class FakeOddsClient:
-    """Stands in for OddsAPIClient, serving one canned prop map."""
+    """Stands in for OddsAPIClient, serving canned prop maps for both markets."""
 
     configured = True
 
-    def __init__(self, lines: dict[str, dict]) -> None:
-        self.lines = lines
+    def __init__(self, lines: dict[str, dict] | None = None,
+                 tb_lines: dict[str, dict] | None = None,
+                 event: dict | None = {"id": "evt-1"},
+                 fail_markets: set[str] | None = None) -> None:
+        self.lines = lines or {}
+        self.tb_lines = tb_lines or {}
+        self.event = event
+        self.fail_markets = fail_markets or set()
+        self.calls: list[str] = []
 
-    def find_event(self, team_name: str) -> dict:
-        return {"id": "evt-1"}
+    def find_event(self, team_name: str) -> dict | None:
+        self.calls.append("find_event")
+        return self.event
 
     def pitcher_strikeout_lines(self, event_id: str) -> dict:
+        self.calls.append("pitcher_strikeouts")
+        if "pitcher_strikeouts" in self.fail_markets:
+            raise RuntimeError("simulated provider failure")
         return self.lines
+
+    def batter_total_base_lines(self, event_id: str) -> dict:
+        self.calls.append("batter_total_bases")
+        if "batter_total_bases" in self.fail_markets:
+            raise RuntimeError("simulated provider failure")
+        return self.tb_lines
 
 
 def book(line: float, *, over: int = -110, under: int = -110,
@@ -76,7 +104,7 @@ def book(line: float, *, over: int = -110, under: int = -110,
 
 def model_with_line(pitching: pd.DataFrame, lines: dict) -> pd.Series:
     df = pitcher_strikeout_model(pitching, pd.DataFrame(), games_df([]),
-                                 odds_client=FakeOddsClient(lines))
+                                 book_lines=lines)
     return df.iloc[0]
 
 
@@ -586,31 +614,406 @@ class TestNRFITracker:
                                  client=FakeMLBClient())["available"] is False
 
 
-class TestBatterTotalBases:
-    def _batting(self, n_games=12, h=2, doubles=1, hr=0):
-        return pd.DataFrame([{
-            "game_pk": i, "game_date": f"2026-07-{i:02d}", "season": 2026,
-            "team_id": 111, "player_id": 7, "player_name": "Wilyer Abreu",
-            "batting_order": 3, "position": "RF", "ab": 4, "pa": 4,
-            "h": h, "doubles": doubles, "triples": 0, "hr": hr, "rbi": 1,
-            "r": 1, "bb": 0, "ibb": 0, "so": 1, "hbp": 0, "sb": 0, "cs": 0,
-            "sac_bunt": 0, "sac_fly": 0, "gidp": 0,
-            "avg": .280, "obp": .350, "slg": .480, "ops": .830,
-        } for i in range(1, n_games + 1)])
+def batter_game(i: int, *, h=2, doubles=1, triples=0, hr=0, pa=4,
+                player_id=7, name="Wilyer Abreu", batting_order=3) -> dict:
+    return {
+        "game_pk": i, "game_date": f"2026-07-{i:02d}", "season": 2026,
+        "team_id": 111, "player_id": player_id, "player_name": name,
+        "batting_order": batting_order, "position": "RF", "ab": pa, "pa": pa,
+        "h": h, "doubles": doubles, "triples": triples, "hr": hr, "rbi": 1,
+        "r": 1, "bb": 0, "ibb": 0, "so": 1, "hbp": 0, "sb": 0, "cs": 0,
+        "sac_bunt": 0, "sac_fly": 0, "gidp": 0,
+        "avg": .280, "obp": .350, "slg": .480, "ops": .830,
+    }
 
-    def test_total_bases_formula(self):
-        """TB = H + 2B + 2*3B + 3*HR — here 2 hits incl. 1 double = 3."""
-        df = batter_total_bases_model(self._batting(h=2, doubles=1, hr=0))
 
-        assert df.iloc[0]["season_tb_g"] == pytest.approx(3.0)
+def batting_df(n_games=12, **kwargs) -> pd.DataFrame:
+    return pd.DataFrame([batter_game(i, **kwargs) for i in range(1, n_games + 1)])
 
-    def test_home_run_counts_as_four_bases(self):
-        df = batter_total_bases_model(self._batting(h=1, doubles=0, hr=1))
 
-        assert df.iloc[0]["season_tb_g"] == pytest.approx(4.0)
+def tb_book(line: float = 1.5, *, over: int = -110, under: int = -110,
+            name: str = "Wilyer Abreu",
+            last_update: str = "2026-07-25T15:01:12Z") -> dict:
+    return {name: {"line": line, "over_odds": over, "under_odds": under,
+                   "book": "DraftKings", "last_update": last_update}}
+
+
+def _american(prob: float) -> int:
+    """The American price a book would post for a fair probability."""
+    return int(round(-100 * prob / (1 - prob))) if prob > 0.5 \
+        else int(round(100 * (1 - prob) / prob))
+
+
+def priced_at(fair_over: float, line: float = 1.5, **kwargs) -> dict:
+    """
+    A vig-free two-sided market at a chosen fair probability.
+
+    Tests about the edge have to control what the *book* thinks, not what the
+    model thinks — otherwise they only assert that the fixture hitter is good.
+    """
+    return tb_book(line, over=_american(fair_over),
+                   under=_american(1 - fair_over), **kwargs)
+
+
+class TestBatterTotalBasesWithoutLines:
+    """
+    The table used to price every hitter against an assumed 1.5, calling
+    "OVER 1.5 🔥" whenever a projection cleared 1.65 or a ten-game hit rate
+    cleared 60% — a line no book had quoted and two thresholds nobody had
+    measured. It was the same bug the strikeout model had been cured of.
+    """
+
+    def test_reports_no_line_rather_than_assuming_one_point_five(self):
+        row = batter_total_bases_model(batting_df()).iloc[0]
+
+        assert not row["has_line"]
+        assert row["prop_line"] is None
+        assert "NO LINE" in row["recommendation"]
+
+    def test_publishes_no_probability_or_ev_without_a_line(self):
+        row = batter_total_bases_model(batting_df()).iloc[0]
+
+        assert row["book_over_prob"] is None
+        assert row["prob_edge"] is None
+        assert row["ev_pct"] is None
+
+    def test_never_recommends_a_side_against_a_line_nobody_quoted(self):
+        for hot in (batting_df(h=4, doubles=2, hr=1), batting_df(h=0, doubles=0)):
+            rec = batter_total_bases_model(hot).iloc[0]["recommendation"]
+
+            assert "OVER" not in rec and "UNDER" not in rec
+
+    def test_still_publishes_a_projection(self):
+        assert batter_total_bases_model(batting_df()).iloc[0]["proj_tb"] > 0
 
     def test_batters_below_the_pa_floor_are_excluded(self):
-        assert batter_total_bases_model(self._batting(n_games=2)).empty
+        assert batter_total_bases_model(batting_df(n_games=2)).empty
 
     def test_empty_input_returns_empty_frame(self):
         assert batter_total_bases_model(pd.DataFrame()).empty
+
+
+class TestBatterTotalBasesAgainstRealLines:
+    def test_line_price_and_book_timestamp_are_carried_through(self):
+        row = batter_total_bases_model(batting_df(), tb_book(1.5)).iloc[0]
+
+        assert row["has_line"]
+        assert row["prop_line"] == 1.5
+        assert row["line_last_update"] == "2026-07-25T15:01:12Z"
+        assert "DraftKings" in row["line_source"]
+
+    def test_market_probability_is_de_vigged(self):
+        """-110 both ways is a 50/50 market once the vig comes out, not 52.4%."""
+        row = batter_total_bases_model(batting_df(), tb_book(1.5)).iloc[0]
+
+        assert row["book_over_prob"] == pytest.approx(0.5, abs=1e-6)
+
+    def test_model_probability_is_independent_of_the_price(self):
+        """
+        Same hitter, same line, opposite prices. If the model's own number moves
+        with the book's, it is reading the price back to itself — the bug that
+        made the old strikeout EV meaningless.
+        """
+        cheap = batter_total_bases_model(batting_df(), tb_book(over=-200, under=+160)).iloc[0]
+        rich = batter_total_bases_model(batting_df(), tb_book(over=+160, under=-200)).iloc[0]
+
+        assert cheap["model_over_prob"] == rich["model_over_prob"]
+
+    def test_edge_is_measured_in_probability_not_bases(self):
+        """
+        Every hitter is posted at 1.5, so "projection minus line" would rank
+        hitters by quality the price already reflects. The edge is the gap
+        between the model's over-probability and the book's de-vigged one.
+        """
+        row = batter_total_bases_model(batting_df(), tb_book(1.5)).iloc[0]
+
+        assert row["prob_edge"] == pytest.approx(
+            row["model_over_prob"] - row["book_over_prob"], abs=1e-4)
+
+    def test_unpriced_hitters_still_appear_without_a_line(self):
+        both = pd.concat([batting_df(), batting_df(player_id=9, name="Trevor Story")])
+
+        df = batter_total_bases_model(both, tb_book(name="Wilyer Abreu"))
+
+        assert set(df["player_name"]) == {"Wilyer Abreu", "Trevor Story"}
+        assert df.iloc[0]["player_name"] == "Wilyer Abreu"      # priced rows first
+        assert not df[df["player_name"] == "Trevor Story"].iloc[0]["has_line"]
+
+
+class TestBatterTotalBasesNoiseFloor:
+    """
+    Measured by walk-forward backtest (scripts/backtest_batter_tb.py): the
+    model's own over-probability moves ±4.9 points on resampling its inputs,
+    while the whole spread of opinion it has been shown to hold is 5.1 points.
+    An edge it cannot tell apart from that noise is not an edge.
+    """
+
+    def _hitter(self) -> pd.DataFrame:
+        """A .250 hitter with a single a game — around 26% to clear 1.5 bases,
+        which leaves room to move the book's price either side of the model."""
+        return batting_df(h=1, doubles=1, pa=5)
+
+    def _model_prob(self) -> float:
+        row = batter_total_bases_model(self._hitter(), tb_book()).iloc[0]
+        return float(row["model_over_prob"])
+
+    def test_a_small_probability_edge_calls_no_side(self):
+        """The book two points below the model — inside its own error bar."""
+        row = batter_total_bases_model(
+            self._hitter(), priced_at(self._model_prob() - 0.02)).iloc[0]
+
+        assert 0 < row["prob_edge"] < MIN_EDGE_TB_PROB
+        assert row["recommendation"] == "NO CALL ⚖️"
+        assert row["ev_pct"] is None
+
+    def test_a_small_negative_edge_calls_no_side_either(self):
+        row = batter_total_bases_model(
+            self._hitter(), priced_at(self._model_prob() + 0.02)).iloc[0]
+
+        assert -MIN_EDGE_TB_PROB < row["prob_edge"] < 0
+        assert row["recommendation"] == "NO CALL ⚖️"
+
+    def test_no_call_still_shows_the_line_and_both_probabilities(self):
+        """Withholding the bet is not withholding the evidence."""
+        row = batter_total_bases_model(
+            self._hitter(), priced_at(self._model_prob() - 0.02)).iloc[0]
+
+        assert row["prop_line"] == 1.5
+        assert row["model_over_prob"] is not None
+        assert row["book_over_prob"] is not None
+
+    def test_an_implausible_edge_is_flagged_for_review_with_no_ev(self):
+        """Twenty points clear of a liquid market is a bug report, not a gift."""
+        row = batter_total_bases_model(
+            self._hitter(), priced_at(self._model_prob() - 0.20)).iloc[0]
+
+        assert row["prob_edge"] > MAX_PLAUSIBLE_EDGE_TB_PROB
+        assert row["flagged"]
+        assert "REVIEW" in row["recommendation"]
+        assert row["ev_pct"] is None
+
+    def test_the_guard_fires_on_large_negative_edges_too(self):
+        row = batter_total_bases_model(
+            self._hitter(), priced_at(self._model_prob() + 0.20)).iloc[0]
+
+        assert row["prob_edge"] < -MAX_PLAUSIBLE_EDGE_TB_PROB
+        assert row["flagged"]
+        assert "OVER" not in row["recommendation"]
+        assert "UNDER" not in row["recommendation"]
+
+    def test_floor_and_ceiling_leave_almost_no_room_to_recommend(self):
+        """
+        The finding this state encodes: the model's demonstrated information is
+        barely larger than its own noise. If a sharper model ever separates
+        these two constants, this assertion is the thing to revisit.
+        """
+        assert MIN_EDGE_TB_PROB == MODEL_ERROR_TB_PROB
+        assert MAX_PLAUSIBLE_EDGE_TB_PROB - MIN_EDGE_TB_PROB < 0.01
+
+    def test_an_edge_inside_the_narrow_band_would_still_recommend(self):
+        """
+        The band is near-empty, not switched off. Constructed from the constants
+        so it survives them being re-measured.
+        """
+        model_prob = self._model_prob()
+        gap = (MIN_EDGE_TB_PROB + MAX_PLAUSIBLE_EDGE_TB_PROB) / 2
+
+        row = batter_total_bases_model(self._hitter(), priced_at(model_prob - gap)).iloc[0]
+
+        assert "OVER" in row["recommendation"]
+        assert row["ev_pct"] is not None
+
+    def test_the_under_side_of_the_band_works_the_same_way(self):
+        model_prob = self._model_prob()
+        gap = (MIN_EDGE_TB_PROB + MAX_PLAUSIBLE_EDGE_TB_PROB) / 2
+
+        row = batter_total_bases_model(self._hitter(), priced_at(model_prob + gap)).iloc[0]
+
+        assert "UNDER" in row["recommendation"]
+        assert row["ev_pct"] is not None
+
+
+class TestTotalBasesDistribution:
+    """
+    Total bases are not Poisson — a home run delivers four at once — so the
+    model convolves per-plate-appearance outcomes instead of reusing the
+    strikeout machinery.
+    """
+
+    def _mix(self, single=0.15, double=0.05, triple=0.005, homer=0.03):
+        return (single, double, triple, homer)
+
+    def test_distribution_sums_to_one(self):
+        pmf = _tb_pmf(self._mix(), {4: 8, 5: 2})
+
+        assert pmf.sum() == pytest.approx(1.0)
+
+    def test_a_better_hitter_clears_the_line_more_often(self):
+        weak, _ = _pmf_over_push(_tb_pmf(self._mix(0.10, 0.02, 0.0, 0.01), {4: 10}), 1.5)
+        strong, _ = _pmf_over_push(_tb_pmf(self._mix(0.20, 0.08, 0.01, 0.06), {4: 10}), 1.5)
+
+        assert weak < strong
+
+    def test_more_plate_appearances_clear_the_line_more_often(self):
+        few, _ = _pmf_over_push(_tb_pmf(self._mix(), {2: 10}), 1.5)
+        many, _ = _pmf_over_push(_tb_pmf(self._mix(), {5: 10}), 1.5)
+
+        assert few < many
+
+    def test_half_point_lines_cannot_push(self):
+        assert _pmf_over_push(_tb_pmf(self._mix(), {4: 10}), 1.5)[1] == 0.0
+
+    def test_whole_number_lines_can_push(self):
+        assert _pmf_over_push(_tb_pmf(self._mix(), {4: 10}), 2.0)[1] > 0.0
+
+    def test_probabilities_stay_in_range(self):
+        pmf = _tb_pmf(self._mix(), {3: 4, 4: 6})
+        for line in (0.5, 1.5, 2.0, 4.5, 40.5):
+            p_over, p_push = _pmf_over_push(pmf, line)
+            assert 0.0 <= p_over <= 1.0
+            assert 0.0 <= p_push <= 1.0
+            assert p_over + p_push <= 1.0 + 1e-9
+
+    def test_a_home_run_is_worth_four_bases_in_the_mean(self):
+        """One PA, homers only: the mean has to be 4 x the homer rate."""
+        pmf = _tb_pmf((0.0, 0.0, 0.0, 0.25), {1: 1})
+
+        assert float((pmf * range(len(pmf))).sum()) == pytest.approx(1.0)
+
+
+class TestTotalBasesUsesStartsOnly:
+    """
+    A total-bases prop is offered on a hitter who is in the lineup. Averaging
+    over pinch-hit and bench games divided every regular's production by games
+    they never batted in.
+    """
+
+    def _regular_who_sits(self) -> pd.DataFrame:
+        played = [batter_game(i) for i in range(1, 13)]
+        benched = [batter_game(i, h=0, doubles=0, pa=0, batting_order=0)
+                   for i in range(13, 25)]
+        return pd.DataFrame(played + benched)
+
+    def test_bench_games_do_not_dilute_the_projection(self):
+        sat = batter_total_bases_model(self._regular_who_sits()).iloc[0]
+        never_sat = batter_total_bases_model(batting_df()).iloc[0]
+
+        assert sat["proj_tb"] == pytest.approx(never_sat["proj_tb"], abs=1e-9)
+
+    def test_the_start_count_reports_starts_not_appearances(self):
+        assert batter_total_bases_model(self._regular_who_sits()).iloc[0]["starts"] == 12
+
+
+class TestHomeRunLeaderboardMakesNoCalls:
+    """
+    The home-run table ended in a HIGH / MODERATE / LOW badge keyed off "2 in
+    the last 10" or "one per 18 PA" — invented thresholds, rendered like a pick,
+    against a market this page never fetched.
+    """
+
+    def test_no_rating_badge_is_produced(self):
+        df = batter_hr_rbi_props(batting_df(hr=1))
+
+        assert "hr_rating" not in df.columns
+
+    def test_the_underlying_rates_survive(self):
+        row = batter_hr_rbi_props(batting_df(hr=1)).iloc[0]
+
+        assert row["tot_hr"] == 12
+        assert row["l10_hr"] == 10
+
+
+class FakeF5Client(FakePreviewClient):
+    """A preview client that can also answer season-stat lookups."""
+
+    def __init__(self, previews, stats: dict | None = None) -> None:
+        super().__init__(previews)
+        self.stats = stats if stats is not None else {"era": "3.50", "whip": "1.10",
+                                                      "inningsPitched": 100.0,
+                                                      "strikeOuts": 100, "baseOnBalls": 30}
+
+    def get_player_info(self, pid: int) -> dict:
+        return {"fullName": f"Pitcher {pid}", "pitchHand": {"code": "R"}}
+
+    def get_player_season_stats(self, pid: int, season: int, group: str = "pitching") -> dict:
+        return self.stats
+
+
+class TestFirstFiveInningsMakesNoCalls:
+    """
+    The F5 card called OVER or UNDER against a hardcoded 4.5 that no book had
+    quoted, using full-start ERA divided down to five innings — which the code
+    comment itself said was not a real first-five split. Both halves of the call
+    were invented.
+    """
+
+    def _pitching(self) -> pd.DataFrame:
+        return pitching_df([start(1, "Sonny Gray", f"2026-07-{i:02d}", 6.0, 7, game_pk=i)
+                            for i in range(1, 6)])
+
+    def test_no_recommendation_against_a_hardcoded_line(self):
+        result = first_5_innings_analysis(
+            self._pitching(), games_df([]), FakeF5Client([preview(1)]),
+            date_str="2026-07-25")
+
+        assert "f5_line_recommendation" not in result["matchup"]
+
+    def test_a_missing_era_reports_nothing_rather_than_four_point_zero(self):
+        """An unreadable ERA used to fall back to a flat 4.00 — a made-up number
+        produced in exactly the situation where the page knew nothing."""
+        result = first_5_innings_analysis(
+            self._pitching(), games_df([]),
+            FakeF5Client([preview(1)], stats={"era": "-", "whip": "-"}),
+            date_str="2026-07-25")
+
+        assert result["matchup"]["our_f5_exp_runs"] is None
+        assert result["matchup"]["f5_total_proj"] is None
+
+    def test_the_estimate_is_still_published_when_it_can_be_made(self):
+        result = first_5_innings_analysis(
+            self._pitching(), games_df([]), FakeF5Client([preview(1)]),
+            date_str="2026-07-25")
+
+        # 3.50 ERA over five innings is 1.94 earned runs, each side.
+        assert result["matchup"]["our_f5_exp_runs"] == pytest.approx(1.94, abs=0.01)
+        assert result["matchup"]["f5_total_proj"] == pytest.approx(3.88, abs=0.01)
+
+
+class TestFetchBookLines:
+    """
+    Both models used to look the event up and fetch their own market, which
+    repeated the lookup and left nowhere to log the snapshot from.
+    """
+
+    def test_returns_both_markets_from_one_event_lookup(self):
+        client = FakeOddsClient(book(4.5), tb_book(1.5))
+
+        result = fetch_book_lines(client)
+
+        assert result["event"]["id"] == "evt-1"
+        assert result["pitcher_strikeouts"] == book(4.5)
+        assert result["batter_total_bases"] == tb_book(1.5)
+        assert client.calls.count("find_event") == 1
+
+    def test_unconfigured_client_yields_empty_markets_not_an_error(self):
+        class Unconfigured:
+            configured = False
+
+        result = fetch_book_lines(Unconfigured())
+
+        assert result == {"event": None, "pitcher_strikeouts": {}, "batter_total_bases": {}}
+
+    def test_no_client_at_all_yields_empty_markets(self):
+        assert fetch_book_lines(None)["event"] is None
+
+    def test_one_failing_market_does_not_take_the_other_down(self):
+        client = FakeOddsClient(book(4.5), tb_book(1.5),
+                                fail_markets={"batter_total_bases"})
+
+        result = fetch_book_lines(client)
+
+        assert result["pitcher_strikeouts"] == book(4.5)
+        assert result["batter_total_bases"] == {}
+
+    def test_no_upcoming_event_yields_empty_markets(self):
+        assert fetch_book_lines(FakeOddsClient(book(4.5), event=None))["pitcher_strikeouts"] == {}

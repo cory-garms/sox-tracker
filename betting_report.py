@@ -14,17 +14,23 @@ from viz import theme
 from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
+from data import odds_history
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
+    MARKET_K,
+    MARKET_TB,
     MAX_PLAUSIBLE_EDGE_K,
+    MAX_PLAUSIBLE_EDGE_TB_PROB,
     MIN_STARTS_FOR_PROP,
     MODEL_ERROR_K,
-    pitcher_strikeout_model,
-    probable_starters,
+    MODEL_ERROR_TB_PROB,
+    batter_hr_rbi_props,
+    batter_total_bases_model,
+    fetch_book_lines,
     first_5_innings_analysis,
     nrfi_yrfi_tracker,
-    batter_total_bases_model,
-    batter_hr_rbi_props,
+    pitcher_strikeout_model,
+    probable_starters,
 )
 
 
@@ -42,6 +48,120 @@ def _format_line_timestamp(raw: str | None) -> str | None:
     except ValueError:
         return None
     return stamp.astimezone(timezone.utc).strftime("%H:%M UTC on %d %b %Y")
+
+
+def _short_time(raw: str | None) -> str:
+    """"15:01 UTC" — enough to place a snapshot in the day without the noise."""
+    if not raw:
+        return "an earlier build"
+    try:
+        stamp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return "an earlier build"
+    return stamp.astimezone(timezone.utc).strftime("%H:%M UTC")
+
+
+def _pct(value) -> str:
+    """
+    A probability as "54.6%", or an em dash when there is none.
+
+    None arrives as a float NaN once pandas has boxed a column, and "nan%" on
+    the page reads as a broken number rather than an absent one.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return '<span class="no-line">&mdash;</span>'
+    if number != number:                        # NaN
+        return '<span class="no-line">&mdash;</span>'
+    return f"{number * 100:.1f}%"
+
+
+def _quote(line, odds) -> str:
+    """A line and its price, as the book posts it: "4.5 (-137)"."""
+    if line is None:
+        return "—"
+    price = f" ({odds:+d})" if isinstance(odds, (int, float)) and odds else ""
+    return f"{float(line):.1f}{price}"
+
+
+def _market_read(df, edge_fmt) -> str:
+    """
+    The priced rows written out in prose, above the table.
+
+    A fourteen-column table on a 390px phone shows the first two columns and
+    hides the line, both probabilities and the verdict behind a swipe — which
+    is exactly the comparison the page exists to make. This says it in a
+    sentence per quoted player, so the answer is visible without scrolling and
+    the table stays there for the reader who wants the workings.
+    """
+    if df is None or df.empty or not df["has_line"].any():
+        return ""
+
+    items = []
+    for _, r in df[df["has_line"]].iterrows():
+        rec = r["recommendation"]
+        if r.get("flagged"):
+            rec_class = "review"
+        elif "OVER" in rec:
+            rec_class = "over"
+        elif "UNDER" in rec:
+            rec_class = "under"
+        else:
+            rec_class = "neu"
+        items.append(
+            f'<li><strong>{r["player_name"]}</strong> &nbsp;'
+            f'<span class="prop-line">{_quote(r["prop_line"], _odds_int(r["american_odds"]))}</span>'
+            f'<br>market <strong>{_pct(r["book_over_prob"])}</strong> over &nbsp;·&nbsp; '
+            f'model <strong>{_pct(r["model_over_prob"])}</strong> &nbsp;·&nbsp; '
+            f'{edge_fmt(r)} &nbsp; <span class="rec-badge {rec_class}">{rec}</span></li>'
+        )
+    return f'<ul class="market-read">{"".join(items)}</ul>'
+
+
+def _odds_int(american) -> int | None:
+    """"-154" back to -154; the frame carries it as a signed string for display."""
+    try:
+        return int(str(american))
+    except (TypeError, ValueError):
+        return None
+
+
+def _movement_notes(history, event, names: list[str], market: str) -> str:
+    """
+    What the market has done since the first build that saw it.
+
+    Says nothing at all until there are at least two snapshots of the same line,
+    which is the state of every line on the day the history file is created.
+    """
+    if history is None or history.empty or not event or not names:
+        return ""
+
+    moved, watched, snapshots = [], 0, 0
+    for name in names:
+        mv = odds_history.line_movement(history, event.get("id", ""), market, name)
+        if not mv:
+            continue
+        watched += 1
+        snapshots = max(snapshots, mv["snapshots"])
+        if mv["moved"]:
+            moved.append(
+                f"<strong>{name}</strong> "
+                f"{_quote(mv['opened_line'], mv['opened_over_odds'])} at "
+                f"{_short_time(mv['opened_at'])} &rarr; "
+                f"{_quote(mv['current_line'], mv['current_over_odds'])}"
+            )
+    if moved:
+        return ('<p class="table-note">📈 <strong>Line movement.</strong> '
+                + " &nbsp;·&nbsp; ".join(moved)
+                + " — every build's prices are logged, so this is measured "
+                  "drift rather than an impression.</p>")
+    if watched:
+        subject = "line above has" if watched == 1 else f"{watched} lines above have"
+        return ('<p class="table-note">📈 <strong>No line movement.</strong> '
+                f'{snapshots} builds have logged this game, and the {subject} '
+                'not moved between them.</p>')
+    return ""
 
 
 def generate_betting_html(
@@ -68,6 +188,22 @@ def generate_betting_html(
     batting = fetcher.load("batting")
     pitching = fetcher.load("pitching")
 
+    # One trip to the odds provider for the whole page — two credits, one for
+    # each prop market — and every model prices off the same snapshot.
+    book = fetch_book_lines(odds_client, team_id)
+    event = book.get("event")
+
+    # Write that snapshot down before rendering anything. A static page can only
+    # ever show the market as of its last build; the log is what turns four
+    # builds a day from a weakness into a record of how the line moved.
+    for market in (MARKET_K, MARKET_TB):
+        odds_history.append_snapshot(
+            odds_history.snapshot_rows(event, market, book.get(market, {}))
+        )
+    # Read it back afterwards so this build's own prices are the "now" end of
+    # any movement the page reports.
+    history = odds_history.load_history()
+
     # Run analytical models.
     #
     # The strikeout table covers whoever actually takes the mound today, not
@@ -89,7 +225,7 @@ def generate_betting_html(
     else:
         first_pitch = format_first_pitch(previews[0]) if previews else "TBD"
     k_df = pitcher_strikeout_model(
-        pitching, batting, games, client, odds_client, team_id, season,
+        pitching, batting, games, client, book.get(MARKET_K, {}), team_id, season,
         # Deliberately a set even when empty: an unresolved probable must yield
         # an empty table the page can explain, never a fallback to the whole
         # rotation.
@@ -97,7 +233,7 @@ def generate_betting_html(
     )
     f5_res = first_5_innings_analysis(pitching, games, client, team_id, season, date_str)
     nrfi_res = nrfi_yrfi_tracker(games, pitching, client, team_id, season)
-    tb_df = batter_total_bases_model(batting, season)
+    tb_df = batter_total_bases_model(batting, book.get(MARKET_TB, {}), season)
     hr_df = batter_hr_rbi_props(batting, season)
 
     # 1. Pitcher Strikeout Model HTML
@@ -134,18 +270,20 @@ def generate_betting_html(
               <td>{r['avg_ip_start']:.1f}</td>
               <td><strong>{r['proj_k']:.2f}</strong></td>
               <td>{line_cell}</td>
+              <td>{_pct(r['book_over_prob'])}</td>
+              <td><strong>{_pct(r['model_over_prob'])}</strong></td>
               <td>{edge_cell}</td>
               <td><span style="font-size: 0.8rem; font-weight: 600;">{src}</span></td>
               <td><span class="rec-badge {rec_class}">{rec}</span></td>
             </tr>
             """
     elif not probables:
-        k_rows = (f'<tr><td colspan="10">No probable starter could be resolved for '
+        k_rows = (f'<tr><td colspan="12">No probable starter could be resolved for '
                   f'{date_str}. The table is left empty rather than falling back to '
                   f'the rest of the rotation.</td></tr>')
     else:
         listed = " and ".join(p["name"] for p in probables)
-        k_rows = (f'<tr><td colspan="10">{listed} listed as probable, but has fewer '
+        k_rows = (f'<tr><td colspan="12">{listed} listed as probable, but has fewer '
                   f'than {MIN_STARTS_FOR_PROP} starts this season — too few for a '
                   f'projection worth publishing.</td></tr>')
 
@@ -185,8 +323,18 @@ def generate_betting_html(
                 f"itself was built {built}. Treat the odds as stale.</p>"
             )
 
+    k_movement_html = _movement_notes(
+        history, event, k_df["player_name"].tolist() if not k_df.empty else [], MARKET_K
+    )
+
     if lines_live:
         k_note = (
+            "<strong>Market %</strong> is the book's own price with the vig "
+            "stripped out — what DraftKings really thinks the chance of the "
+            "over is. <strong>Model %</strong> is this page's Poisson "
+            "probability around its projection. Reading them side by side is "
+            "the point of the table: it shows exactly where, and by how much, "
+            "the model disagrees with the market. "
             "Edge is the model projection minus the sportsbook line. "
             f"<strong>This model does not currently call sides.</strong> Its own "
             f"measured error is &plusmn;{MODEL_ERROR_K:.2f} K per start — from a "
@@ -207,8 +355,13 @@ def generate_betting_html(
                   "projections only — no edge or EV can be computed without a real "
                   "line to compare against. Set <code>ODDS_API_KEY</code> to enable them.")
 
+    k_read_html = _market_read(
+        k_df, lambda r: f'gap <strong>{r["edge"]:+.2f} K</strong>')
+
     k_html = f"""
     {stamp_html}
+    {k_read_html}
+    {k_movement_html}
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -221,6 +374,8 @@ def generate_betting_html(
           <th>Proj IP</th>
           <th>Proj K's</th>
           <th>Prop Line (Odds)</th>
+          <th>Market Over %</th>
+          <th>Model Over %</th>
           <th>Edge</th>
           <th>Line Source</th>
           <th>Recommendation (+EV)</th>
@@ -234,44 +389,106 @@ def generate_betting_html(
     <p class="table-note">{k_note}</p>
     """
 
-    # 2. Batter Total Bases & 1+ Hit Model HTML
+    # 2. Batter Total Bases HTML
     tb_rows = ""
+    tb_quoted = []
     if not tb_df.empty:
         for _, r in tb_df.head(10).iterrows():
             rec = r["recommendation"]
-            rec_class = "over" if "OVER" in rec else ("under" if "UNDER" in rec else "neu")
+            if r.get("flagged"):
+                rec_class = "review"
+            elif "OVER" in rec:
+                rec_class = "over"
+            elif "UNDER" in rec:
+                rec_class = "under"
+            else:
+                rec_class = "neu"
+
+            if r.get("has_line"):
+                tb_quoted.append(r["player_name"])
+                odds = r.get("american_odds") or "—"
+                line_cell = f'<span class="prop-line">{r["prop_line"]:.1f}</span> ({odds})'
+                edge = r["prob_edge"]
+                edge_cell = ('<span class="no-line">—</span>' if edge is None
+                             else f'<span class="edge-val">{edge * 100:+.1f}</span>')
+            else:
+                line_cell = '<span class="no-line">—</span>'
+                edge_cell = '<span class="no-line">—</span>'
+
             tb_rows += f"""
             <tr>
               <td><strong>{r['player_name']}</strong></td>
-              <td>{r['games']}</td>
+              <td>{r['starts']}</td>
               <td>{r['season_avg']:.3f}</td>
               <td>{r['season_slg']:.3f}</td>
-              <td>{r['season_tb_g']:.2f}</td>
-              <td>{r['l10_tb_g']:.2f}</td>
+              <td>{r['tb_per_start']:.2f}</td>
+              <td>{r['l10_tb_start']:.2f}</td>
               <td><span class="delta-pos">{r['l10_o15_tb_pct']:.1f}%</span></td>
               <td>{r['l10_1hit_pct']:.1f}%</td>
               <td><strong>{r['proj_tb']:.2f}</strong></td>
+              <td>{line_cell}</td>
+              <td>{_pct(r['book_over_prob'])}</td>
+              <td><strong>{_pct(r['model_over_prob'])}</strong></td>
+              <td>{edge_cell}</td>
               <td><span class="rec-badge {rec_class}">{rec}</span></td>
             </tr>
             """
     else:
-        tb_rows = '<tr><td colspan="10">No batter total bases data available.</td></tr>'
+        tb_rows = '<tr><td colspan="14">No batter total bases data available.</td></tr>'
+
+    tb_lines_live = bool(not tb_df.empty and tb_df["has_line"].any())
+    if tb_lines_live:
+        tb_note = (
+            "Lines are DraftKings' own, fetched with the strikeout market. "
+            "<strong>Edge</strong> here is a difference in probability, not in "
+            "bases: nearly every hitter is posted at 1.5, so what separates them "
+            "is the price, and comparing a projection to the line would just rank "
+            "hitters by quality the book has already charged for. "
+            "<strong>This model does not call sides either.</strong> Its own "
+            f"over-probability moves by &plusmn;{MODEL_ERROR_TB_PROB * 100:.1f} "
+            "points when its inputs are resampled, and the entire spread of "
+            "opinion it has been shown to hold out of sample is "
+            f"{MAX_PLAUSIBLE_EDGE_TB_PROB * 100:.1f} points "
+            "(walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 "
+            "for a coin flip). An edge has to be larger than the first and "
+            "smaller than the second to mean anything, and almost nothing is. "
+            "The honest reading of this table is the two probability columns "
+            "side by side, not the last one."
+        )
+    else:
+        tb_note = (
+            "<strong>No total-bases lines connected.</strong> These are projections "
+            "only. The table used to price them against an assumed 1.5 with "
+            "hand-picked thresholds — a line no book had quoted and an edge nobody "
+            "had measured. It now waits for a real line instead."
+        )
+
+    tb_movement_html = _movement_notes(history, event, tb_quoted, MARKET_TB)
+
+    tb_read_html = _market_read(
+        tb_df, lambda r: f'gap <strong>{r["prob_edge"] * 100:+.1f} pts</strong>')
 
     tb_html = f"""
+    {tb_read_html}
+    {tb_movement_html}
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
           <th>Hitter</th>
-          <th>Games</th>
+          <th>Starts</th>
           <th>AVG</th>
           <th>SLG</th>
-          <th>Season TB/G</th>
-          <th>L10 TB/G</th>
-          <th>L10 Over 1.5 TB %</th>
+          <th>TB / Start</th>
+          <th>L10 TB / Start</th>
+          <th>L10 2+ TB %</th>
           <th>L10 1+ Hit %</th>
           <th>Proj TB</th>
+          <th>Prop Line (Odds)</th>
+          <th>Market Over %</th>
+          <th>Model Over %</th>
+          <th>Edge (pts)</th>
           <th>Recommendation</th>
         </tr>
       </thead>
@@ -280,28 +497,27 @@ def generate_betting_html(
       </tbody>
     </table>
     </div>
+    <p class="table-note">{tb_note}</p>
     """
 
-    # 3. Home Run & RBI Prop Target HTML
+    # 3. Home Run, RBI & Runs — usage and form, no calls
     hr_rows = ""
     if not hr_df.empty:
         for _, r in hr_df.head(10).iterrows():
-            rating = r["hr_rating"]
-            rat_class = "over" if "HIGH" in rating else ("under" if "MODERATE" in rating else "neu")
             hr_rows += f"""
             <tr>
               <td><strong>{r['player_name']}</strong></td>
+              <td>{r['games']}</td>
               <td>{r['tot_hr']}</td>
               <td>{r['pa_per_hr']}</td>
               <td><strong>{r['l10_hr']}</strong></td>
               <td>{r['l10_rbi']}</td>
               <td><span class="delta-pos">{r['l10_rbi_hit_pct']:.1f}%</span></td>
               <td>{r['l10_r_hit_pct']:.1f}%</td>
-              <td><span class="rec-badge {rat_class}">{rating}</span></td>
             </tr>
             """
     else:
-        hr_rows = '<tr><td colspan="8">No home run prop data available.</td></tr>'
+        hr_rows = '<tr><td colspan="8">No home run or RBI data available.</td></tr>'
 
     hr_html = f"""
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
@@ -310,13 +526,13 @@ def generate_betting_html(
       <thead>
         <tr>
           <th>Hitter</th>
+          <th>Games</th>
           <th>Season HR</th>
           <th>PA / HR</th>
           <th>L10 HR</th>
           <th>L10 RBI</th>
           <th>L10 1+ RBI %</th>
           <th>L10 1+ Run %</th>
-          <th>HR Prop Target</th>
         </tr>
       </thead>
       <tbody>
@@ -324,6 +540,12 @@ def generate_betting_html(
       </tbody>
     </table>
     </div>
+    <p class="table-note">Rate stats, not picks. This table used to end in a
+    <em>HR Prop Target</em> badge of HIGH / MODERATE / LOW, keyed off thresholds
+    — two homers in ten games, one per eighteen plate appearances — that nobody
+    had measured, against a home-run line this page never fetched. The rates
+    themselves are honest form and usage numbers, so they stayed; the verdict on
+    top of them did not.</p>
     """
 
     # 4. First 5 Innings (F5) HTML
@@ -348,32 +570,50 @@ def generate_betting_html(
     else:
         f5_rows = '<tr><td colspan="8">No F5 starter data available.</td></tr>'
 
+    def _f5_runs(value) -> str:
+        """An estimate, or a plain statement that there isn't one."""
+        return "—" if value is None else f"{float(value):.2f}"
+
     matchup_card_html = ""
     if matchup_card := f5_matchup:
+        total = matchup_card.get("f5_total_proj")
+        total_html = (
+            f"Estimated F5 Total Runs: <strong>{total:.2f}</strong>"
+            if total is not None else
+            "<strong>No F5 estimate.</strong> One of the two starters has no "
+            "season ERA on record, and the total is not worth guessing at."
+        )
         matchup_card_html = f"""
         <div class="matchup-banner">
-          <h3>⚡ Today's F5 Starter Matchup Projection</h3>
+          <h3>⚡ Today's F5 Starter Matchup Estimate</h3>
           <div class="matchup-grid">
             <div class="team-card">
               <div class="team-title">{team_abbr} Starter</div>
               <div class="pitcher-title">{matchup_card.get('our_starter')} ({matchup_card.get('our_hand')}HP)</div>
               <p>Season ERA: <strong>{matchup_card.get('our_era')}</strong> &nbsp;·&nbsp; WHIP: <strong>{matchup_card.get('our_whip')}</strong></p>
-              <p>Est. Runs Allowed Thru 5: <strong style="color: #f85149;">{matchup_card.get('our_f5_exp_runs')}</strong></p>
+              <p>Est. Runs Allowed Thru 5: <strong style="color: #f85149;">{_f5_runs(matchup_card.get('our_f5_exp_runs'))}</strong></p>
             </div>
             <div class="vs-badge">VS</div>
             <div class="team-card">
               <div class="team-title">Opponent Starter</div>
               <div class="pitcher-title">{matchup_card.get('opp_starter')} ({matchup_card.get('opp_hand')}HP)</div>
               <p>Season ERA: <strong>{matchup_card.get('opp_era')}</strong> &nbsp;·&nbsp; WHIP: <strong>{matchup_card.get('opp_whip')}</strong></p>
-              <p>Est. Runs Allowed Thru 5: <strong style="color: #f85149;">{matchup_card.get('opp_f5_exp_runs')}</strong></p>
+              <p>Est. Runs Allowed Thru 5: <strong style="color: #f85149;">{_f5_runs(matchup_card.get('opp_f5_exp_runs'))}</strong></p>
             </div>
           </div>
           <div class="f5-total-bar">
-            <span>Projected F5 Total Runs: <strong>{matchup_card.get('f5_total_proj')}</strong></span>
-            <span class="rec-badge over">{matchup_card.get('f5_line_recommendation')}</span>
+            <span>{total_html}</span>
           </div>
         </div>
-        """
+        <p class="table-note"><strong>An estimate, not a bet.</strong> This card
+        used to call OVER or UNDER against a hardcoded 4.5 that no book had
+        quoted, and it did so from full-start ERA divided down to five innings —
+        not a measured first-five split, since the cached box scores carry no
+        inning breakdown. Both halves of that call were made up, so the call is
+        gone. A real F5 total would have to come from the book's own
+        first-five market, and a projection worth pricing against it would need
+        its error measured first, exactly as the strikeout and total-bases
+        models now do.</p>"""
 
     f5_html = f"""
     {matchup_card_html}
@@ -525,6 +765,18 @@ def generate_betting_html(
       font-family: {theme.FONT_DISPLAY};
       font-size: 1.25rem; color: {theme.FENWAY_CRIMSON};
     }}
+    /* The model-vs-market read, for a phone that will not see column ten. */
+    .market-read {{
+      list-style: none; margin: 0 0 16px 0; padding: 0;
+    }}
+    .market-read li {{
+      background: rgba(0,0,0,0.22);
+      border-left: 3px solid {theme.BRASS};
+      border-radius: 3px;
+      padding: 10px 12px; margin-bottom: 8px;
+      font-size: 0.88rem; line-height: 1.75;
+    }}
+    .market-read strong {{ font-family: {theme.FONT_MONO}; color: {theme.SCOREBOARD_GOLD}; }}
     .f5-total-bar {{
       margin-top: 16px; padding-top: 14px;
       border-top: 1px solid {theme.BRASS};
@@ -558,12 +810,12 @@ def generate_betting_html(
   </section>
 
   <section class="card">
-    <h2>💥 Batter Total Bases (TB) &amp; 1+ Hit Prop Intelligence</h2>
+    <h2>💥 Batter Total Bases (TB) &mdash; Model vs Market</h2>
     {tb_html}
   </section>
 
   <section class="card">
-    <h2>🚀 Home Run &amp; RBI Prop Target Leaderboard</h2>
+    <h2>🚀 Home Run, RBI &amp; Runs &mdash; Usage and Form</h2>
     {hr_html}
   </section>
 

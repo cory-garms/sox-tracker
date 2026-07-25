@@ -15,11 +15,12 @@ on:
     - cron: "30 21 * * *"   # 17:30 ET — before 19:10 ET evening starts
     #
     # Quota: The Odds API allows 500 requests/month. get_events() is free; each
-    # build spends roughly one credit per prop market. Four builds a day is
-    # ~120/month, comfortably inside the budget. Count the cost before adding a
-    # fifth, and note that scheduled runs can be delayed when GitHub is busy —
-    # another reason the page states its own timestamp rather than promising
-    # freshness.
+    # build spends one credit per prop market, and the page now prices two —
+    # pitcher strikeouts and batter total bases. Four builds a day is therefore
+    # ~240/month against the 500 budget. Count the cost before adding a fifth
+    # build or a third market, and note that scheduled runs can be delayed when
+    # GitHub is busy — another reason the page states its own timestamp rather
+    # than promising freshness.
   workflow_dispatch:       # allow manual trigger from the GitHub UI
 
 jobs:
@@ -70,5 +71,10 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/
+          # The odds history is the one file here that cannot be rebuilt: every
+          # other artefact is derived from data that still exists, but a line
+          # price nobody wrote down at 12:00 ET is gone for good. It has to be
+          # committed or the runner throws away the snapshot it just took.
+          git add data/cache/odds_history.parquet || true
           git diff --cached --quiet || git commit -m "chore: auto-refresh data $(date -u +%Y-%m-%d)"
           git push
