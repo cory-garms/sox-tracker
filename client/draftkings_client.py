@@ -3,6 +3,15 @@ DraftKings Sportsbook API Client for MLB odds and player prop intelligence.
 
 Wraps DraftKings public sportsbook REST API v2 with rate limiting, retry logic,
 odds conversion, and typed helpers. No API key required.
+
+STATUS (2026-07-24): dormant. DraftKings serves these endpoints behind an Akamai
+edge that returns HTTP 403 to non-browser clients on every host and API version
+tried (v2 US-MA-SB, v5 US-SB), regardless of User-Agent or Origin headers. This
+module is kept for the day that changes; live lines now come from
+`client.odds_api_client.OddsAPIClient`, which aggregates DraftKings prices.
+
+Odds conversion helpers moved to `client.odds_math` and are re-exported here for
+backwards compatibility.
 """
 
 from __future__ import annotations
@@ -15,6 +24,11 @@ import urllib3
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from config import REQUEST_TIMEOUT, REQUEST_DELAY
+from client.odds_math import (  # noqa: F401  (re-exported for backwards compatibility)
+    american_to_implied_prob,
+    american_to_decimal,
+    calculate_ev,
+)
 
 # Suppress insecure HTTPS request warnings when SSL fallback is triggered
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -23,46 +37,6 @@ log = logging.getLogger(__name__)
 
 DK_BASE_URL = "https://sportsbook-us-ma.draftkings.com/sites/US-MA-SB/api/v2"
 MLB_EVENT_GROUP_ID = 84240  # DraftKings MLB Event Group ID
-
-
-# ---------------------------------------------------------------------------
-# Odds Calculation Utilities
-# ---------------------------------------------------------------------------
-
-def american_to_implied_prob(odds: int | float) -> float:
-    """Convert American Odds (e.g., -115 or +130) to Implied Win Probability (0.0 to 1.0)."""
-    try:
-        odds = float(odds)
-        if odds < 0:
-            return abs(odds) / (abs(odds) + 100.0)
-        else:
-            return 100.0 / (odds + 100.0)
-    except (ValueError, TypeError, ZeroDivisionError):
-        return 0.50
-
-
-def american_to_decimal(odds: int | float) -> float:
-    """Convert American Odds to Decimal Payout Multiplier (e.g. +100 -> 2.0)."""
-    try:
-        odds = float(odds)
-        if odds >= 0:
-            return (odds / 100.0) + 1.0
-        else:
-            return (100.0 / abs(odds)) + 1.0
-    except (ValueError, TypeError, ZeroDivisionError):
-        return 2.0
-
-
-def calculate_ev(model_prob: float, american_odds: int | float) -> float:
-    """
-    Calculate Expected Value percentage (+EV) given model true probability (0.0-1.0)
-    and sportsbook American odds.
-    Formula: EV = (Model Prob * Decimal Odds) - 1.0
-    Returns EV percentage (e.g., 8.0 = +8% EV).
-    """
-    dec_odds = american_to_decimal(american_odds)
-    ev = (model_prob * dec_odds) - 1.0
-    return round(ev * 100.0, 2)
 
 
 # ---------------------------------------------------------------------------

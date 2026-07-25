@@ -6,6 +6,8 @@ See TEAMS for the full 30-team reference.
 """
 
 from __future__ import annotations
+
+import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -83,3 +85,13 @@ MLB_API_BASE    = "https://statsapi.mlb.com/api/v1"
 SAVANT_BASE     = "https://baseballsavant.mlb.com"
 REQUEST_TIMEOUT = 30       # seconds
 REQUEST_DELAY   = 0.25     # seconds between API calls (be polite)
+
+# ---------------------------------------------------------------------------
+# Sportsbook odds (optional)
+# ---------------------------------------------------------------------------
+# Live betting lines require a free key from https://the-odds-api.com/.
+# Export it rather than committing it:  export ODDS_API_KEY="..."
+# Without a key the betting report still builds — it shows model projections
+# and reports the line as unavailable instead of inventing one.
+ODDS_API_KEY: str = os.environ.get("ODDS_API_KEY", "")
+ODDS_BOOKMAKER: str = "draftkings"   # which book's prices to pull via the aggregator

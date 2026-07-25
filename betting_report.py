@@ -10,8 +10,9 @@ from datetime import date
 from pathlib import Path
 
 import config
+from viz import theme
 from client.mlb_client import MLBClient
-from client.draftkings_client import DraftKingsClient
+from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
 from analysis.betting import (
     pitcher_strikeout_model,
@@ -36,7 +37,10 @@ def generate_betting_html(
     team_name = config.TEAMS.get(team_abbr, {}).get("name", "Boston Red Sox")
 
     client = MLBClient()
-    dk_client = DraftKingsClient()
+    odds_client = OddsAPIClient(bookmaker=config.ODDS_BOOKMAKER)
+    if not odds_client.configured:
+        print("ODDS_API_KEY not set — building report with projections only "
+              "(no book lines, no EV). See CONFIGURE.md.")
     fetcher = Fetcher(team_id=team_id, season=season, client=client, force_refresh=force_refresh)
 
     games = fetcher.load("games")
@@ -44,7 +48,7 @@ def generate_betting_html(
     pitching = fetcher.load("pitching")
 
     # Run analytical models
-    k_df = pitcher_strikeout_model(pitching, batting, games, client, dk_client, team_id, season)
+    k_df = pitcher_strikeout_model(pitching, batting, games, client, odds_client, team_id, season)
     f5_res = first_5_innings_analysis(pitching, games, client, team_id, season, date_str)
     nrfi_res = nrfi_yrfi_tracker(games, pitching, client, team_id, season)
     tb_df = batter_total_bases_model(batting, season)
@@ -56,8 +60,18 @@ def generate_betting_html(
         for _, r in k_df.iterrows():
             rec = r["recommendation"]
             rec_class = "over" if "OVER" in rec else ("under" if "UNDER" in rec else "neu")
-            src = r.get("line_source", "Model Est. 🟡")
-            odds = r.get("american_odds", "-115")
+            src = r.get("line_source", "No line available")
+
+            # Line/edge cells only carry meaning when a book actually quoted one.
+            if r.get("has_line"):
+                odds = r.get("american_odds") or "—"
+                line_cell = f'<span class="prop-line">{r["prop_line"]:.1f}</span> ({odds})'
+                edge = r["edge"]
+                edge_cell = f'<span class="edge-val">{"+" if edge > 0 else ""}{edge:.2f}</span>'
+            else:
+                line_cell = '<span class="no-line">—</span>'
+                edge_cell = '<span class="no-line">—</span>'
+
             k_rows += f"""
             <tr>
               <td><strong>{r['player_name']}</strong></td>
@@ -66,16 +80,28 @@ def generate_betting_html(
               <td>{r['l5_k9']:.2f}</td>
               <td>{r['avg_ip_start']:.1f}</td>
               <td><strong>{r['proj_k']:.2f}</strong></td>
-              <td><span class="prop-line">{r['prop_line']:.1f}</span> ({odds})</td>
-              <td><span class="edge-val">{'+' if r['edge'] > 0 else ''}{r['edge']:.2f}</span></td>
+              <td>{line_cell}</td>
+              <td>{edge_cell}</td>
               <td><span style="font-size: 0.8rem; font-weight: 600;">{src}</span></td>
               <td><span class="rec-badge {rec_class}">{rec}</span></td>
             </tr>
             """
     else:
-        k_rows = '<tr><td colspan="10">No starting pitcher data available.</td></tr>'
+        k_rows = ('<tr><td colspan="10">No starting pitcher has enough starts '
+                  'for a projection yet.</td></tr>')
+
+    lines_live = bool(not k_df.empty and k_df["has_line"].any())
+    if lines_live:
+        k_note = ("Edge is the model projection minus the sportsbook line. EV is "
+                  "computed against the book's posted price, de-vigged across both sides.")
+    else:
+        k_note = ("<strong>No sportsbook lines connected.</strong> These are model "
+                  "projections only — no edge or EV can be computed without a real "
+                  "line to compare against. Set <code>ODDS_API_KEY</code> to enable them.")
 
     k_html = f"""
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -95,6 +121,8 @@ def generate_betting_html(
         {k_rows}
       </tbody>
     </table>
+    </div>
+    <p class="table-note">{k_note}</p>
     """
 
     # 2. Batter Total Bases & 1+ Hit Model HTML
@@ -121,6 +149,8 @@ def generate_betting_html(
         tb_rows = '<tr><td colspan="10">No batter total bases data available.</td></tr>'
 
     tb_html = f"""
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -140,6 +170,7 @@ def generate_betting_html(
         {tb_rows}
       </tbody>
     </table>
+    </div>
     """
 
     # 3. Home Run & RBI Prop Target HTML
@@ -164,6 +195,8 @@ def generate_betting_html(
         hr_rows = '<tr><td colspan="8">No home run prop data available.</td></tr>'
 
     hr_html = f"""
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -181,6 +214,7 @@ def generate_betting_html(
         {hr_rows}
       </tbody>
     </table>
+    </div>
     """
 
     # 4. First 5 Innings (F5) HTML
@@ -195,8 +229,8 @@ def generate_betting_html(
               <td><strong>{r['player_name']}</strong></td>
               <td>{r['starts']}</td>
               <td>{r['tot_ip']:.1f}</td>
-              <td>{r['f5_era']:.2f}</td>
-              <td>{r['f5_whip']:.2f}</td>
+              <td>{r['era']:.2f}</td>
+              <td>{r['whip']:.2f}</td>
               <td>{r['k9']:.2f}</td>
               <td>{r['avg_game_score']:.1f}</td>
               <td><strong style="color: #58a6ff;">{r['f5_exp_runs']:.2f}</strong></td>
@@ -214,15 +248,15 @@ def generate_betting_html(
             <div class="team-card">
               <div class="team-title">{team_abbr} Starter</div>
               <div class="pitcher-title">{matchup_card.get('our_starter')} ({matchup_card.get('our_hand')}HP)</div>
-              <p>F5 ERA: <strong>{matchup_card.get('our_era')}</strong> &nbsp;·&nbsp; F5 WHIP: <strong>{matchup_card.get('our_whip')}</strong></p>
-              <p>F5 Expected Runs Allowed: <strong style="color: #f85149;">{matchup_card.get('our_f5_exp_runs')}</strong></p>
+              <p>Season ERA: <strong>{matchup_card.get('our_era')}</strong> &nbsp;·&nbsp; WHIP: <strong>{matchup_card.get('our_whip')}</strong></p>
+              <p>Est. Runs Allowed Thru 5: <strong style="color: #f85149;">{matchup_card.get('our_f5_exp_runs')}</strong></p>
             </div>
             <div class="vs-badge">VS</div>
             <div class="team-card">
               <div class="team-title">Opponent Starter</div>
               <div class="pitcher-title">{matchup_card.get('opp_starter')} ({matchup_card.get('opp_hand')}HP)</div>
-              <p>F5 ERA: <strong>{matchup_card.get('opp_era')}</strong> &nbsp;·&nbsp; F5 WHIP: <strong>{matchup_card.get('opp_whip')}</strong></p>
-              <p>F5 Expected Runs Allowed: <strong style="color: #f85149;">{matchup_card.get('opp_f5_exp_runs')}</strong></p>
+              <p>Season ERA: <strong>{matchup_card.get('opp_era')}</strong> &nbsp;·&nbsp; WHIP: <strong>{matchup_card.get('opp_whip')}</strong></p>
+              <p>Est. Runs Allowed Thru 5: <strong style="color: #f85149;">{matchup_card.get('opp_f5_exp_runs')}</strong></p>
             </div>
           </div>
           <div class="f5-total-bar">
@@ -234,27 +268,37 @@ def generate_betting_html(
 
     f5_html = f"""
     {matchup_card_html}
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table" style="margin-top: 16px;">
       <thead>
         <tr>
           <th>Starter</th>
           <th>Starts</th>
           <th>Innings</th>
-          <th>F5 ERA</th>
-          <th>F5 WHIP</th>
+          <th>ERA</th>
+          <th>WHIP</th>
           <th>K / 9</th>
           <th>Avg Game Score</th>
-          <th>F5 Exp ER / Game</th>
+          <th>Est. ER Thru 5</th>
         </tr>
       </thead>
       <tbody>
         {f5_rows}
       </tbody>
     </table>
+    </div>
     """
 
     # 5. NRFI / YRFI HTML
-    nrfi_kpi = f"""
+    if not nrfi_res.get("available"):
+        nrfi_kpi = """
+    <p class="table-note"><strong>First-inning data unavailable.</strong> NRFI rates are
+    read from each game's linescore; none could be retrieved for this run. Rates are
+    omitted rather than estimated from full-game scores.</p>
+    """
+    else:
+        nrfi_kpi = f"""
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-value">{nrfi_res.get('nrfi_pct')}%</div>
@@ -274,6 +318,7 @@ def generate_betting_html(
       </div>
     </div>
     """
+
 
     starter_nrfi_df = nrfi_res.get("starter_records")
     nrfi_rows = ""
@@ -297,6 +342,8 @@ def generate_betting_html(
     nrfi_html = f"""
     {nrfi_kpi}
     <h3 style="color: #58a6ff; font-size: 1.0rem; margin: 20px 0 10px 0; text-transform: uppercase;">Red Sox Starting Pitcher NRFI Records</h3>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
@@ -312,6 +359,7 @@ def generate_betting_html(
         {nrfi_rows}
       </tbody>
     </table>
+    </div>
     """
 
     full_html = f"""<!DOCTYPE html>
@@ -321,206 +369,61 @@ def generate_betting_html(
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} — Sports Betting & Prop Intelligence</title>
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+  {theme.FONTS_LINK}
   <style>
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    html, body {{
-      background: #0c1829;
-      color: #f0f6fc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      min-height: 100vh;
-      width: 100%;
-      overflow-x: hidden;
-    }}
-    body {{
-      padding: clamp(12px, 3vw, 28px);
-    }}
-    .nav-bar {{ margin-bottom: 16px; }}
-    .nav-back {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #58a6ff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 6px 12px;
-      background: #14243b;
-      border: 1px solid #243854;
-      border-radius: 8px;
-    }}
-    header {{
-      border-bottom: 2px solid #d22d36;
-      padding-bottom: 16px;
-      margin-bottom: clamp(20px, 4vw, 32px);
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }}
-    .team-logo {{
-      height: clamp(48px, 10vw, 64px);
-      width: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
-    }}
-    header h1 {{
-      font-size: clamp(1.4rem, 4vw, 2.2rem);
-      font-weight: 800;
-      line-height: 1.25;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-    }}
-    header p {{
-      color: #94a7b8;
-      margin-top: 6px;
-      font-size: clamp(0.85rem, 2.5vw, 1.0rem);
-    }}
-    .badge {{
-      background: #d22d36;
-      color: #ffffff;
-      font-weight: 800;
-      font-size: clamp(0.75rem, 2vw, 0.85rem);
-      padding: 4px 10px;
-      border-radius: 12px;
-    }}
-    .card {{
-      background: #14243b;
-      border: 1px solid #243854;
-      border-radius: 12px;
-      padding: clamp(14px, 3vw, 24px);
-      margin-bottom: clamp(16px, 3vw, 24px);
-      width: 100%;
-      overflow-x: auto;
-    }}
-    .card h2 {{
-      font-size: clamp(0.95rem, 2.2vw, 1.2rem);
-      font-weight: 700;
-      color: #58a6ff;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 16px;
-    }}
-    .report-table {{
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: clamp(0.82rem, 2.2vw, 0.95rem);
-    }}
-    .report-table th, .report-table td {{
-      padding: 10px 12px;
-      border-bottom: 1px solid #30363d;
-    }}
-    .report-table th {{
-      color: #8b949e;
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.78rem;
-    }}
-    .prop-line {{
-      background: #1f314d;
-      color: #e6edf3;
-      padding: 2px 8px;
-      border-radius: 6px;
-      font-weight: 700;
-    }}
-    .edge-val {{
-      color: #3fb950;
-      font-weight: 700;
-    }}
-    .rec-badge {{
-      font-size: 0.8rem;
-      font-weight: 700;
-      border-radius: 6px;
-      padding: 3px 8px;
-    }}
-    .rec-badge.over {{ background: rgba(63, 185, 80, 0.2); color: #3fb950; border: 1px solid #3fb950; }}
-    .rec-badge.under {{ background: rgba(88, 166, 255, 0.2); color: #58a6ff; border: 1px solid #58a6ff; }}
-    .rec-badge.neu {{ background: rgba(139, 148, 158, 0.2); color: #8b949e; border: 1px solid #8b949e; }}
-    
+    {theme.page_css()}
     .matchup-banner {{
-      background: #0f1c2e;
-      border: 1px solid #1f3452;
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 16px;
+      background:
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0 2px, rgba(0,0,0,0) 2px 46px),
+        linear-gradient(135deg, {theme.MONSTER_DARK} 0%, #0b2b21 100%);
+      border: 2px dashed {theme.BRASS};
+      border-radius: 6px;
+      padding: clamp(14px, 3vw, 24px);
+      margin-bottom: 20px;
     }}
     .matchup-banner h3 {{
-      color: #e6edf3;
-      font-size: 1.05rem;
-      margin-bottom: 12px;
+      font-family: {theme.FONT_STENCIL};
+      font-size: clamp(0.82rem, 2vw, 0.98rem);
+      font-weight: 400; color: {theme.SCOREBOARD_GOLD};
+      text-transform: uppercase; letter-spacing: 0.1em;
+      margin-bottom: 16px;
     }}
     .matchup-grid {{
       display: grid;
       grid-template-columns: 1fr auto 1fr;
-      gap: 16px;
-      align-items: center;
+      align-items: center; gap: 14px;
     }}
     .team-card {{
-      background: #162842;
-      padding: 12px;
-      border-radius: 8px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid {theme.BRASS};
+      border-radius: 4px;
+      padding: 14px;
     }}
-    .team-title {{ font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }}
-    .pitcher-title {{ font-size: 1.0rem; color: #ffffff; font-weight: 700; margin: 4px 0 8px 0; }}
+    .team-title {{
+      font-family: {theme.FONT_STENCIL};
+      font-size: 0.7rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: {theme.INK_MUTED};
+    }}
+    .pitcher-title {{
+      font-family: {theme.FONT_DISPLAY};
+      font-size: clamp(0.95rem, 2.4vw, 1.15rem);
+      color: {theme.PARCHMENT};
+      margin: 6px 0 10px 0; line-height: 1.25;
+    }}
+    .team-card p {{ font-size: 0.86rem; line-height: 1.7; color: #cfe0d4; }}
+    .team-card strong {{ font-family: {theme.FONT_MONO}; color: {theme.SCOREBOARD_GOLD}; }}
     .vs-badge {{
-      font-weight: 900;
-      color: #d22d36;
-      font-size: 1.2rem;
+      font-family: {theme.FONT_DISPLAY};
+      font-size: 1.25rem; color: {theme.FENWAY_CRIMSON};
     }}
     .f5-total-bar {{
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 1px solid #243854;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 10px;
-      font-size: 0.95rem;
+      margin-top: 16px; padding-top: 14px;
+      border-top: 1px solid {theme.BRASS};
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px;
+      font-size: 0.92rem;
     }}
-
-    .kpi-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }}
-    .kpi-card {{
-      background: #0f1c2e;
-      border: 1px solid #1f3452;
-      border-radius: 10px;
-      padding: 14px;
-      text-align: center;
-    }}
-    .kpi-value {{
-      font-size: 1.6rem;
-      font-weight: 800;
-      color: #3fb950;
-    }}
-    .kpi-label {{
-      font-size: 0.78rem;
-      color: #8b949e;
-      margin-top: 4px;
-      font-weight: 600;
-    }}
-    .delta-pos {{ color: #3fb950; font-weight: 700; }}
-    .delta-neg {{ color: #f85149; font-weight: 700; }}
-    .delta-neu {{ color: #8b949e; }}
-
-    footer {{
-      text-align: center;
-      color: #8b949e;
-      font-size: 0.85rem;
-      margin-top: 40px;
-      padding-top: 16px;
-      border-top: 1px solid #30363d;
-    }}
-    footer a {{ color: #58a6ff; text-decoration: none; }}
-
     @media (max-width: 600px) {{
-      body {{ padding: 10px 8px; }}
-      .card {{ padding: 10px 6px; border-radius: 8px; }}
-      .report-table th, .report-table td {{ padding: 8px 6px; }}
       .matchup-grid {{ grid-template-columns: 1fr; text-align: center; }}
       .vs-badge {{ margin: 4px 0; }}
     }}
