@@ -221,3 +221,19 @@ class TestConsensusEdgeTable:
         assert len(table) == 1
         assert table.iloc[0]["side"] == "Moneyline"
         assert table.iloc[0]["line"] is None
+
+
+class TestLinelessRendering:
+    """A moneyline that moved must not render as an em dash arrow."""
+
+    def test_quote_or_price_falls_back_to_the_price(self):
+        from betting_report import _quote_or_price
+        assert _quote_or_price(None, 148) == "+148"
+        assert _quote_or_price(float("nan"), -192) == "-192"
+        assert _quote_or_price(5.5, -125) == "5.5 (-125)"
+
+    def test_side_label_handles_a_missing_line(self):
+        from betting_report import _side_label
+        assert _side_label({"line": None, "side": "Moneyline"}) == "Moneyline"
+        assert _side_label({"line": float("nan"), "side": "Moneyline"}) == "Moneyline"
+        assert _side_label({"line": 5.5, "side": "Over"}) == "Over 5.5"

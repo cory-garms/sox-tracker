@@ -98,6 +98,19 @@ def _price(odds) -> str:
         return "—"
 
 
+def _quote_or_price(line, odds) -> str:
+    """
+    "4.5 (-137)" for a market with a number, "+148" for one without.
+
+    A moneyline has no line, and passing that through _quote() renders an em
+    dash — which would report a moneyline that moved from +148 to +158 as
+    "— → —".
+    """
+    if line is None or line != line:              # None, or NaN out of parquet
+        return _price(odds)
+    return _quote(line, odds)
+
+
 def _market_read(df, edge_fmt) -> str:
     """
     The priced rows written out in prose, above the table.
@@ -160,9 +173,9 @@ def _movement_notes(history, event, names: list[str], market: str) -> str:
         if mv["moved"]:
             moved.append(
                 f"<strong>{name}</strong> "
-                f"{_quote(mv['opened_line'], mv['opened_over_odds'])} at "
+                f"{_quote_or_price(mv['opened_line'], mv['opened_over_odds'])} at "
                 f"{_short_time(mv['opened_at'])} &rarr; "
-                f"{_quote(mv['current_line'], mv['current_over_odds'])}"
+                f"{_quote_or_price(mv['current_line'], mv['current_over_odds'])}"
             )
     if moved:
         return ('<p class="table-note">📈 <strong>Line movement.</strong> '
@@ -198,7 +211,7 @@ def _side_label(row) -> str:
     return f"{row['side']} {float(line):g}"
 
 
-def _consensus_html(edges, boost_pct: float = 50.0) -> str:
+def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> str:
     """
     Render the primary book priced against the rest of the market.
 
@@ -252,37 +265,48 @@ def _consensus_html(edges, boost_pct: float = 50.0) -> str:
         "raw one."
     )
 
+    # Column order is a mobile decision, not a cosmetic one. The first column is
+    # sticky and a 390px phone shows roughly three more, so EV — the answer this
+    # table exists to give — has to arrive before the workings that justify it.
+    # Rendered at 390px it previously showed market, selection, side and price,
+    # and hid every EV figure behind a swipe.
     rows = ""
-    for _, r in edges.head(20).iterrows():
+    for _, r in edges.head(12).iterrows():
         ev_cls = "delta-pos" if r["ev_pct"] > 0 else "delta-neg"
         rows += f"""
         <tr>
-          <td>{_MARKET_LABELS.get(r['market'], r['market'])}</td>
           <td>{r['player']}</td>
           <td>{_side_label(r)}</td>
           <td>{_price(r['price'])}</td>
-          <td>{r['consensus_prob'] * 100:.1f}%</td>
-          <td>{int(r['n_books'])}</td>
           <td class="{ev_cls}">{r['ev_pct']:+.2f}%</td>
           <td>{r['ev_boost_pct']:+.2f}%</td>
+          <td>{r['consensus_prob'] * 100:.1f}%</td>
+          <td>{int(r['n_books'])}</td>
+          <td>{_MARKET_LABELS.get(r['market'], r['market'])}</td>
         </tr>"""
+
+    trimmed = (
+        f" Showing the {min(12, len(edges))} best of {len(edges)} priced selections."
+        if len(edges) > 12 else ""
+    )
 
     return f"""
     <p class="market-read">{lead}</p>
     <p class="market-read">{boost_note}</p>
+    {movement_html}
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
         <tr>
-          <th>Market</th>
           <th>Selection</th>
           <th>Side</th>
           <th>{config.ODDS_BOOKMAKER.title()}</th>
-          <th>Consensus Fair %</th>
-          <th>Books</th>
           <th>EV</th>
           <th>EV w/ {boost_pct:g}% boost</th>
+          <th>Consensus Fair %</th>
+          <th>Books</th>
+          <th>Market</th>
         </tr>
       </thead>
       <tbody>{rows}</tbody>
@@ -292,7 +316,7 @@ def _consensus_html(edges, boost_pct: float = 50.0) -> str:
     combined, and the book being priced is excluded from its own benchmark. Only
     books quoting the <em>same</em> number are compared, and a selection needs at
     least {MIN_CONSENSUS_BOOKS} others before it appears &mdash; two books agreeing
-    is a coincidence as often as it is a price. The comparison books are retail
+    is a coincidence as often as it is a price.{trimmed} The comparison books are retail
     US books, not sharp limits, so treat a small positive as noise rather than as
     an edge.</p>"""
 
@@ -457,7 +481,12 @@ def generate_betting_html(
     edges = consensus_edge_table(
         book.get("by_book", {}), primary_book=config.ODDS_BOOKMAKER
     )
-    consensus_html = _consensus_html(edges)
+    # The moneyline is where a promotion actually lands, so its drift belongs
+    # in this section rather than only in the log.
+    ml_movement = _movement_notes(
+        history, event, list(book.get(MARKET_H2H, {}).keys()), MARKET_H2H
+    )
+    consensus_html = _consensus_html(edges, movement_html=ml_movement)
     promo_html = _promo_html(edges, book.get("event"))
 
     # 1. Pitcher Strikeout Model HTML

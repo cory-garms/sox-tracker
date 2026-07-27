@@ -175,3 +175,62 @@ class TestLineMovement:
                                           "Nobody At All") is None
         assert odds_history.line_movement(pd.DataFrame(), "evt-1",
                                           "pitcher_strikeouts", "Sonny Gray") is None
+
+
+class TestLinelessMarkets:
+    """
+    A moneyline has two team names and a price each, and no number at all.
+
+    The regression: snapshot_rows() dropped every entry whose `line` was None,
+    which is correct for a prop the parser could not pin a number to and wrong
+    for a market that has no number by nature. It silently discarded every h2h
+    row, so a moneyline bet could be logged but never graded against a close.
+    """
+
+    ML = {
+        "Athletics": {"line": None, "over_odds": 148, "under_odds": -180,
+                      "book": "DraftKings", "last_update": "2026-07-27T19:34:22Z"},
+        "Boston Red Sox": {"line": None, "over_odds": -180, "under_odds": 148,
+                           "book": "DraftKings", "last_update": "2026-07-27T19:34:22Z"},
+    }
+
+    def test_moneyline_rows_survive(self):
+        rows = odds_history.snapshot_rows(EVENT, "h2h", self.ML)
+        assert len(rows) == 2
+        assert {r["player"] for r in rows} == {"Athletics", "Boston Red Sox"}
+
+    def test_moneyline_line_is_nan_not_a_number(self):
+        rows = odds_history.snapshot_rows(EVENT, "h2h", self.ML)
+        assert all(r["line"] != r["line"] for r in rows)      # NaN
+
+    def test_a_prop_without_a_line_is_still_dropped(self):
+        """The original guard must survive: this one really is a parse failure."""
+        broken = {"Someone": {"line": None, "over_odds": -110, "under_odds": -110}}
+        assert odds_history.snapshot_rows(EVENT, "pitcher_strikeouts", broken) == []
+
+    def test_unmoved_moneyline_does_not_report_movement(self):
+        """
+        NaN != NaN is True, so comparing the raw line cells reported every
+        moneyline as having moved on every single build.
+        """
+        first = odds_history.snapshot_rows(EVENT, "h2h", self.ML,
+                                           captured_at="2026-07-27T19:00:00+00:00")
+        second = odds_history.snapshot_rows(EVENT, "h2h", self.ML,
+                                            captured_at="2026-07-27T21:00:00+00:00")
+        history = pd.DataFrame(first + second).reindex(columns=odds_history.COLUMNS)
+        mv = odds_history.line_movement(history, "evt-1", "h2h", "Athletics")
+        assert mv is not None
+        assert mv["snapshots"] == 2
+        assert mv["moved"] is False
+
+    def test_moved_moneyline_is_detected(self):
+        first = odds_history.snapshot_rows(EVENT, "h2h", self.ML,
+                                           captured_at="2026-07-27T19:00:00+00:00")
+        drifted = {**self.ML, "Athletics": {**self.ML["Athletics"], "over_odds": 158}}
+        second = odds_history.snapshot_rows(EVENT, "h2h", drifted,
+                                            captured_at="2026-07-27T21:00:00+00:00")
+        history = pd.DataFrame(first + second).reindex(columns=odds_history.COLUMNS)
+        mv = odds_history.line_movement(history, "evt-1", "h2h", "Athletics")
+        assert mv["moved"] is True
+        assert mv["opened_over_odds"] == 148
+        assert mv["current_over_odds"] == 158
