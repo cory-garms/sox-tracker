@@ -160,7 +160,22 @@ def grade_from_history(
         ]
         if rows.empty:
             continue
-        latest = rows.sort_values("captured_at").iloc[-1]
+        rows = rows.sort_values("captured_at")
+        # The last *pre-game* snapshot, not simply the last one. Once
+        # scripts/capture_close.py runs near first pitch, a delayed runner can
+        # land after the game has started, and an in-play price is a different
+        # market entirely — recording one as the close would quietly invert the
+        # CLV of every bet on that game.
+        # Parsed, not string-compared: captured_at ends "+00:00" and
+        # commence_time ends "Z", so a lexical comparison of the two is only
+        # accidentally correct and stops being so the moment either format
+        # gains microseconds.
+        taken = pd.to_datetime(rows["captured_at"], utc=True, errors="coerce")
+        start = pd.to_datetime(rows["commence_time"], utc=True, errors="coerce")
+        pre = rows[(taken <= start) | start.isna()]
+        if pre.empty:
+            continue
+        latest = pre.iloc[-1]
         side = str(bet["side"]).lower()
         close = latest["under_odds"] if side == "under" else latest["over_odds"]
         if pd.notna(close):

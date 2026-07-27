@@ -1,0 +1,101 @@
+name: Closing Line Capture
+
+# Records the last pre-game price, which is what closing line value is measured
+# against. The four builds in refresh.yml are fixed points in UTC while first
+# pitch is not: the last of them lands ~90 minutes before a 19:10 ET start and
+# more than four hours before a 21:40 ET one, and a close observed four hours
+# early is not a close.
+#
+# This job runs often and is almost always free. get_events() costs zero quota,
+# so scripts/capture_close.py reads the real first-pitch time on every tick and
+# only spends credits when the game is genuinely about to start. A static cron
+# cannot follow a start time that moves by eight hours across a season; a free
+# gate polled every twenty minutes can.
+#
+# Quota: 0 credits on a tick outside the window, 3 inside it. That is about 3
+# per game day on top of refresh.yml's 12, so ~450/month against 500 - see
+# ODDS_PAGE_PLAN.md section 5e before adding anything else that spends.
+
+on:
+  schedule:
+    # Every 20 minutes across the hours MLB games actually start (17:00-02:00
+    # UTC covers 13:00 ET through 22:00 ET). Outside these hours there is
+    # nothing to close, so the runner is not woken at all.
+    - cron: "*/20 17-23 * * *"
+    - cron: "*/20 0-2 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Capture regardless of the clock (spends credits)"
+        type: boolean
+        default: false
+
+# Two ticks writing the same append-only parquet would race. Let a run finish
+# before the next starts, and drop any tick that queues up behind one.
+concurrency:
+  group: closing-line-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Capture the closing line
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          TEAM: ${{ vars.TEAM_ABBR || 'BOS' }}
+        run: |
+          python scripts/capture_close.py --team "$TEAM" \
+            ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit the snapshot
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Only the history file. This job deliberately does not rebuild the
+          # pages: a snapshot taken 20 minutes before first pitch is worth
+          # recording, and a page rebuilt at that moment would be stale again
+          # within the hour anyway.
+          git add data/cache/odds_history.parquet
+          if git diff --cached --quiet; then
+            echo "Nothing captured on this tick."
+            exit 0
+          fi
+          git commit -m "chore: closing line snapshot $(date -u +%Y-%m-%dT%H:%M)"
+          # The scheduled refresh commits to the same branch, so a push can lose
+          # a race with it. This must not be resolved by any strategy that picks
+          # a side: both versions routinely hold snapshots the other lacks, and
+          # this file is the one artefact here that cannot be rebuilt later.
+          # Keep our copy, take the remote wholesale, then union the two back
+          # together - which is lossless and idempotent.
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected; unioning with the remote and retrying."
+            cp data/cache/odds_history.parquet /tmp/ours.parquet
+            git fetch origin master
+            git reset --hard origin/master
+            python scripts/merge_odds_history.py /tmp/ours.parquet
+            git add data/cache/odds_history.parquet
+            git diff --cached --quiet && { echo "Remote already has it."; exit 0; }
+            git commit -m "chore: closing line snapshot $(date -u +%Y-%m-%dT%H:%M)"
+          done
+          echo "Could not push the snapshot after 3 attempts."
+          exit 1

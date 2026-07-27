@@ -243,13 +243,50 @@ moment, and a `closing_price` filled in later from the odds history — which is
 the last scheduled build lands ~90 minutes before a typical first pitch. Real
 CLV needs a build nearer the close. That is the next thing worth doing here.
 
-### 5e. Credit budget — recount before adding anything
-The moneyline is a third credit per build, and it earns it: an early-win token
-only applies to a moneyline, so without it the promotion section could only
-price the promotion not being offered.
+### 5e. ✅ Closing line capture — the CLV gap closed
+The understatement in §5d is fixed. `scripts/capture_close.py` plus
+`.github/workflows/close.yml` capture the last *pre-game* price at any start
+time, which is what CLV has to be measured against.
 
-    3 credits x 4 builds/day x 30 days = ~360/month against a 500 quota
+The design rests on one fact about the provider: **`get_events()` costs zero
+quota.** So the job runs every 20 minutes across MLB's start window, reads the
+real first-pitch time for free on every tick, and spends credits only when the
+game is genuinely about to start — 0 credits outside the window, 3 inside it,
+so ~3 per game day rather than 3 per tick. A static cron cannot follow a start
+time that moves from 13:35 to 21:40 ET; a free gate polled every 20 minutes can.
 
-That is comfortable but no longer roomy. **A fourth market, or a fifth daily
-build, does not fit** — one or the other has to give. The near-close build §5d
-wants is the better use of the remaining headroom than another market would be.
+There is a floor as well as a ceiling on the window. Past ~2 minutes to first
+pitch a delayed runner can capture *in-play* prices, which are a different
+market; recording one as the close would invert the CLV of every bet on that
+game. `bet_log.grade_from_history()` enforces the same rule independently, using
+the last snapshot taken at or before `commence_time` rather than simply the last
+one.
+
+### 5f. Never resolve an odds_history conflict by picking a side
+`data/cache/odds_history.parquet` is now committed from three directions — the
+scheduled refresh, the closing capture, and local builds — so git will present
+it as a binary conflict. **Every ordinary resolution of one is wrong here.**
+`--ours`, `--theirs`, `git checkout` and `-X theirs` all discard one side, and
+both sides routinely hold snapshots the other lacks: merging the two versions in
+flight on 2026-07-27 gave 193 rows where one side had 159 and the other 162, so
+either pick would have silently destroyed ~30 observations.
+
+Use `scripts/merge_odds_history.py`, which unions on the log's own identity key
+and is therefore idempotent:
+
+    git show :2:data/cache/odds_history.parquet > /tmp/ours.parquet
+    git show :3:data/cache/odds_history.parquet > /tmp/theirs.parquet
+    python scripts/merge_odds_history.py /tmp/ours.parquet /tmp/theirs.parquet
+    git add data/cache/odds_history.parquet
+
+The closing-line workflow uses the same script to recover from a lost push race.
+
+### 5g. Credit budget
+    refresh.yml   3 credits x 4 builds/day   = 12/day
+    close.yml     3 credits x ~1 capture/day =  3/day
+                                              ~450/month against 500
+
+The quota is no longer the binding constraint — the plan is to upgrade the tier
+if the CLV record shows the models are worth feeding. What has not changed is
+that **a new market still needs its own measured error bar before it can say
+anything.** Breadth was never the constraint; validated accuracy is.
