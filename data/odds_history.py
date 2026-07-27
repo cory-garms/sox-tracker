@@ -51,6 +51,12 @@ COLUMNS = [
 KEY = ["captured_at", "event_id", "market", "player"]
 
 
+# Markets whose outcomes carry no number. A moneyline has two team names and a
+# price each; there is nothing to record in the `line` column and its absence is
+# information, not a parse failure.
+_IS_LINELESS_MARKET = {"h2h": True}
+
+
 def snapshot_rows(
     event: dict[str, Any] | None,
     market: str,
@@ -69,7 +75,12 @@ def snapshot_rows(
     stamp = captured_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
     rows = []
     for player, entry in lines.items():
-        if entry.get("line") is None:
+        line = entry.get("line")
+        # A missing line means a prop the parser could not pin a number to, and
+        # those are dropped. A moneyline is different: it has no number by
+        # nature, so requiring one here silently discarded every h2h row and
+        # left moneyline bets impossible to grade against a close.
+        if line is None and not _IS_LINELESS_MARKET.get(market, False):
             continue
         rows.append({
             "captured_at": stamp,
@@ -79,7 +90,7 @@ def snapshot_rows(
             "away_team": event.get("away_team"),
             "market": market,
             "player": player,
-            "line": float(entry["line"]),
+            "line": float(line) if line is not None else float("nan"),
             "over_odds": _as_int(entry.get("over_odds")),
             "under_odds": _as_int(entry.get("under_odds")),
             "book": entry.get("book"),
@@ -170,8 +181,13 @@ def line_movement(
         "current_at": last["captured_at"],
         "current_line": _as_float(last["line"]),
         "current_over_odds": _as_int(last["over_odds"]),
-        "moved": bool(first["line"] != last["line"]
-                      or first["over_odds"] != last["over_odds"]),
+        # Compare through _as_float/_as_int rather than the raw cells: a
+        # lineless market stores NaN, and NaN != NaN is True, which would have
+        # reported every moneyline as having moved on every build.
+        "moved": bool(
+            _as_float(first["line"]) != _as_float(last["line"])
+            or _as_int(first["over_odds"]) != _as_int(last["over_odds"])
+        ),
     }
 
 

@@ -59,14 +59,10 @@ and this session it agreed almost exactly, which is how we isolated the
 disagreement to K-rate alone. *Effort: ~2 hours, 1 extra credit per build (the
 budget is now 240/month of 500 — see below).*
 
-### 1c. Both starters, not just ours
-The prop payload already contains the opposing starter (Dylan Cease 7.5) at no
-extra cost — same call, same credit, and it is **already being logged to the
-odds history**, just not rendered. We cannot *project* him (only Red Sox
-pitching is cached), but showing his line and the market's de-vigged probability
-is honest and doubles the page's coverage. The same is true of the five
-opposition hitters in the total-bases payload. Label the missing projection
-clearly rather than leaving a blank. *Effort: ~2 hours, 0 extra credits.*
+### 1c. ✅ Both starters, both lineups — done
+Superseded by §5 below and delivered as a side effect of it. The consensus table
+prices every player in the payload, which is both starters and both lineups, so
+the opposing side is no longer parsed away. It cost nothing extra, as predicted.
 
 ### 1d. "How did the last ten projections do?"
 Every ingredient is already cached: past projections are reproducible from the
@@ -176,3 +172,84 @@ The history log needs no further work to keep accumulating — but check after t
 first CI run with a real key that `data/cache/odds_history.parquet` is actually
 being committed, because a snapshot the runner takes and then discards is worth
 nothing.
+
+---
+
+## 5. Market consensus and promotions — added 2026-07-27
+
+The page now carries the one source of edge on it that does not require a model
+to be right, and it turned out to be free.
+
+### 5a. ✅ Every US book, not just ours
+`OddsAPIClient` had `bookmakers=draftkings` hardcoded on both odds calls. The
+Odds API bills per **market x region** and never per bookmaker — verified
+against the `x-requests-last` header on 2026-07-27, where a one-book and a
+six-book request for the same market each cost exactly 1 credit. Narrowing to
+one book bought nothing and discarded the only benchmark on the page that is
+independent of our models.
+
+Six US books now come back for the same credit. `parse_player_lines_by_book()`
+keys by book, which was a necessary correctness fix rather than a nicety: the
+old parser merged every bookmaker into one entry per player, so widening the
+request without it would have blended a DraftKings line with a Bovada price and
+produced a quote that exists nowhere.
+
+### 5b. ✅ The consensus table
+Each book is de-vigged on its own before the books are combined, the median is
+taken rather than the mean, and **the book being priced is excluded from its own
+benchmark**. Only books quoting the same number are compared, and a selection
+needs at least three others before it appears.
+
+What it found on the first night (2026-07-27, BOS at OAK): **nothing**. Every
+selection priced at or behind consensus, the closest being Tolle under 5.5 at
+-0.98%. That is the correct and expected answer — it is what the vig looks like
+from the inside, and a table that had produced a +EV play on its first evening
+would have been evidence of a bug rather than of an edge. The comparison books
+are retail US books, not sharp limits, so a small positive here is noise.
+
+### 5c. ✅ Promotion valuation
+Promotions are the only positive expectation available, so they are computed
+exactly rather than by feel. A profit boost rearranges to
+
+    EV_boost = (1 + b) * EV_raw + b * (1 - p)
+
+which is worth stating because the second term grows as the probability *falls*:
+at a fair price a 50% boost returns +25% on an even-money bet and +40% on a +400
+one. A boost belongs on the longest fairly-priced selection available, not the
+safest, and the boosted column consequently does not rank the same way as the
+raw one.
+
+An early-win token is an *additive* bump in win probability, so its EV
+contribution is `lift * decimal_odds` — it prefers long prices for a different
+reason. The lift is measured, not assumed:
+`scripts/measure_early_win_lift.py` walks half-inning linescores over 3,172
+team-games and finds P(ever led by 2+ **or** won) - P(won) = **+0.1028**.
+Checking only at half-inning boundaries is exact rather than approximate, since
+only the batting team can score inside a half-inning. The script prints P(win),
+which must come out at 0.5000 and is what validates the walk.
+
+It is stored as a lift and not as a rate on purpose: a team's own P(ever up 2)
+is anchored to the schedule it happened to play and cannot be set against
+tonight's price, whereas the lift transfers across price levels.
+
+### 5d. ✅ A bet log that can be graded
+`data/bet_log.py` plus `scripts/log_bet.py`. Stake defaults to 0, so an idea can
+be measured before it costs anything, and a paper row grades identically to a
+real one. Every row stores the price taken, the model's probability at that
+moment, and a `closing_price` filled in later from the odds history — which is
+§2b, the CLV work, finally having somewhere to land.
+
+**Known understatement:** "closing" means the last price this repo observed, and
+the last scheduled build lands ~90 minutes before a typical first pitch. Real
+CLV needs a build nearer the close. That is the next thing worth doing here.
+
+### 5e. Credit budget — recount before adding anything
+The moneyline is a third credit per build, and it earns it: an early-win token
+only applies to a moneyline, so without it the promotion section could only
+price the promotion not being offered.
+
+    3 credits x 4 builds/day x 30 days = ~360/month against a 500 quota
+
+That is comfortable but no longer roomy. **A fourth market, or a fifth daily
+build, does not fit** — one or the other has to give. The near-close build §5d
+wants is the better use of the remaining headroom than another market would be.

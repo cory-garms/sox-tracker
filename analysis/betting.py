@@ -24,7 +24,19 @@ import pandas as pd
 
 import config
 from client.mlb_client import MLBClient
-from client.odds_math import american_to_decimal, no_vig_probability
+from client.odds_api_client import (
+    MARKET_H2H,
+    _parse_player_lines,
+    parse_player_lines_by_book,
+    parse_two_way_by_book,
+)
+from client.odds_math import (
+    american_to_decimal,
+    consensus_probability,
+    early_win_token_ev,
+    no_vig_probability,
+    profit_boost_ev,
+)
 from analysis.matchup import (
     fetch_doubleheader_previews,
     fetch_game_preview,
@@ -233,15 +245,39 @@ def fetch_book_lines(
         log.info("No upcoming event found for team %s", team_id)
         return empty
 
-    out: dict[str, Any] = {"event": event, MARKET_K: {}, MARKET_TB: {}}
-    for market, fetch in (
-        (MARKET_K, odds_client.pitcher_strikeout_lines),
-        (MARKET_TB, odds_client.batter_total_base_lines),
-    ):
+    out: dict[str, Any] = {"event": event, MARKET_K: {}, MARKET_TB: {}, "by_book": {}}
+    for market in (MARKET_K, MARKET_TB):
         try:
-            out[market] = fetch(event["id"]) or {}
+            # Parse the payload twice rather than fetching twice: the request
+            # already returns every US book at the same one-credit cost, so the
+            # consensus benchmark is free and only the parsing differs.
+            payload = odds_client.get_event_props(event["id"], markets=market)
+            out["by_book"][market] = parse_player_lines_by_book(payload, market)
+            out[market] = _parse_player_lines(
+                payload, market, book=odds_client.bookmaker
+            ) or {}
         except Exception as e:
             log.warning("Could not fetch %s lines: %s", market, e)
+
+    # The moneyline is the third credit. It earns it: an early-win token only
+    # applies to a moneyline, so without this the promotion section can only
+    # price the promotion it is not being offered.
+    try:
+        payload = odds_client.get_event_props(event["id"], markets=MARKET_H2H)
+        by_book = parse_two_way_by_book(payload, MARKET_H2H)
+        out["by_book"][MARKET_H2H] = by_book
+        # Single-book view as well, so the moneyline reaches the odds history.
+        # Without it a moneyline bet can be logged but never graded, because
+        # grading reads the close out of that log.
+        needle = odds_client.bookmaker.replace("_", " ").lower()
+        out[MARKET_H2H] = {
+            team: entry
+            for team, books in by_book.items()
+            for title, entry in books.items()
+            if title.replace("_", " ").lower() == needle
+        }
+    except Exception as e:
+        log.warning("Could not fetch moneyline: %s", e)
     return out
 
 
@@ -1090,3 +1126,135 @@ def batter_hr_rbi_props(
         df = df.sort_values("tot_hr", ascending=False).reset_index(drop=True)
     return df
 
+
+
+# ---------------------------------------------------------------------------
+# Market consensus and promotions
+# ---------------------------------------------------------------------------
+
+# Minimum number of *other* books before a consensus is treated as a benchmark.
+# Two books agreeing is a coincidence as often as a price; the edges that
+# survive a wider sample are the ones worth showing.
+MIN_CONSENSUS_BOOKS = 3
+
+# Measured 2026-07-27 by scripts/measure_early_win_lift.py over 3,172 team-games
+# of regular-season linescores: P(ever led by 2+ OR won) - P(won).
+#
+#   P(win)                 0.5000     <- exact, which is what validates the walk
+#   P(ever led by 2+)      0.5400
+#   P(either)              0.6028
+#
+# It is stored as a *lift* and not as a rate on purpose. A team's own
+# P(ever up 2) is anchored to the schedule it happened to play and cannot be
+# compared against tonight's price; the lift transfers, because it is the extra
+# probability the token buys on top of whatever the market already thinks.
+EARLY_WIN_LIFT_2RUN = 0.1028
+
+
+def consensus_edge_table(
+    by_book: dict[str, dict[str, dict[str, Any]]],
+    primary_book: str = "DraftKings",
+    boost_pct: float = 50.0,
+    min_books: int = MIN_CONSENSUS_BOOKS,
+) -> pd.DataFrame:
+    """
+    Price the book we bet at against the rest of the market.
+
+    This is the one section of the page whose edge does not depend on a model
+    being right. Every book is de-vigged on its own and the median of the
+    *others* becomes the fair benchmark — the primary book is excluded from its
+    own benchmark, or a price would be measured partly against itself.
+
+    Returns one row per (player, side) with the raw EV at the primary book's
+    price and the EV the same bet would carry under a profit boost. An empty
+    frame when nothing has enough books to compare.
+    """
+    rows: list[dict[str, Any]] = []
+    needle = primary_book.replace("_", " ").lower()
+
+    for market, players in (by_book or {}).items():
+        for player, books in (players or {}).items():
+            primary = next(
+                (e for b, e in books.items() if b.replace("_", " ").lower() == needle),
+                None,
+            )
+            if not primary:
+                continue
+            # A moneyline carries no number, and parse_two_way_by_book already
+            # emits each team once with its own price as `over_odds`. Pricing
+            # the "under" too would just re-list the opponent's own row.
+            is_moneyline = primary.get("line") is None
+            sides = (("over_odds", "under_odds"),) if is_moneyline else (
+                ("over_odds", "under_odds"), ("under_odds", "over_odds")
+            )
+            for side, other_side in sides:
+                price = primary.get(side)
+                if price is None or primary.get(other_side) is None:
+                    continue
+                # Only books quoting the *same* number are comparable: an over
+                # 5.5 and an over 6.5 are different bets, and averaging them
+                # would invent a price nobody offers.
+                quotes = [
+                    (e[side], e[other_side])
+                    for b, e in books.items()
+                    if b.replace("_", " ").lower() != needle
+                    and e.get("line") == primary["line"]
+                    and e.get(side) is not None
+                    and e.get(other_side) is not None
+                ]
+                if len(quotes) < min_books:
+                    continue
+                fair = consensus_probability(quotes)
+                if fair is None:
+                    continue
+                rows.append(
+                    {
+                        "market": market,
+                        "player": player,
+                        "line": primary["line"],
+                        "side": (
+                            "Moneyline" if is_moneyline
+                            else "Over" if side == "over_odds" else "Under"
+                        ),
+                        "price": int(price),
+                        "consensus_prob": fair,
+                        "n_books": len(quotes),
+                        "ev_pct": round(
+                            ((fair * american_to_decimal(price)) - 1.0) * 100.0, 2
+                        ),
+                        "ev_boost_pct": profit_boost_ev(fair, price, boost_pct),
+                    }
+                )
+
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "market", "player", "line", "side", "price", "consensus_prob",
+                "n_books", "ev_pct", "ev_boost_pct",
+            ]
+        )
+    return pd.DataFrame(rows).sort_values("ev_pct", ascending=False).reset_index(drop=True)
+
+
+def promo_comparison(
+    fair_prob: float,
+    american_odds: int | float,
+    boost_pct: float = 50.0,
+    lift: float = EARLY_WIN_LIFT_2RUN,
+) -> dict[str, float]:
+    """
+    Value the two promotion types on the same selection so they can be compared
+    on one number instead of on intuition.
+
+    Both are worth more on longer prices, for different reasons: a profit boost
+    multiplies a payout that is already large, while a token adds a fixed slab
+    of probability that is then paid at those same long odds. The comparison is
+    therefore price-dependent and has to be recomputed per selection rather than
+    settled once.
+    """
+    raw = round(((fair_prob * american_to_decimal(american_odds)) - 1.0) * 100.0, 2)
+    return {
+        "raw_ev_pct": raw,
+        "boost_ev_pct": profit_boost_ev(fair_prob, american_odds, boost_pct),
+        "token_ev_pct": early_win_token_ev(fair_prob, american_odds, lift),
+    }

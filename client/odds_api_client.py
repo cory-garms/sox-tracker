@@ -46,9 +46,22 @@ class OddsAPIError(RuntimeError):
 class OddsAPIClient:
     """Thin, stateful wrapper around The Odds API v4."""
 
-    def __init__(self, api_key: str | None = None, bookmaker: str = "draftkings") -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        bookmaker: str = "draftkings",
+        all_books: bool = True,
+    ) -> None:
         self.api_key = api_key or os.environ.get("ODDS_API_KEY", "")
+        # `bookmaker` stays the book we actually bet at and price against; the
+        # rest of the market is pulled only to benchmark it.
         self.bookmaker = bookmaker
+        # The Odds API bills per market x region, never per bookmaker — verified
+        # against the x-requests-last header on 2026-07-27, where a single-book
+        # and a six-book request for the same market each cost exactly 1 credit.
+        # Narrowing to one book therefore buys nothing and discards the only
+        # benchmark on the page that does not depend on a model being right.
+        self.all_books = all_books
         self._session = requests.Session()
         self._session.headers.update({"Accept": "application/json"})
         self._last_call: float = 0.0
@@ -119,15 +132,14 @@ class OddsAPIClient:
         odds_format: str = "american",
     ) -> list[dict[str, Any]]:
         """Moneyline / totals / spreads for all upcoming MLB games."""
-        return self._get(
-            f"/sports/{SPORT_KEY}/odds",
-            {
-                "regions": regions,
-                "markets": markets,
-                "oddsFormat": odds_format,
-                "bookmakers": self.bookmaker,
-            },
-        ) or []
+        params = {
+            "regions": regions,
+            "markets": markets,
+            "oddsFormat": odds_format,
+        }
+        if not self.all_books:
+            params["bookmakers"] = self.bookmaker
+        return self._get(f"/sports/{SPORT_KEY}/odds", params) or []
 
     def find_event(self, team_name: str, events: list[dict] | None = None) -> dict[str, Any] | None:
         """
@@ -159,16 +171,15 @@ class OddsAPIClient:
         Player prop markets for a single event. Returns {} when the plan does not
         include props rather than raising, so the report can fall back cleanly.
         """
+        params = {
+            "regions": regions,
+            "markets": markets,
+            "oddsFormat": odds_format,
+        }
+        if not self.all_books:
+            params["bookmakers"] = self.bookmaker
         try:
-            return self._get(
-                f"/sports/{SPORT_KEY}/events/{event_id}/odds",
-                {
-                    "regions": regions,
-                    "markets": markets,
-                    "oddsFormat": odds_format,
-                    "bookmakers": self.bookmaker,
-                },
-            ) or {}
+            return self._get(f"/sports/{SPORT_KEY}/events/{event_id}/odds", params) or {}
         except OddsAPIError as e:
             log.info("Player props unavailable for event %s: %s", event_id, e)
             return {}
@@ -183,12 +194,12 @@ class OddsAPIClient:
         for the strikeout prop market. Empty dict when props aren't available.
         """
         payload = self.get_event_props(event_id, markets=MARKET_PITCHER_KS)
-        return _parse_player_lines(payload, MARKET_PITCHER_KS)
+        return _parse_player_lines(payload, MARKET_PITCHER_KS, book=self.bookmaker)
 
     def batter_total_base_lines(self, event_id: str) -> dict[str, dict[str, Any]]:
         """Map of batter name -> line/odds for the total-bases prop market."""
         payload = self.get_event_props(event_id, markets=MARKET_BATTER_TB)
-        return _parse_player_lines(payload, MARKET_BATTER_TB)
+        return _parse_player_lines(payload, MARKET_BATTER_TB, book=self.bookmaker)
 
 
 # ---------------------------------------------------------------------------
@@ -202,18 +213,25 @@ def _safe_int(val: Any, default: int | None = None) -> int | None:
         return default
 
 
-def _parse_player_lines(payload: dict, market_key: str) -> dict[str, dict[str, Any]]:
+def parse_player_lines_by_book(
+    payload: dict, market_key: str
+) -> dict[str, dict[str, dict[str, Any]]]:
     """
     Flatten The Odds API's bookmakers -> markets -> outcomes nesting into
-    {player_name: {"line": float, "over_odds": int, "under_odds": int,
-                   "book": str, "last_update": str}}.
+    {player_name: {book_title: {"line": float, "over_odds": int,
+                                "under_odds": int, "last_update": str}}}.
+
+    Keying by book is the primitive rather than a detail: several books price
+    the same player at different numbers, so collapsing them into one entry per
+    player would blend a DraftKings line with a Bovada price and produce a quote
+    that exists nowhere. Callers that want a single book should ask for it.
 
     `last_update` is the bookmaker's own ISO-8601 timestamp for when it last
     moved these prices. It is carried through because a statically built page
     can only ever show odds as of its last build, and must say which moment
     that was rather than implying the numbers are live.
     """
-    lines: dict[str, dict[str, Any]] = {}
+    out: dict[str, dict[str, dict[str, Any]]] = {}
     for book in payload.get("bookmakers", []) or []:
         book_title = book.get("title", book.get("key", ""))
         book_updated = book.get("last_update")
@@ -228,8 +246,8 @@ def _parse_player_lines(payload: dict, market_key: str) -> dict[str, dict[str, A
                 if not player:
                     continue
                 side = str(outcome.get("name", "")).lower()
-                entry = lines.setdefault(
-                    player, {"line": None, "book": book_title, "last_update": updated}
+                entry = out.setdefault(player, {}).setdefault(
+                    book_title, {"line": None, "book": book_title, "last_update": updated}
                 )
                 point = outcome.get("point")
                 if point is not None:
@@ -239,4 +257,60 @@ def _parse_player_lines(payload: dict, market_key: str) -> dict[str, dict[str, A
                 elif side == "under":
                     entry["under_odds"] = _safe_int(outcome.get("price"))
     # Drop anything we couldn't pin a numeric line to.
-    return {k: v for k, v in lines.items() if v.get("line") is not None}
+    return {
+        player: {b: e for b, e in books.items() if e.get("line") is not None}
+        for player, books in out.items()
+        if any(e.get("line") is not None for e in books.values())
+    }
+
+
+def parse_two_way_by_book(
+    payload: dict, market_key: str = MARKET_H2H
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """
+    Same shape as parse_player_lines_by_book, for team markets like the
+    moneyline where the two outcomes are team names rather than Over/Under.
+
+    Each team is emitted as its own entry with `over_odds` set to its price and
+    `under_odds` to the opposing team's, so a moneyline de-vigs through exactly
+    the same two-sided path as a prop and needs no special case downstream.
+    `line` is None because a moneyline has no number attached.
+    """
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for book in payload.get("bookmakers", []) or []:
+        title = book.get("title", book.get("key", ""))
+        updated = book.get("last_update")
+        for market in book.get("markets", []) or []:
+            if market.get("key") != market_key:
+                continue
+            outcomes = [o for o in (market.get("outcomes") or []) if o.get("name")]
+            if len(outcomes) != 2:
+                continue          # three-way or malformed; nothing to de-vig against
+            stamp = market.get("last_update") or updated
+            for this, other in (outcomes, outcomes[::-1]):
+                out.setdefault(str(this["name"]), {})[title] = {
+                    "line": None,
+                    "book": title,
+                    "last_update": stamp,
+                    "over_odds": _safe_int(this.get("price")),
+                    "under_odds": _safe_int(other.get("price")),
+                }
+    return out
+
+
+def _parse_player_lines(
+    payload: dict, market_key: str, book: str = "draftkings"
+) -> dict[str, dict[str, Any]]:
+    """
+    Single-book view of `parse_player_lines_by_book` — {player: line/odds} for
+    the named book only. Matching is case-insensitive on both the API's key and
+    its display title ("draftkings" and "DraftKings" both resolve).
+    """
+    needle = book.replace("_", " ").lower()
+    result: dict[str, dict[str, Any]] = {}
+    for player, books in parse_player_lines_by_book(payload, market_key).items():
+        for title, entry in books.items():
+            if title.replace("_", " ").lower() == needle:
+                result[player] = entry
+                break
+    return result

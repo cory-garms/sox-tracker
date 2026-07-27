@@ -79,21 +79,48 @@ class FakeOddsClient:
         self.fail_markets = fail_markets or set()
         self.calls: list[str] = []
 
+    # fetch_book_lines now asks for the raw payload and parses it itself, so
+    # that the same one-credit request can yield both the book we bet at and
+    # the consensus of the others. The fake therefore has to serve payloads
+    # rather than pre-parsed maps.
+    bookmaker = "draftkings"
+
     def find_event(self, team_name: str) -> dict | None:
         self.calls.append("find_event")
         return self.event
 
-    def pitcher_strikeout_lines(self, event_id: str) -> dict:
-        self.calls.append("pitcher_strikeouts")
-        if "pitcher_strikeouts" in self.fail_markets:
-            raise RuntimeError("simulated provider failure")
-        return self.lines
+    @staticmethod
+    def _payload(market: str, lines: dict[str, dict]) -> dict:
+        """Re-nest a parsed map back into The Odds API's wire shape."""
+        outcomes = []
+        for player, entry in lines.items():
+            for side, key in (("Over", "over_odds"), ("Under", "under_odds")):
+                if entry.get(key) is None:
+                    continue
+                outcome = {"description": player, "name": side, "price": entry[key]}
+                if entry.get("line") is not None:
+                    outcome["point"] = entry["line"]
+                outcomes.append(outcome)
+        return {
+            "bookmakers": [{
+                "title": "DraftKings",
+                "last_update": next(
+                    (e.get("last_update") for e in lines.values() if e.get("last_update")),
+                    None,
+                ),
+                "markets": [{"key": market, "outcomes": outcomes}],
+            }]
+        }
 
-    def batter_total_base_lines(self, event_id: str) -> dict:
-        self.calls.append("batter_total_bases")
-        if "batter_total_bases" in self.fail_markets:
+    def get_event_props(self, event_id: str, markets: str = "", **kwargs) -> dict:
+        self.calls.append(markets)
+        if markets in self.fail_markets:
             raise RuntimeError("simulated provider failure")
-        return self.tb_lines
+        if markets == "pitcher_strikeouts":
+            return self._payload(markets, self.lines)
+        if markets == "batter_total_bases":
+            return self._payload(markets, self.tb_lines)
+        return {}
 
 
 def book(line: float, *, over: int = -110, under: int = -110,

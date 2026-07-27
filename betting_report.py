@@ -17,20 +17,25 @@ from data.fetcher import Fetcher
 from data import odds_history
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
+    EARLY_WIN_LIFT_2RUN,
+    MARKET_H2H,
     MARKET_K,
     MARKET_TB,
     MAX_PLAUSIBLE_EDGE_K,
     MAX_PLAUSIBLE_EDGE_TB_PROB,
+    MIN_CONSENSUS_BOOKS,
     MIN_STARTS_FOR_PROP,
     MODEL_ERROR_K,
     MODEL_ERROR_TB_PROB,
     batter_hr_rbi_props,
     batter_total_bases_model,
+    consensus_edge_table,
     fetch_book_lines,
     first_5_innings_analysis,
     nrfi_yrfi_tracker,
     pitcher_strikeout_model,
     probable_starters,
+    promo_comparison,
 )
 
 
@@ -83,6 +88,14 @@ def _quote(line, odds) -> str:
         return "—"
     price = f" ({odds:+d})" if isinstance(odds, (int, float)) and odds else ""
     return f"{float(line):.1f}{price}"
+
+
+def _price(odds) -> str:
+    """An American price on its own: "-125", "+148"."""
+    try:
+        return f"{int(odds):+d}"
+    except (TypeError, ValueError):
+        return "—"
 
 
 def _market_read(df, edge_fmt) -> str:
@@ -164,6 +177,208 @@ def _movement_notes(history, event, names: list[str], market: str) -> str:
     return ""
 
 
+_MARKET_LABELS = {
+    "pitcher_strikeouts": "Strikeouts",
+    "batter_total_bases": "Total bases",
+    "h2h": "Moneyline",
+}
+
+
+def _side_label(row) -> str:
+    """
+    "Over 5.5", or just "Moneyline" where there is no number to state.
+
+    A moneyline carries a null line, and formatting that through :g raises
+    rather than rendering — so the absence is handled here once instead of at
+    each of the several call sites that print a selection.
+    """
+    line = row["line"]
+    if line is None or line != line:             # None, or NaN once pandas boxes it
+        return str(row["side"])
+    return f"{row['side']} {float(line):g}"
+
+
+def _consensus_html(edges, boost_pct: float = 50.0) -> str:
+    """
+    Render the primary book priced against the rest of the market.
+
+    This is the only section on the page whose edge does not route through a
+    model, so it is also the only one that can speak without clearing a model
+    error bar. What it can still be wrong about is the benchmark: these are the
+    US books The Odds API returns, which are retail books rather than the sharp
+    limits a closing line is made of. A consensus of soft books is a better
+    reference than one soft book, and worse than a real market.
+
+    It covers both teams because the payload always did — the opposing starter
+    and the opposing lineup cost nothing extra and were simply being discarded.
+    """
+    if edges is None or edges.empty:
+        return (
+            '<p class="table-note"><strong>No consensus available.</strong> Pricing a '
+            "book against the market needs several books quoting the same number at "
+            "the same time, and this build did not get that. Nothing is shown rather "
+            "than comparing a price against itself.</p>"
+        )
+
+    best_ev = edges.iloc[0]
+    best_boost = edges.sort_values("ev_boost_pct", ascending=False).iloc[0]
+
+    if best_ev["ev_pct"] > 0:
+        lead = (
+            f"Best raw price: <strong>{best_ev['player']}</strong> "
+            f"{_side_label(best_ev).lower()} at "
+            f"{_price(best_ev['price'])} &mdash; the market's own fair number is "
+            f"<strong>{best_ev['consensus_prob'] * 100:.1f}%</strong> across "
+            f"{int(best_ev['n_books'])} other books, making it "
+            f"<strong>{best_ev['ev_pct']:+.2f}%</strong>."
+        )
+    else:
+        lead = (
+            "<strong>No positive-EV price on the board.</strong> Every selection "
+            "here is priced at or behind the consensus of the other books &mdash; "
+            f"the closest is <strong>{best_ev['player']}</strong> "
+            f"{_side_label(best_ev).lower()} at {_price(best_ev['price'])}, "
+            f"{best_ev['ev_pct']:+.2f}%. That is the normal state of a liquid "
+            "market and is what the vig looks like from the inside."
+        )
+
+    boost_note = (
+        f"Under a {boost_pct:g}% profit boost the same board reads differently: "
+        f"<strong>{best_boost['player']}</strong> "
+        f"{_side_label(best_boost).lower()} at {_price(best_boost['price'])} becomes "
+        f"<strong>{best_boost['ev_boost_pct']:+.2f}%</strong>. A boost multiplies "
+        "profit rather than stake, so its value climbs as the price lengthens "
+        "&mdash; which is why the boosted column does not rank the same way as the "
+        "raw one."
+    )
+
+    rows = ""
+    for _, r in edges.head(20).iterrows():
+        ev_cls = "delta-pos" if r["ev_pct"] > 0 else "delta-neg"
+        rows += f"""
+        <tr>
+          <td>{_MARKET_LABELS.get(r['market'], r['market'])}</td>
+          <td>{r['player']}</td>
+          <td>{_side_label(r)}</td>
+          <td>{_price(r['price'])}</td>
+          <td>{r['consensus_prob'] * 100:.1f}%</td>
+          <td>{int(r['n_books'])}</td>
+          <td class="{ev_cls}">{r['ev_pct']:+.2f}%</td>
+          <td>{r['ev_boost_pct']:+.2f}%</td>
+        </tr>"""
+
+    return f"""
+    <p class="market-read">{lead}</p>
+    <p class="market-read">{boost_note}</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Market</th>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>{config.ODDS_BOOKMAKER.title()}</th>
+          <th>Consensus Fair %</th>
+          <th>Books</th>
+          <th>EV</th>
+          <th>EV w/ {boost_pct:g}% boost</th>
+        </tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    </div>
+    <p class="table-note">Each book is de-vigged on its own before the books are
+    combined, and the book being priced is excluded from its own benchmark. Only
+    books quoting the <em>same</em> number are compared, and a selection needs at
+    least {MIN_CONSENSUS_BOOKS} others before it appears &mdash; two books agreeing
+    is a coincidence as often as it is a price. The comparison books are retail
+    US books, not sharp limits, so treat a small positive as noise rather than as
+    an edge.</p>"""
+
+
+def _promo_html(edges, event_book: dict | None) -> str:
+    """
+    Value the two promotion types against each other on the same selections.
+
+    Promotions are the only positive expectation on this page that does not
+    require a model to be right, which makes them worth computing precisely
+    rather than by feel. Both are worth more on longer prices, so the ranking
+    has to be recomputed per selection instead of settled once.
+    """
+    if edges is None or edges.empty:
+        return (
+            '<p class="table-note"><strong>No promotion maths available.</strong> '
+            "Valuing a boost or a token needs a fair price to apply it to, and this "
+            "build has no consensus to supply one.</p>"
+        )
+
+    rows = ""
+    for _, r in edges.sort_values("ev_boost_pct", ascending=False).head(8).iterrows():
+        promo = promo_comparison(r["consensus_prob"], r["price"])
+        # An early-win token settles a *moneyline* early. It has nothing to
+        # apply to on a strikeout or total-bases prop, so the column is left
+        # empty there rather than quoting a number for a bet that cannot be
+        # placed — the whole point of this section is to compare the two
+        # promotions on offer, not to invent a third.
+        is_ml = r["market"] == "h2h"
+        token_cell = f"{promo['token_ev_pct']:+.2f}%" if is_ml else (
+            '<span class="no-line">&mdash; n/a</span>'
+        )
+        if is_ml:
+            better = "Boost" if promo["boost_ev_pct"] >= promo["token_ev_pct"] else "Token"
+        else:
+            better = "Boost only"
+        rows += f"""
+        <tr>
+          <td>{r['player']}</td>
+          <td>{_side_label(r)}</td>
+          <td>{_price(r['price'])}</td>
+          <td>{promo['raw_ev_pct']:+.2f}%</td>
+          <td>{promo['boost_ev_pct']:+.2f}%</td>
+          <td>{token_cell}</td>
+          <td><strong>{better}</strong></td>
+        </tr>"""
+
+    return f"""
+    <p class="market-read">A 50% profit boost pays
+    <strong>1.5 &times; EV<sub>raw</sub> + 0.5 &times; (1 &minus; p)</strong> &mdash;
+    so at a fair price it returns +25% on an even-money bet and +40% on a +400
+    one. An early-win token instead adds a fixed
+    <strong>{EARLY_WIN_LIFT_2RUN * 100:.1f} points</strong> of win probability,
+    paid at those same odds. Both therefore prefer longer prices, and which one
+    wins depends on the price rather than on the promotion. A boost is
+    all-purpose and a token is not &mdash; the token can only settle a moneyline
+    early, which is why most rows here have no token figure at all and why the
+    boost's real advantage is the selections it can reach.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Price</th>
+          <th>EV raw</th>
+          <th>EV + 50% boost</th>
+          <th>EV + 2-run token</th>
+          <th>Better</th>
+        </tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    </div>
+    <p class="table-note">The token lift is measured, not assumed:
+    <code>scripts/measure_early_win_lift.py</code> walks half-inning linescores
+    over 3,172 team-games of the 2026 season and finds
+    P(ever led by 2+ <em>or</em> won) &minus; P(won) =
+    <strong>{EARLY_WIN_LIFT_2RUN:+.4f}</strong>. It is stored as a lift rather
+    than a rate because a team's own P(ever up 2) is anchored to the schedule it
+    played and cannot be set against tonight's price. Token maths assumes the bet
+    still settles normally when the trigger never happens &mdash; check the
+    promotion's own terms, because that assumption is doing real work here.</p>"""
+
+
 def generate_betting_html(
     team_abbr: str = config.TEAM_ABBR,
     season: int = config.SEASON,
@@ -196,7 +411,7 @@ def generate_betting_html(
     # Write that snapshot down before rendering anything. A static page can only
     # ever show the market as of its last build; the log is what turns four
     # builds a day from a weakness into a record of how the line moved.
-    for market in (MARKET_K, MARKET_TB):
+    for market in (MARKET_K, MARKET_TB, MARKET_H2H):
         odds_history.append_snapshot(
             odds_history.snapshot_rows(event, market, book.get(market, {}))
         )
@@ -235,6 +450,15 @@ def generate_betting_html(
     nrfi_res = nrfi_yrfi_tracker(games, pitching, client, team_id, season)
     tb_df = batter_total_bases_model(batting, book.get(MARKET_TB, {}), season)
     hr_df = batter_hr_rbi_props(batting, season)
+
+    # The market priced against itself. This covers both teams — the opposing
+    # starter and the opposing lineup arrive in the same payload at the same
+    # cost and were previously parsed away.
+    edges = consensus_edge_table(
+        book.get("by_book", {}), primary_book=config.ODDS_BOOKMAKER
+    )
+    consensus_html = _consensus_html(edges)
+    promo_html = _promo_html(edges, book.get("event"))
 
     # 1. Pitcher Strikeout Model HTML
     k_rows = ""
@@ -807,6 +1031,16 @@ def generate_betting_html(
     <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) &mdash; Today's Starter</h2>
     {starter_line_html}
     {k_html}
+  </section>
+
+  <section class="card">
+    <h2>📊 Market Consensus &mdash; {config.ODDS_BOOKMAKER.title()} vs the Field</h2>
+    {consensus_html}
+  </section>
+
+  <section class="card">
+    <h2>🎁 Promotion Value &mdash; Boost vs Early-Win Token</h2>
+    {promo_html}
   </section>
 
   <section class="card">
