@@ -29,6 +29,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,8 +43,12 @@ from client.odds_api_client import (  # noqa: E402
     MARKET_BATTER_TB,
     MARKET_PITCHER_KS,
     OddsAPIClient,
+    _parse_player_lines,
+    parse_player_lines_by_book,
 )
 from data import odds_history  # noqa: E402
+
+log = logging.getLogger(__name__)
 
 # Default window before first pitch, in minutes. The upper bound is how early a
 # snapshot still counts as a "close"; the lower bound keeps the job from firing
@@ -51,6 +56,10 @@ from data import odds_history  # noqa: E402
 # market and would silently corrupt the record.
 DEFAULT_WINDOW_MIN = 35
 DEFAULT_FLOOR_MIN = 2
+
+# Priced at the close only, so bets placed in them can be graded. Each costs one
+# credit per capture (~1/day), against the 4 x 3 the page builds already spend.
+EXTRA_CLOSING_MARKETS = ("batter_home_runs",)
 
 
 def minutes_to_first_pitch(event: dict, now: datetime | None = None) -> float | None:
@@ -124,6 +133,28 @@ def main() -> int:
         total += odds_history.append_snapshot(
             odds_history.snapshot_rows(event, market, book.get(market, {}))
         )
+
+    # Markets the page does not model but that get bet anyway. Captured only at
+    # the close, not on every page build: a bet nobody can grade is a bet that
+    # teaches nothing, and one credit a day is a cheap fix for that.
+    #
+    # Caveat worth knowing when reading the resulting CLV: The Odds API does not
+    # carry DraftKings' home-run market, so the closing reference here is
+    # whichever books it does carry. That measures whether the *market* moved,
+    # not whether the book bet at did, and is weaker evidence accordingly.
+    for market in EXTRA_CLOSING_MARKETS:
+        try:
+            payload = client.get_event_props(event["id"], markets=market)
+            lines = _parse_player_lines(payload, market, book=client.bookmaker)
+            if not lines:
+                # Fall back to any book quoting it - a soft reference beats none.
+                by_book = parse_player_lines_by_book(payload, market)
+                lines = {p: next(iter(b.values())) for p, b in by_book.items() if b}
+            total += odds_history.append_snapshot(
+                odds_history.snapshot_rows(event, market, lines)
+            )
+        except Exception as e:
+            log.warning("Could not capture %s: %s", market, e)
 
     print(f"{label}: captured {total} rows at {mins:.0f} min to first pitch "
           f"(quota remaining: {client.requests_remaining}).")
