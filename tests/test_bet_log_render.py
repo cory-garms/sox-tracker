@@ -91,3 +91,68 @@ class TestEmptyStates:
     def test_bets_exist_but_none_on_this_game(self):
         html = _position_html(bets(("A", 1.0, -110, -110)), "other-event", {"n": 0})
         assert "No bets logged on tonight's game" in html
+
+
+class TestProvisionalLabelling:
+    """
+    A snapshot 34 minutes before first pitch is not a close, and CLV computed
+    from one must not be presented as final.
+    """
+
+    def test_says_provisional_before_first_pitch(self):
+        html = _position_html(
+            bets(("A", 1.0, -110, -110)), EID, {"n": 0},
+            reference={"at": "01:28 UTC", "mins_before": 12.0, "started": False},
+        )
+        assert "Provisional" in html
+        assert "12 minutes before first pitch" in html
+
+    def test_says_final_once_the_game_has_started(self):
+        html = _position_html(
+            bets(("A", 1.0, -110, -110)), EID, {"n": 0},
+            reference={"at": "01:38 UTC", "mins_before": 2.0, "started": True},
+        )
+        assert "these are final" in html
+        assert "Provisional" not in html
+
+    def test_no_reference_means_no_claim_either_way(self):
+        html = _position_html(bets(("A", 1.0, -110, -110)), EID, {"n": 0})
+        assert "Provisional" not in html
+        assert "these are final" not in html
+
+
+class TestGradingConverges:
+    """
+    grade_from_history used to skip rows that already had a closing price, which
+    froze whichever early snapshot landed first. The last pre-game snapshot keeps
+    improving until first pitch, so grading must keep following it.
+    """
+
+    def test_a_later_pre_game_snapshot_supersedes_an_earlier_one(self, tmp_path):
+        import pandas as pd
+        from data import bet_log, odds_history
+
+        ev = {"id": "e1", "commence_time": "2026-07-28T01:40:00Z",
+              "home_team": "A", "away_team": "B"}
+        rows = []
+        for stamp, price in (("2026-07-28T01:06:00+00:00", 158),
+                             ("2026-07-28T01:27:00+00:00", 171)):
+            rows += odds_history.snapshot_rows(
+                ev, "h2h", {"Athletics": {"line": None, "over_odds": price,
+                                          "under_odds": -190}}, captured_at=stamp)
+        history = pd.DataFrame(rows).reindex(columns=odds_history.COLUMNS)
+
+        path = tmp_path / "b.parquet"
+        bet_log.record_bet("Athletics", "h2h", "Moneyline", 158,
+                           event_id="e1", stake=1.0, path=path)
+        first = bet_log.grade_from_history(history, path=path)
+        assert first.iloc[0]["closing_price"] == 171
+
+        # a still-later pre-game read must win again
+        rows += odds_history.snapshot_rows(
+            ev, "h2h", {"Athletics": {"line": None, "over_odds": 180,
+                                      "under_odds": -200}},
+            captured_at="2026-07-28T01:38:00+00:00")
+        later = bet_log.grade_from_history(
+            pd.DataFrame(rows).reindex(columns=odds_history.COLUMNS), path=path)
+        assert later.iloc[0]["closing_price"] == 180

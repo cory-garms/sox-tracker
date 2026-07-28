@@ -296,7 +296,34 @@ def _movers_html(movers, snapshots: int = 0) -> str:
     sort above price moves because they are a different bet, not a repricing.</p>"""
 
 
-def _position_html(bets, event_id: str, summary: dict) -> str:
+def _reference_close(history, event_id: str) -> dict:
+    """
+    How close to first pitch the price being called "the close" actually is.
+
+    A snapshot taken 34 minutes out is not a close, and presenting CLV computed
+    from one as final overstates it. This lets the card say how provisional its
+    own numbers are, and say plainly once they are not provisional at all.
+    """
+    if history is None or history.empty or not event_id:
+        return {}
+    rows = history[history["event_id"] == str(event_id)]
+    if rows.empty:
+        return {}
+    taken = pd.to_datetime(rows["captured_at"], utc=True, errors="coerce")
+    start = pd.to_datetime(rows["commence_time"], utc=True, errors="coerce")
+    pre = taken[taken <= start]
+    if pre.empty or start.isna().all():
+        return {}
+    last = pre.max()
+    first_pitch = start.dropna().iloc[0]
+    return {
+        "at": last.strftime("%H:%M UTC"),
+        "mins_before": (first_pitch - last).total_seconds() / 60.0,
+        "started": pd.Timestamp.now(tz="UTC") >= first_pitch,
+    }
+
+
+def _position_html(bets, event_id: str, summary: dict, reference: dict | None = None) -> str:
     """
     What was actually bet, against where the market closed.
 
@@ -376,8 +403,25 @@ def _position_html(bets, event_id: str, summary: dict) -> str:
         verdict = ("Nothing graded yet. Closing prices arrive from the capture "
                    "that runs shortly before first pitch.")
 
+    ref = reference or {}
+    if not ref:
+        ref_note = ""
+    elif ref.get("started"):
+        ref_note = (f'<p class="table-note">Closing prices are the last read before '
+                    f'first pitch, at <strong>{ref["at"]}</strong> &mdash; '
+                    f'{ref["mins_before"]:.0f} minutes out. The game has started, so '
+                    f'these are final.</p>')
+    else:
+        ref_note = (f'<p class="table-note">&#9203; <strong>Provisional.</strong> '
+                    f'These are prices as of <strong>{ref["at"]}</strong>, '
+                    f'{ref["mins_before"]:.0f} minutes before first pitch &mdash; the '
+                    f'market has not closed yet, and every CLV figure below can still '
+                    f'move. Calling this a close before the game starts is the same '
+                    f'overstatement the models on the next page refuse to make.</p>')
+
     return f"""
     <p class="market-read">{lead}</p>
+    {ref_note}
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -812,7 +856,10 @@ def generate_betting_html(
 
     # The page's own accountability: what was bet, against where it closed.
     graded = bet_log.grade_from_history(history)
-    position_html = _position_html(graded, event_id, bet_log.clv_summary(graded))
+    position_html = _position_html(
+        graded, event_id, bet_log.clv_summary(graded),
+        reference=_reference_close(history, event_id),
+    )
     promo_html = _promo_html(edges, book.get("event"))
 
     # 1. Pitcher Strikeout Model HTML

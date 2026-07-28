@@ -151,8 +151,14 @@ def grade_from_history(
         return frame
 
     for idx, bet in frame.iterrows():
-        if pd.notna(bet["closing_price"]):
-            continue
+        # Deliberately no "already graded, skip" guard. The last *pre-game*
+        # snapshot keeps improving as first pitch approaches - a capture 34
+        # minutes out is not a close, and one 13 minutes out is a better one -
+        # and then stops improving forever the moment the game starts, because
+        # no further pre-game snapshot can exist. Always recomputing therefore
+        # converges on the true close and is idempotent afterwards, whereas
+        # skipping graded rows froze whichever early snapshot happened to land
+        # first and quietly presented it as final.
         rows = history[
             (history["event_id"] == bet["event_id"])
             & (history["market"] == bet["market"])
