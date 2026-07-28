@@ -30,6 +30,7 @@ from client.odds_api_client import (
     parse_player_lines_by_book,
     parse_two_way_by_book,
 )
+from data import odds_history
 from data.opponent import opponent_k_factor
 from client.odds_math import (
     american_to_decimal,
@@ -1344,7 +1345,13 @@ def biggest_movers(
         return pd.DataFrame(columns=cols)
 
     rows_out: list[dict[str, Any]] = []
-    scoped = history[history["event_id"] == str(event_id)]
+    # Pre-game only. A build that runs mid-game records in-play prices, and
+    # those are a different market - once a lineup has batted, a total-bases
+    # price quotes the rest of a game rather than the whole of one. Including
+    # them reported 10-point "moves" nobody could have bet.
+    scoped = odds_history.pre_game_only(
+        history[history["event_id"] == str(event_id)]
+    )
     for (market, player), rows in scoped.groupby(["market", "player"], sort=False):
         rows = rows.sort_values("captured_at")
         if len(rows) < 2:

@@ -142,6 +142,27 @@ def load_history(path: Path = HISTORY_PATH) -> pd.DataFrame:
         return pd.DataFrame(columns=COLUMNS)
 
 
+def pre_game_only(frame: pd.DataFrame) -> pd.DataFrame:
+    """
+    Snapshots taken at or before first pitch.
+
+    Every build writes a snapshot, and builds happen during games, so the log
+    legitimately contains in-play prices. Those are a different market: once a
+    lineup has batted, a total-bases price is quoting the remainder of a game
+    rather than the whole of one, and comparing it to a pre-game price reports
+    movement that never happened to anyone who could have bet it.
+
+    Rows with an unparseable or missing commence_time are kept rather than
+    dropped - the alternative is silently discarding data because a timestamp
+    was malformed.
+    """
+    if frame is None or frame.empty:
+        return frame
+    taken = pd.to_datetime(frame["captured_at"], utc=True, errors="coerce")
+    start = pd.to_datetime(frame["commence_time"], utc=True, errors="coerce")
+    return frame[(taken <= start) | start.isna() | taken.isna()]
+
+
 def line_movement(
     history: pd.DataFrame,
     event_id: str,
@@ -162,10 +183,10 @@ def line_movement(
     """
     if history.empty:
         return None
-    rows = history[(history["event_id"] == str(event_id))
-                   & (history["market"] == market)
-                   & (history["player"] == player)]
-    if rows.empty:
+    rows = pre_game_only(history[(history["event_id"] == str(event_id))
+                                 & (history["market"] == market)
+                                 & (history["player"] == player)])
+    if rows is None or rows.empty:
         return None
 
     rows = rows.sort_values("captured_at")

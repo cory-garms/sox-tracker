@@ -154,3 +154,44 @@ class TestAgainstTonightsRealHistory:
             # Ranked by magnitude within the line-moved grouping.
             price_moves = out[~out["line_moved"]]["points"].abs().tolist()
             assert price_moves == sorted(price_moves, reverse=True)
+
+
+class TestInPlayPricesAreExcluded:
+    """
+    Every build writes a snapshot and builds happen during games, so the log
+    legitimately contains in-play prices. They are a different market: once a
+    lineup has batted, a total-bases price quotes the rest of a game rather
+    than the whole of one. Including them reported a 10.2-point "move" on
+    Masataka Yoshida that nobody could ever have bet.
+    """
+
+    PRE = "2026-07-27T19:00:00+00:00"
+    LATE = "2026-07-28T01:30:00+00:00"     # 10 min before first pitch
+    INPLAY = "2026-07-28T02:30:00+00:00"   # 50 min after
+
+    def _h(self, *snaps):
+        return history(*[(t, "batter_total_bases", "Yoshida", 1.5, o, -110)
+                         for t, o in snaps])
+
+    def test_movement_ignores_post_first_pitch_snapshots(self):
+        h = self._h((self.PRE, -101), (self.LATE, -105), (self.INPLAY, 155))
+        out = biggest_movers(h, "evt-move", min_points=0.0)
+        assert len(out) == 1
+        assert out.iloc[0]["current_price"] == -105, "in-play price leaked in"
+
+    def test_a_purely_in_play_pair_yields_nothing(self):
+        h = self._h((self.INPLAY, -101), ("2026-07-28T02:45:00+00:00", 155))
+        assert biggest_movers(h, "evt-move", min_points=0.0).empty
+
+    def test_pre_game_only_keeps_rows_with_no_commence_time(self):
+        import pandas as pd
+        from data import odds_history
+        h = self._h((self.PRE, -101))
+        h["commence_time"] = None
+        assert len(odds_history.pre_game_only(h)) == 1
+
+    def test_line_movement_agrees(self):
+        from data import odds_history
+        h = self._h((self.PRE, -101), (self.LATE, -105), (self.INPLAY, 155))
+        mv = odds_history.line_movement(h, "evt-move", "batter_total_bases", "Yoshida")
+        assert mv["current_over_odds"] == -105

@@ -6,6 +6,7 @@ betting report saved to docs/betting_BOS_2026.html.
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -92,6 +93,46 @@ def _quote(line, odds) -> str:
         return "—"
     price = f" ({odds:+d})" if isinstance(odds, (int, float)) and odds else ""
     return f"{float(line):.1f}{price}"
+
+
+# Methodology notes collected during a build, rendered onto the Method page
+# instead of onto the board. Populated by _method().
+_METHOD_NOTES: list[tuple[str, str, str]] = []
+
+
+def _method(summary: str, body: str) -> str:
+    """
+    Move a methodology note off the board and onto the Method page.
+
+    The reasoning behind a number is read once and then trusted or not; the
+    number is read every night. Carrying both made the board 53% prose by word
+    count, which buries the handful of figures the page exists to show - and a
+    justification nobody reads is not honesty, it is decoration.
+
+    Nothing is deleted, because an argument that cannot be audited is worth less
+    than one that can. It moves somewhere it can be found on purpose, and the
+    board keeps a one-line pointer.
+    """
+    anchor = re.sub(r"[^a-z0-9]+", "-", summary.lower()).strip("-")
+    _METHOD_NOTES.append((anchor, summary, body))
+    return (f'<p class="method-link"><a href="{theme.PAGES["method"][0]}#{anchor}">'
+            f'{summary} &rarr;</a></p>')
+
+
+def _method_page_sections() -> str:
+    """Every note collected this build, in the order the board would have shown them."""
+    if not _METHOD_NOTES:
+        return '<section class="card"><p class="table-note">No method notes were '
+        'collected in this build.</p></section>'
+    out = ""
+    for anchor, summary, body in _METHOD_NOTES:
+        out += f"""
+  <section class="card" id="{anchor}">
+    <h2>{summary}</h2>
+    <p class="table-note">{body}</p>
+  </section>
+"""
+    return out
 
 
 def _price(odds) -> str:
@@ -288,12 +329,13 @@ def _movers_html(movers, snapshots: int = 0) -> str:
       <tbody>{rows}</tbody>
     </table>
     </div>
-    <p class="table-note">Ranked across {snapshots} logged snapshots by change in
-    <em>de-vigged</em> probability, so a book widening its margin does not appear
-    as an opinion changing &mdash; a wider margin moves both sides and cancels.
-    A selection missing from this list simply moved less than the ones on it;
-    anything under {MIN_MOVE_POINTS:g} of a point is treated as churn. Line moves
-    sort above price moves because they are a different bet, not a repricing.</p>"""
+    {_method("How movement is ranked",
+      f"Across {snapshots} logged snapshots, by change in <em>de-vigged</em> "
+      "probability &mdash; so a book widening its margin does not read as an "
+      "opinion changing, because a wider margin moves both sides and cancels. "
+      f"Anything under {MIN_MOVE_POINTS:g} of a point is churn. Line moves sort "
+      "above price moves because they are a different bet, not a repricing. "
+      "A selection missing here simply moved less than the ones on it.")}"""
 
 
 def _reference_close(history, event_id: str) -> dict:
@@ -393,12 +435,7 @@ def _position_html(bets, event_id: str, summary: dict, reference: dict | None = 
             f"mean CLV <strong>{summary['mean_clv_points']:+.2f}</strong> points."
         )
         if n < 20:
-            verdict += (
-                " <strong>That is an anecdote, not a record.</strong> Twenty is "
-                "roughly where the sign of a mean CLV starts to carry information; "
-                "below it, both numbers are noise and are shown only so the count "
-                "can be watched climbing."
-            )
+            verdict += " <strong>An anecdote, not a record</strong> &mdash; 20+ before the sign means anything."
     else:
         verdict = ("Nothing graded yet. Closing prices arrive from the capture "
                    "that runs shortly before first pitch.")
@@ -432,12 +469,11 @@ def _position_html(bets, event_id: str, summary: dict, reference: dict | None = 
     </table>
     </div>
     <p class="table-note">{verdict}</p>
-    <p class="table-note">CLV is the change in de-vigged implied probability
-    between the price taken and the price at the close, in points. Positive means
-    the market moved toward the bet after it was placed, which is the standard
-    way to measure a read before results are numerous enough to measure anything.
-    It is the honest scoreboard here precisely because results are so much
-    noisier than the line's own drift.</p>"""
+    {_method("What CLV measures",
+      "The change in de-vigged implied probability between the price taken and "
+      "the price at the close, in points. Positive means the market moved toward "
+      "the bet after it was placed. It is the honest scoreboard here precisely "
+      "because results are far noisier than the line's own drift.")}"""
 
 
 def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> str:
@@ -541,13 +577,12 @@ def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> 
       <tbody>{rows}</tbody>
     </table>
     </div>
-    <p class="table-note">Each book is de-vigged on its own before the books are
-    combined, and the book being priced is excluded from its own benchmark. Only
-    books quoting the <em>same</em> number are compared, and a selection needs at
-    least {MIN_CONSENSUS_BOOKS} others before it appears &mdash; two books agreeing
-    is a coincidence as often as it is a price.{trimmed} The comparison books are retail
-    US books, not sharp limits, so treat a small positive as noise rather than as
-    an edge.</p>"""
+    {_method("How the consensus is built",
+      "Each book is de-vigged on its own before they are combined, and the book "
+      "being priced is excluded from its own benchmark. Only books quoting the "
+      f"<em>same</em> number are compared, and a selection needs {MIN_CONSENSUS_BOOKS} "
+      f"others before it appears.{trimmed} These are retail US books, not sharp "
+      "limits &mdash; treat a small positive as noise, not an edge.")}"""
 
 
 def _promo_html(edges, event_book: dict | None) -> str:
@@ -594,16 +629,9 @@ def _promo_html(edges, event_book: dict | None) -> str:
         </tr>"""
 
     return f"""
-    <p class="market-read">A 50% profit boost pays
-    <strong>1.5 &times; EV<sub>raw</sub> + 0.5 &times; (1 &minus; p)</strong> &mdash;
-    so at a fair price it returns +25% on an even-money bet and +40% on a +400
-    one. An early-win token instead adds a fixed
-    <strong>{EARLY_WIN_LIFT_2RUN * 100:.1f} points</strong> of win probability,
-    paid at those same odds. Both therefore prefer longer prices, and which one
-    wins depends on the price rather than on the promotion. A boost is
-    all-purpose and a token is not &mdash; the token can only settle a moneyline
-    early, which is why most rows here have no token figure at all and why the
-    boost's real advantage is the selections it can reach.</p>
+    <p class="market-read">Both promotions are worth <strong>more on longer
+    prices</strong>. The token only settles a moneyline, so most rows below have
+    no token figure &mdash; the boost's real advantage is what it can reach.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -621,15 +649,16 @@ def _promo_html(edges, event_book: dict | None) -> str:
       <tbody>{rows}</tbody>
     </table>
     </div>
-    <p class="table-note">The token lift is measured, not assumed:
-    <code>scripts/measure_early_win_lift.py</code> walks half-inning linescores
-    over 3,172 team-games of the 2026 season and finds
-    P(ever led by 2+ <em>or</em> won) &minus; P(won) =
-    <strong>{EARLY_WIN_LIFT_2RUN:+.4f}</strong>. It is stored as a lift rather
-    than a rate because a team's own P(ever up 2) is anchored to the schedule it
-    played and cannot be set against tonight's price. Token maths assumes the bet
-    still settles normally when the trigger never happens &mdash; check the
-    promotion's own terms, because that assumption is doing real work here.</p>"""
+    {_method("Where these numbers come from",
+      "A 50% profit boost pays <strong>1.5 &times; EV<sub>raw</sub> + 0.5 &times; "
+      "(1 &minus; p)</strong> &mdash; +25% on a fair even-money bet, +40% on a fair "
+      f"+400 one. The token adds a fixed {EARLY_WIN_LIFT_2RUN * 100:.1f} points of "
+      "win probability, measured by <code>scripts/measure_early_win_lift.py</code> "
+      "over 3,172 team-games: P(ever led by 2+ <em>or</em> won) &minus; P(won) = "
+      f"<strong>{EARLY_WIN_LIFT_2RUN:+.4f}</strong>. Stored as a lift, not a rate, "
+      "because a team's own P(ever up 2) is anchored to the schedule it played. "
+      "Assumes the bet settles normally when the trigger never happens &mdash; "
+      "check the promotion's terms, that assumption does real work.")}"""
 
 
 def _betting_css() -> str:
@@ -758,6 +787,8 @@ def generate_betting_html(
     """Generate standalone mobile-optimized HTML betting report."""
     if not date_str:
         date_str = date.today().strftime("%Y-%m-%d")
+
+    _METHOD_NOTES.clear()
 
     team_id = config.TEAMS.get(team_abbr, {}).get("id", config.TEAM_ID)
     team_name = config.TEAMS.get(team_abbr, {}).get("name", "Boston Red Sox")
@@ -955,26 +986,26 @@ def generate_betting_html(
 
     if lines_live:
         k_note = (
-            "<strong>Market %</strong> is the book's own price with the vig "
-            "stripped out — what DraftKings really thinks the chance of the "
-            "over is. <strong>Model %</strong> is this page's Poisson "
-            "probability around its projection. Reading them side by side is "
-            "the point of the table: it shows exactly where, and by how much, "
-            "the model disagrees with the market. "
-            "Edge is the model projection minus the sportsbook line. "
-            f"<strong>This model does not currently call sides.</strong> Its own "
-            f"measured error is &plusmn;{MODEL_ERROR_K:.2f} K per start — from a "
-            "walk-forward backtest over the 2026 starts, after removing the "
-            "irreducible scatter a perfect projection would still show. An edge "
-            "smaller than that cannot be told apart from zero, and an edge larger "
-            f"than {MAX_PLAUSIBLE_EDGE_K:.1f} K against a liquid market means the "
-            "model is reporting its own bug, which the table marks "
-            "<span class=\"rec-badge review\">REVIEW</span>. Those two limits "
-            "nearly meet, which leaves no honest window to recommend from, so the "
-            "table publishes the projection, the line, and the gap between them — "
-            "and no bet. Restoring recommendations needs a sharper model, starting "
-            "with the opponent strikeout-rate adjustment that has never been built; "
-            "there is also no park or platoon context."
+            f"<strong>No sides called.</strong> Measured error "
+            f"&plusmn;{MODEL_ERROR_K:.2f} K per start &mdash; as large as any edge "
+            "this model can demonstrate."
+            + _method(
+                "Why the strikeout model calls nothing",
+                "<strong>Market %</strong> is the book's price with the vig "
+                "stripped out; <strong>Model %</strong> is this page's Poisson "
+                "probability around its projection. Reading them side by side is "
+                "the point of the table, and edge is projection minus line. The "
+                f"model's own error is &plusmn;{MODEL_ERROR_K:.2f} K per start "
+                "&mdash; a walk-forward backtest over 73 held-out starts, after "
+                "removing the irreducible scatter a perfect projection would still "
+                "show &mdash; so a smaller edge cannot be told apart from zero. An "
+                f"edge larger than {MAX_PLAUSIBLE_EDGE_K:.1f} K against a liquid "
+                "market means the model is reporting its own bug, and is marked "
+                "REVIEW. Those two limits nearly meet, which leaves no honest "
+                "window to recommend from. An opponent K-rate adjustment was added "
+                "on 2026-07-27 and measured no improvement at all; there is still "
+                "no park or platoon context."
+            )
         )
     else:
         k_note = ("<strong>No sportsbook lines connected.</strong> These are model "
@@ -1065,28 +1096,30 @@ def generate_betting_html(
     tb_lines_live = bool(not tb_df.empty and tb_df["has_line"].any())
     if tb_lines_live:
         tb_note = (
-            "Lines are DraftKings' own, fetched with the strikeout market. "
-            "<strong>Edge</strong> here is a difference in probability, not in "
-            "bases: nearly every hitter is posted at 1.5, so what separates them "
-            "is the price, and comparing a projection to the line would just rank "
-            "hitters by quality the book has already charged for. "
-            "<strong>This model does not call sides either.</strong> Its own "
-            f"over-probability moves by &plusmn;{MODEL_ERROR_TB_PROB * 100:.1f} "
-            "points when its inputs are resampled, and the entire spread of "
-            "opinion it has been shown to hold out of sample is "
-            f"{MAX_PLAUSIBLE_EDGE_TB_PROB * 100:.1f} points "
-            "(walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 "
-            "for a coin flip). An edge has to be larger than the first and "
-            "smaller than the second to mean anything, and almost nothing is. "
-            "The honest reading of this table is the two probability columns "
-            "side by side, not the last one."
+            "<strong>No sides called.</strong> The edge here is a difference in "
+            "probability, not in bases &mdash; nearly every hitter is posted at "
+            "1.5 and only the price separates them."
+            + _method(
+                "Why the total-bases model calls nothing",
+                "Lines are DraftKings' own, fetched with the strikeout market. "
+                "Comparing a projection to the line would rank hitters by quality "
+                "the book already charges for, so the model prices a probability "
+                "instead. That over-probability moves by "
+                f"&plusmn;{MODEL_ERROR_TB_PROB * 100:.1f} points when its inputs "
+                "are resampled, while the entire spread of opinion it has been "
+                "shown to hold out of sample is "
+                f"{MAX_PLAUSIBLE_EDGE_TB_PROB * 100:.1f} points &mdash; "
+                "walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 "
+                "for a coin flip. An edge must be larger than the first and "
+                "smaller than the second to mean anything, and almost nothing is. "
+                "The honest reading is the two probability columns side by side, "
+                "not the last one."
+            )
         )
     else:
         tb_note = (
-            "<strong>No total-bases lines connected.</strong> These are projections "
-            "only. The table used to price them against an assumed 1.5 with "
-            "hand-picked thresholds — a line no book had quoted and an edge nobody "
-            "had measured. It now waits for a real line instead."
+            "<strong>No total-bases lines connected.</strong> Projections only "
+            "&mdash; the table waits for a real line rather than assuming one."
         )
 
     tb_movement_html = _movement_notes(history, event, tb_quoted, MARKET_TB)
@@ -1405,6 +1438,8 @@ def generate_betting_html(
     {nrfi_html}
   </section>"""
 
+    method_sections = _method_page_sections()
+
     outputs = []
     for slug, title, heading, subtitle, sections in (
         ("board", f"{team_name} — Tonight's Board",
@@ -1419,6 +1454,11 @@ def generate_betting_html(
          "was measured against &mdash; and declining to call a side wherever that "
          "error is larger than the edge claimed.",
          models_sections),
+        ("method", f"{team_name} — How This Works",
+         "&#128218; How This Works",
+         "Every methodological note the board would otherwise have carried. "
+         "Written to be auditable, not to be read nightly.",
+         method_sections),
     ):
         filename = theme.PAGES[slug][0]
         path = config.OUTPUT_DIR / filename

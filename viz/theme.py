@@ -215,6 +215,34 @@ def page_css() -> str:
     }}
     a.mode-seg:hover {{ background: {TURF_GRID}; color: {PARCHMENT}; }}
 
+    /* Method notes. The reasoning behind a number is read once; the number is
+       read every night. Collapsing the former keeps the page scannable without
+       deleting anything a reader might want to audit. */
+    details.method {{
+      margin-top: 12px;
+      border-top: 1px solid {TURF_GRID};
+      padding-top: 8px;
+    }}
+    .method-link {{
+      margin-top: 10px; font-family: {FONT_STENCIL};
+      font-size: 0.62rem; letter-spacing: 0.09em; text-transform: uppercase;
+    }}
+    .method-link a {{ color: {INK_MUTED}; text-decoration: none; }}
+    .method-link a:hover {{ color: {BRASS}; }}
+
+    details.method > summary {{
+      cursor: pointer; list-style: none;
+      font-family: {FONT_STENCIL}; font-size: 0.66rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: {INK_MUTED};
+      padding: 4px 0;
+    }}
+    details.method > summary::-webkit-details-marker {{ display: none; }}
+    details.method > summary::before {{ content: "+ "; color: {BRASS}; }}
+    details.method[open] > summary::before {{ content: "- "; }}
+    details.method > summary:hover {{ color: {PARCHMENT}; }}
+    details.method .table-note {{ margin-top: 6px; }}
+
     .nav-pages {{ display: flex; flex-wrap: wrap; gap: 6px; }}
     .nav-page {{
       color: {PARCHMENT}; text-decoration: none;
@@ -485,6 +513,9 @@ PAGES: dict[str, tuple[str, str, str]] = {
     "board":    ("tonights_board_BOS_2026.html", "Tonight's Board",  MODE_BETTING),
     "models":   ("models_BOS_2026.html",         "Models &amp; Method", MODE_BETTING),
     "matchup":  ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_BETTING),
+    # Every methodological justification on the board lives here instead. The
+    # board is read in the minutes before a bet; this is read once, if ever.
+    "method":   ("method_BOS_2026.html",         "How This Works",     MODE_BETTING),
     "dashboard": ("dashboard_BOS_2026.html",     "Season Dashboard",   MODE_SEASON),
     "leaders":  ("leaders_BOS_2026.html",        "Stat Leaders",       MODE_SEASON),
     "streaks":  ("streak_records_BOS_2026.html", "Win Streaks",        MODE_SEASON),

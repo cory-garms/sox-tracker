@@ -179,6 +179,9 @@ class TestLineMovement:
 
 class TestLinelessMarkets:
     """
+    Capture timestamps here predate EVENT's commence_time on purpose: snapshots
+    taken after first pitch are in-play prices and are filtered out everywhere.
+
     A moneyline has two team names and a price each, and no number at all.
 
     The regression: snapshot_rows() dropped every entry whose `line` was None,
@@ -214,9 +217,9 @@ class TestLinelessMarkets:
         moneyline as having moved on every single build.
         """
         first = odds_history.snapshot_rows(EVENT, "h2h", self.ML,
-                                           captured_at="2026-07-27T19:00:00+00:00")
+                                           captured_at="2026-07-25T18:00:00+00:00")
         second = odds_history.snapshot_rows(EVENT, "h2h", self.ML,
-                                            captured_at="2026-07-27T21:00:00+00:00")
+                                            captured_at="2026-07-25T20:00:00+00:00")
         history = pd.DataFrame(first + second).reindex(columns=odds_history.COLUMNS)
         mv = odds_history.line_movement(history, "evt-1", "h2h", "Athletics")
         assert mv is not None
@@ -225,10 +228,10 @@ class TestLinelessMarkets:
 
     def test_moved_moneyline_is_detected(self):
         first = odds_history.snapshot_rows(EVENT, "h2h", self.ML,
-                                           captured_at="2026-07-27T19:00:00+00:00")
+                                           captured_at="2026-07-25T18:00:00+00:00")
         drifted = {**self.ML, "Athletics": {**self.ML["Athletics"], "over_odds": 158}}
         second = odds_history.snapshot_rows(EVENT, "h2h", drifted,
-                                            captured_at="2026-07-27T21:00:00+00:00")
+                                            captured_at="2026-07-25T20:00:00+00:00")
         history = pd.DataFrame(first + second).reindex(columns=odds_history.COLUMNS)
         mv = odds_history.line_movement(history, "evt-1", "h2h", "Athletics")
         assert mv["moved"] is True
