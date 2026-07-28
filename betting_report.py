@@ -10,11 +10,13 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import config
+import pandas as pd
 from viz import theme
+from client.odds_math import american_to_implied_prob
 from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
-from data import odds_history, opponent
+from data import bet_log, odds_history, opponent
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
     EARLY_WIN_LIFT_2RUN,
@@ -292,6 +294,106 @@ def _movers_html(movers, snapshots: int = 0) -> str:
     A selection missing from this list simply moved less than the ones on it;
     anything under {MIN_MOVE_POINTS:g} of a point is treated as churn. Line moves
     sort above price moves because they are a different bet, not a repricing.</p>"""
+
+
+def _position_html(bets, event_id: str, summary: dict) -> str:
+    """
+    What was actually bet, against where the market closed.
+
+    Every other card on this page is about the market. This one is the only
+    place the page is accountable to it: a price taken, a price it closed at,
+    and the difference in probability points. CLV is measured in points rather
+    than in odds because odds are not linear - -110 to -120 and +200 to +190 are
+    not the same move, and averaging them as prices would weight the long ones
+    out of all proportion.
+
+    It states its own sample size prominently, because with ten bets behind it
+    the summary is an anecdote and presenting it as a scoreboard would be the
+    same overreach the models on the next page decline to make.
+    """
+    if bets is None or bets.empty:
+        return ('<p class="table-note"><strong>No bets logged.</strong> '
+                '<code>scripts/log_bet.py</code> records one - stake 0 for a paper '
+                'bet, which grades identically and costs nothing. Nothing appears '
+                'here until something has been written down.</p>')
+
+    tonight = bets[bets["event_id"] == str(event_id)] if event_id else bets.iloc[0:0]
+
+    rows = ""
+    for _, b in tonight.iterrows():
+        took, close = b["price"], b["closing_price"]
+        if pd.notna(close):
+            clv = (american_to_implied_prob(close) - american_to_implied_prob(took)) * 100
+            cls = "delta-pos" if clv > 0 else "delta-neg"
+            clv_cell = f'<td class="{cls}">{clv:+.1f} pts</td>'
+            close_cell = _price(close)
+        else:
+            clv_cell = '<td><span class="no-line">&mdash;</span></td>'
+            close_cell = '<span class="no-line">not yet</span>'
+        line = "" if pd.isna(b["line"]) else f" {float(b['line']):g}"
+        promo = f' <span class="rec-badge over">{b["promo"]}</span>' if b["promo"] else ""
+        rows += f"""
+        <tr>
+          <td>{b['selection']}{promo}</td>
+          <td>{b['side']}{line}</td>
+          <td>{float(b['stake']):g}U</td>
+          <td>{_price(took)}</td>
+          <td>{close_cell}</td>
+          {clv_cell}
+        </tr>"""
+
+    # Paper rows and real positions are both logged and both grade, but they are
+    # not the same claim: counting a stake-0 measurement row as a bet would
+    # overstate the position, which is the one number here that must not drift.
+    real = tonight[tonight["stake"] > 0]
+    paper = len(tonight) - len(real)
+    staked = float(real["stake"].sum()) if not real.empty else 0.0
+    if tonight.empty:
+        lead = "No bets logged on tonight's game."
+    else:
+        lead = (f"<strong>{len(real)} bets</strong> on tonight's game, "
+                f"<strong>{staked:g}U</strong> staked.")
+        if paper:
+            lead += (f" Plus <strong>{paper}</strong> paper "
+                     f"{'row' if paper == 1 else 'rows'} at stake 0, logged to be "
+                     "measured rather than backed.")
+
+    n = summary.get("n") or 0
+    if n:
+        verdict = (
+            f"Across <strong>{n}</strong> graded bets: beat the close "
+            f"<strong>{summary['beat_close_pct']:.0f}%</strong> of the time, "
+            f"mean CLV <strong>{summary['mean_clv_points']:+.2f}</strong> points."
+        )
+        if n < 20:
+            verdict += (
+                " <strong>That is an anecdote, not a record.</strong> Twenty is "
+                "roughly where the sign of a mean CLV starts to carry information; "
+                "below it, both numbers are noise and are shown only so the count "
+                "can be watched climbing."
+            )
+    else:
+        verdict = ("Nothing graded yet. Closing prices arrive from the capture "
+                   "that runs shortly before first pitch.")
+
+    return f"""
+    <p class="market-read">{lead}</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr><th>Selection</th><th>Side</th><th>Stake</th>
+            <th>Took</th><th>Closed</th><th>CLV</th></tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    </div>
+    <p class="table-note">{verdict}</p>
+    <p class="table-note">CLV is the change in de-vigged implied probability
+    between the price taken and the price at the close, in points. Positive means
+    the market moved toward the bet after it was placed, which is the standard
+    way to measure a read before results are numerous enough to measure anything.
+    It is the honest scoreboard here precisely because results are so much
+    noisier than the line's own drift.</p>"""
 
 
 def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> str:
@@ -707,6 +809,10 @@ def generate_betting_html(
         if history is not None and not history.empty and event_id else 0
     )
     movers_html = _movers_html(movers, snapshot_count)
+
+    # The page's own accountability: what was bet, against where it closed.
+    graded = bet_log.grade_from_history(history)
+    position_html = _position_html(graded, event_id, bet_log.clv_summary(graded))
     promo_html = _promo_html(edges, book.get("event"))
 
     # 1. Pitcher Strikeout Model HTML
@@ -1197,6 +1303,11 @@ def generate_betting_html(
     board_sections = f"""  <section class="card">
     <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
     {movers_html}
+  </section>
+
+  <section class="card">
+    <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
+    {position_html}
   </section>
 
   <section class="card">
