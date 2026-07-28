@@ -14,7 +14,7 @@ from viz import theme
 from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
-from data import odds_history
+from data import odds_history, opponent
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
     EARLY_WIN_LIFT_2RUN,
@@ -663,8 +663,18 @@ def generate_betting_html(
         )
     else:
         first_pitch = format_first_pitch(previews[0]) if previews else "TBD"
+    # Who tonight's starter is facing. Falls back to no adjustment when the
+    # league logs or the opponent cannot be resolved.
+    opp_logs = opponent.load_team_hitting_logs(season, client=client)
+    opp_id = None
+    if previews:
+        opp_id = (previews[0] or {}).get("opponent", {}).get("id")
+    if opp_id is None and not games.empty and "opponent_id" in games.columns:
+        opp_id = int(games.sort_values("game_date").iloc[-1]["opponent_id"])
+
     k_df = pitcher_strikeout_model(
         pitching, batting, games, client, book.get(MARKET_K, {}), team_id, season,
+        opponent_logs=opp_logs, opponent_team_id=opp_id, as_of_date=date_str,
         # Deliberately a set even when empty: an unresolved probable must yield
         # an empty table the page can explain, never a fallback to the whole
         # rotation.

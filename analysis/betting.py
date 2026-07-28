@@ -30,6 +30,7 @@ from client.odds_api_client import (
     parse_player_lines_by_book,
     parse_two_way_by_book,
 )
+from data.opponent import opponent_k_factor
 from client.odds_math import (
     american_to_decimal,
     consensus_probability,
@@ -65,11 +66,27 @@ L5_REGRESSION_INNINGS = 60.0
 
 # The model's own measured error bar, in strikeouts.
 #
-# Measured by walk-forward backtest over the 2026 cached starts: project each
-# start from only the starts before it, then decompose the residual. Total RMSE
-# was 2.63 K, of which 2.20 K is the irreducible Poisson scatter a perfect
-# projection would still show. The rest — 1.43 K — is the model being wrong.
-MODEL_ERROR_K = 1.43
+# Re-measured 2026-07-27 by scripts/backtest_pitcher_k.py over 73 held-out
+# starts: project each start from only the starts before it, then decompose the
+# residual. Total RMSE 2.61 K, of which 2.21 K is the irreducible Poisson
+# scatter a perfect projection would still show. The rest is the model being
+# wrong.
+#
+# The opponent K-rate adjustment (roadmap.md item 1, added the same day) did
+# NOT move this. Baseline and adjusted both measure 1.39 K; only mean absolute
+# error shifted, 2.02 -> 2.00 K. The adjustment is kept because it is
+# principled and costs nothing, not because it was shown to help.
+#
+# Why the test could not see it: the opponent factors span 0.874 to 1.108, so a
+# typical adjustment is worth ~0.3 K on a 6 K projection, against 1.39 K of
+# model error and 2.21 K of Poisson scatter across 73 starts. An effect that
+# size is invisible at this sample. That is a statement about the power of the
+# measurement, not evidence the adjustment is wrong - and it is the reason the
+# constant did not go down.
+#
+# The drop from 1.43 is re-measurement on more starts, not the adjustment
+# working. Do not attribute it to the adjustment.
+MODEL_ERROR_K = 1.39
 
 # Floor: an edge must clear the model's own error before it counts as a signal.
 # A gap smaller than the model's typical miss is indistinguishable from zero,
@@ -291,6 +308,9 @@ def pitcher_strikeout_model(
     season: int = config.SEASON,
     min_starts: int = MIN_STARTS_FOR_PROP,
     only_player_ids: set[int] | None = None,
+    opponent_logs: pd.DataFrame | None = None,
+    opponent_team_id: int | None = None,
+    as_of_date: str | None = None,
 ) -> pd.DataFrame:
     """
     Strikeout prop model for the team's starting pitchers.
@@ -318,9 +338,19 @@ def pitcher_strikeout_model(
     Projections that disagree with the market by more than MAX_PLAUSIBLE_EDGE_K
     are flagged for review rather than recommended — see the guard below.
 
-    Known gap: there is still no opponent, park, or platoon adjustment
-    (roadmap.md item 1), so the projection is a pitcher-only estimate and will
-    read high against teams that strike out less than average.
+    `opponent_logs` / `opponent_team_id` apply the opponent adjustment: the
+    blended K/9 is multiplied by how much the lineup being faced strikes out
+    relative to league average, regressed toward the league by sample size (see
+    data/opponent.py). Omit them and the projection is pitcher-only, exactly as
+    before - which read high against lineups that strike out less than average.
+
+    `as_of_date` bounds the opponent rate to games before that date. It matters
+    only in a backtest, and it matters absolutely there: an opponent rate that
+    includes the game being projected would let the model see its own future
+    and would make the measured error bar optimistic.
+
+    Known gap: still no park or platoon adjustment (roadmap.md item 1). The
+    opponent factor is a team-level K rate, not split by pitcher handedness.
     """
     if pitching.empty:
         return pd.DataFrame()
@@ -332,6 +362,12 @@ def pitcher_strikeout_model(
         return pd.DataFrame()
 
     book_lines = book_lines or {}
+
+    # One factor for the whole table: every starter in it faces the same lineup
+    # on the same day.
+    k_factor = 1.0
+    if opponent_logs is not None and opponent_team_id is not None:
+        k_factor = opponent_k_factor(opponent_logs, opponent_team_id, before=as_of_date)
 
     rows = []
     for (pid, pname), group in starters.groupby(["player_id", "player_name"]):
@@ -359,7 +395,10 @@ def pitcher_strikeout_model(
         l5_weight = l5_ip / (l5_ip + L5_REGRESSION_INNINGS) if l5_ip > 0 else 0.0
         season_weight = 1.0 - l5_weight
 
-        blended_k9 = (season_k9 * season_weight) + (l5_k9 * l5_weight)
+        blended_k9_own = (season_k9 * season_weight) + (l5_k9 * l5_weight)
+
+        # Who he is facing. A league-average lineup leaves this untouched.
+        blended_k9 = blended_k9_own * k_factor
 
         # Blend the workload with the *same* weights. The old model blended K/9
         # but then multiplied by the last-5 innings alone, so a pitcher who was
@@ -378,6 +417,8 @@ def pitcher_strikeout_model(
             "season_k9": round(season_k9, 2),
             "l5_k9": round(l5_k9, 2),
             "avg_ip_start": round(proj_ip, 2),
+            "blended_k9_own": round(blended_k9_own, 2),
+            "opp_k_factor": round(k_factor, 4),
             "blended_k9": round(blended_k9, 2),
             "proj_k": round(proj_k, 2),
             "prop_line": None,

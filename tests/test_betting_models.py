@@ -357,11 +357,22 @@ class TestNoiseFloor:
     def test_floor_and_ceiling_leave_almost_no_room_to_recommend(self):
         """
         The finding this whole state encodes: an edge big enough to clear the
-        model's noise is already big enough to look implausible. If a future
-        model narrows MODEL_ERROR_K, this assertion is the thing to revisit.
+        model's noise is already big enough to look implausible.
+
+        The window was 0.07 K when MODEL_ERROR_K was 1.43. Re-measuring on 73
+        held-out starts moved the error to 1.39, so it is now 0.11 K - still a
+        sliver, and still not a licence to recommend, but wide enough that this
+        assertion had to be revisited exactly as its previous version said it
+        would. Widen the bound deliberately when the measurement moves; never
+        move the measurement to satisfy the bound.
         """
         assert MIN_EDGE_K == MODEL_ERROR_K
-        assert MAX_PLAUSIBLE_EDGE_K - MIN_EDGE_K < 0.1
+        window = MAX_PLAUSIBLE_EDGE_K - MIN_EDGE_K
+        assert 0 < window < 0.2, (
+            f"recommendation window is {window:.2f} K - if this has grown "
+            f"meaningfully, the page can start calling sides again and the "
+            f"handoff docs need rewriting to say so"
+        )
 
     def test_an_edge_inside_the_narrow_band_would_still_recommend(self):
         """
