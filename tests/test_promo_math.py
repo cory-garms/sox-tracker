@@ -237,3 +237,58 @@ class TestLinelessRendering:
         assert _side_label({"line": None, "side": "Moneyline"}) == "Moneyline"
         assert _side_label({"line": float("nan"), "side": "Moneyline"}) == "Moneyline"
         assert _side_label({"line": 5.5, "side": "Over"}) == "Over 5.5"
+
+
+class TestTwoWayMarketsKeepTheirNumber:
+    """
+    The bug: parse_two_way_by_book discarded the outcome's point, so a total of
+    10.0 and a total of 9.5 looked like the same bet to the consensus. On
+    2026-07-27 that reported DraftKings' Over 10.0 as +0.27% EV against six
+    books sitting on 9.5; against the two actually on 10.0 it was -5.56%.
+    """
+
+    @staticmethod
+    def _totals(point_dk, *other_points):
+        """DraftKings at point_dk, one comparison book per other_points."""
+        def bk(title, pt, over, under):
+            return {"title": title, "markets": [{"key": "totals", "outcomes": [
+                {"name": "Over", "point": pt, "price": over},
+                {"name": "Under", "point": pt, "price": under}]}]}
+        books = [bk("DraftKings", point_dk, -105, -115)]
+        for i, pt in enumerate(other_points):
+            books.append(bk(f"Book{i}", pt, -115, -105))
+        return {"bookmakers": books}
+
+    def test_the_point_is_preserved(self):
+        out = parse_two_way_by_book(self._totals(10.0, 9.5), "totals")
+        assert out["Over"]["DraftKings"]["line"] == 10.0
+        assert out["Over"]["Book0"]["line"] == 9.5
+
+    def test_a_moneyline_still_has_no_line(self):
+        payload = {"bookmakers": [{"title": "DraftKings", "markets": [{"key": "h2h",
+            "outcomes": [{"name": "Athletics", "price": 158},
+                         {"name": "Boston Red Sox", "price": -192}]}]}]}
+        assert parse_two_way_by_book(payload, "h2h")["Athletics"]["DraftKings"]["line"] is None
+
+    def test_consensus_refuses_to_compare_different_totals(self):
+        """Two comparison books, both on 9.5 while DK is on 10.0: incomparable."""
+        from analysis.betting import consensus_edge_table
+        by_book = {"totals": parse_two_way_by_book(self._totals(10.0, 9.5, 9.5), "totals")}
+        assert consensus_edge_table(by_book, min_books=2).empty
+
+    def test_consensus_compares_matching_totals(self):
+        from analysis.betting import consensus_edge_table
+        by_book = {"totals": parse_two_way_by_book(self._totals(10.0, 10.0, 10.0), "totals")}
+        assert not consensus_edge_table(by_book, min_books=2).empty
+
+    def test_a_mixed_field_uses_only_the_matching_books(self):
+        """
+        The live shape of the bug: DK on 10.0, most books on 9.5, a couple on
+        10.0. Only the matching ones may count, and n_books must say so.
+        """
+        from analysis.betting import consensus_edge_table
+        by_book = {"totals": parse_two_way_by_book(
+            self._totals(10.0, 9.5, 9.5, 9.5, 9.5, 10.0, 10.0), "totals")}
+        table = consensus_edge_table(by_book, min_books=2)
+        assert not table.empty
+        assert set(table["n_books"]) == {2}, "9.5 books must not be counted"

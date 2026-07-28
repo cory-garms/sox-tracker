@@ -274,7 +274,15 @@ def parse_two_way_by_book(
     Each team is emitted as its own entry with `over_odds` set to its price and
     `under_odds` to the opposing team's, so a moneyline de-vigs through exactly
     the same two-sided path as a prop and needs no special case downstream.
-    `line` is None because a moneyline has no number attached.
+
+    `line` carries the outcome's point where the market has one and is None
+    where it does not. A moneyline genuinely has no number; a total and a spread
+    very much do, and dropping theirs is not a simplification but a silent
+    correctness bug. It produced one: on 2026-07-27 DraftKings posted a total of
+    10.0 while six of eight books were on 9.5, and with the point discarded the
+    consensus compared the two as the same bet and reported DK's Over as +0.27%
+    EV. Priced against the two books actually on 10.0 it was -5.56%. The whole
+    point of the consensus table is that only identical bets are comparable.
     """
     out: dict[str, dict[str, dict[str, Any]]] = {}
     for book in payload.get("bookmakers", []) or []:
@@ -288,8 +296,9 @@ def parse_two_way_by_book(
                 continue          # three-way or malformed; nothing to de-vig against
             stamp = market.get("last_update") or updated
             for this, other in (outcomes, outcomes[::-1]):
+                point = this.get("point")
                 out.setdefault(str(this["name"]), {})[title] = {
-                    "line": None,
+                    "line": float(point) if point is not None else None,
                     "book": title,
                     "last_update": stamp,
                     "over_odds": _safe_int(this.get("price")),
