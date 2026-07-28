@@ -19,6 +19,7 @@ from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
     EARLY_WIN_LIFT_2RUN,
     MARKET_H2H,
+    MIN_MOVE_POINTS,
     MARKET_K,
     MARKET_TB,
     MAX_PLAUSIBLE_EDGE_K,
@@ -29,6 +30,7 @@ from analysis.betting import (
     MODEL_ERROR_TB_PROB,
     batter_hr_rbi_props,
     batter_total_bases_model,
+    biggest_movers,
     consensus_edge_table,
     fetch_book_lines,
     first_5_innings_analysis,
@@ -209,6 +211,87 @@ def _side_label(row) -> str:
     if line is None or line != line:             # None, or NaN once pandas boxes it
         return str(row["side"])
     return f"{row['side']} {float(line):g}"
+
+
+def _movers_html(movers, snapshots: int = 0) -> str:
+    """
+    The handful of prices that actually moved, ranked.
+
+    Placed first on the page because it is the only section whose value decays:
+    a season rate is the same at noon and at first pitch, while "what has the
+    market changed its mind about since this morning" is the one question a
+    static page can answer that the book's own screen cannot.
+
+    Movement is shown in de-vigged probability points rather than in odds. A
+    move from -110 to -120 and one from +200 to +190 are similar as prices and
+    very different as bets, so ranking on odds would sort the list by how long
+    the prices happened to be rather than by how much anyone's opinion changed.
+    """
+    if movers is None or movers.empty:
+        if snapshots < 2:
+            return ('<p class="table-note"><strong>No movement to report yet.</strong> '
+                    'This is the first snapshot of the game, and movement needs two. '
+                    'The next scheduled build will have something to compare against.</p>')
+        return (f'<p class="table-note"><strong>Nothing has moved.</strong> '
+                f'{snapshots} snapshots of this game are logged and no price has '
+                f'shifted by as much as {MIN_MOVE_POINTS:g} of a probability point. '
+                'A quiet board is a real observation, not a missing one.</p>')
+
+    top = movers.iloc[0]
+    direction = "toward the over" if top["points"] > 0 else "away from the over"
+    if top["line_moved"]:
+        lead = (
+            f"<strong>{top['player']}</strong> has had the line itself moved &mdash; "
+            f"{top['open_line']:g} to {top['current_line']:g} &mdash; which is a "
+            "different bet rather than the same bet repriced, and the clearest "
+            "signal on this page that someone has changed their mind."
+        )
+    else:
+        lead = (
+            f"Biggest move: <strong>{top['player']}</strong> "
+            f"{_price(top['open_price'])} &rarr; {_price(top['current_price'])}, "
+            f"<strong>{abs(top['points']):.1f} points</strong> {direction} "
+            f"since {_short_time(top['opened_at'])}."
+        )
+
+    rows = ""
+    for _, r in movers.iterrows():
+        cls = "delta-pos" if r["points"] > 0 else "delta-neg"
+        arrow = "&#9650;" if r["points"] > 0 else "&#9660;"
+        if r["line_moved"]:
+            shown = (f"{r['open_line']:g} &rarr; {r['current_line']:g} "
+                     '<span class="rec-badge review">LINE MOVED</span>')
+        else:
+            shown = f"{_price(r['open_price'])} &rarr; {_price(r['current_price'])}"
+        rows += f"""
+        <tr>
+          <td>{r['player']}</td>
+          <td>{shown}</td>
+          <td class="{cls}">{arrow} {abs(r['points']):.1f} pts</td>
+          <td>{_MARKET_LABELS.get(r['market'], r['market'])}</td>
+        </tr>"""
+
+    return f"""
+    <p class="market-read">{lead}</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Open &rarr; Now</th>
+          <th>Shift</th>
+          <th>Market</th>
+        </tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    </div>
+    <p class="table-note">Ranked across {snapshots} logged snapshots by change in
+    <em>de-vigged</em> probability, so a book widening its margin does not appear
+    as an opinion changing &mdash; a wider margin moves both sides and cancels.
+    A selection missing from this list simply moved less than the ones on it;
+    anything under {MIN_MOVE_POINTS:g} of a point is treated as churn. Line moves
+    sort above price moves because they are a different bet, not a repricing.</p>"""
 
 
 def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> str:
@@ -487,6 +570,16 @@ def generate_betting_html(
         history, event, list(book.get(MARKET_H2H, {}).keys()), MARKET_H2H
     )
     consensus_html = _consensus_html(edges, movement_html=ml_movement)
+
+    # What changed since the last build. Ranked across every snapshot the log
+    # holds for this event, not just the previous one.
+    event_id = (event or {}).get("id", "")
+    movers = biggest_movers(history, event_id, top_n=5)
+    snapshot_count = (
+        int(history[history["event_id"] == str(event_id)]["captured_at"].nunique())
+        if history is not None and not history.empty and event_id else 0
+    )
+    movers_html = _movers_html(movers, snapshot_count)
     promo_html = _promo_html(edges, book.get("event"))
 
     # 1. Pitcher Strikeout Model HTML
@@ -1055,6 +1148,11 @@ def generate_betting_html(
       <p>Pre-game prop projections, First 5 Innings (F5) models, and NRFI/YRFI 1st-inning trend analytics</p>
     </div>
   </header>
+
+  <section class="card">
+    <h2>📈 Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
+    {movers_html}
+  </section>
 
   <section class="card">
     <h2>⚾ Pitcher Strikeout Over/Under (O/U K's) &mdash; Today's Starter</h2>

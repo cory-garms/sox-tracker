@@ -1258,3 +1258,105 @@ def promo_comparison(
         "boost_ev_pct": profit_boost_ev(fair_prob, american_odds, boost_pct),
         "token_ev_pct": early_win_token_ev(fair_prob, american_odds, lift),
     }
+
+
+# ---------------------------------------------------------------------------
+# What actually moved
+# ---------------------------------------------------------------------------
+
+# Below this, a move is not worth a reader's attention. Books re-post prices
+# constantly and a fraction of a point is churn, not an opinion changing.
+MIN_MOVE_POINTS = 0.8
+
+
+def biggest_movers(
+    history: pd.DataFrame,
+    event_id: str,
+    top_n: int = 5,
+    min_points: float = MIN_MOVE_POINTS,
+) -> pd.DataFrame:
+    """
+    The most significant line movement for one event, ranked.
+
+    Two decisions are doing the work here.
+
+    **Movement is measured in de-vigged probability, not in odds.** A move from
+    -110 to -120 and one from +200 to +190 are similar as prices and very
+    different as bets, so ranking on odds would order the list by how long the
+    prices happened to be. Both sides of every market are stored, so each
+    snapshot is de-vigged before the two are differenced — which also means a
+    book merely widening its margin does not register as an opinion changing,
+    because a wider margin moves both sides and cancels.
+
+    **A line move is not a price move.** 5.5 strikeouts to 6.5 is a different
+    bet; -125 to -115 is the same bet repriced. They are not commensurable, so
+    line moves are flagged separately and always sort first rather than being
+    converted into some shared score that would imply a false equivalence.
+
+    Returns columns: market, player, opened_at, current_at, open_line,
+    current_line, open_price, current_price, points, line_moved.
+    Empty when nothing has two snapshots or nothing cleared `min_points`.
+    """
+    cols = ["market", "player", "opened_at", "current_at", "open_line",
+            "current_line", "open_price", "current_price", "points", "line_moved"]
+    if history is None or history.empty:
+        return pd.DataFrame(columns=cols)
+
+    rows_out: list[dict[str, Any]] = []
+    scoped = history[history["event_id"] == str(event_id)]
+    for (market, player), rows in scoped.groupby(["market", "player"], sort=False):
+        rows = rows.sort_values("captured_at")
+        if len(rows) < 2:
+            continue
+        first, last = rows.iloc[0], rows.iloc[-1]
+
+        def _devig(row) -> float | None:
+            over, under = row["over_odds"], row["under_odds"]
+            if pd.isna(over) or pd.isna(under):
+                return None
+            return no_vig_probability(over, under)[0]
+
+        p_open, p_now = _devig(first), _devig(last)
+        if p_open is None or p_now is None:
+            continue
+
+        open_line = None if pd.isna(first["line"]) else float(first["line"])
+        current_line = None if pd.isna(last["line"]) else float(last["line"])
+        line_moved = open_line != current_line
+        points = (p_now - p_open) * 100.0
+
+        # A line move is always worth reporting; a price move has to clear the
+        # churn floor first.
+        if not line_moved and abs(points) < min_points:
+            continue
+
+        rows_out.append({
+            "market": market,
+            "player": player,
+            "opened_at": first["captured_at"],
+            "current_at": last["captured_at"],
+            "open_line": open_line,
+            "current_line": current_line,
+            "open_price": _safe_price(first["over_odds"]),
+            "current_price": _safe_price(last["over_odds"]),
+            "points": round(points, 2),
+            "line_moved": bool(line_moved),
+        })
+
+    if not rows_out:
+        return pd.DataFrame(columns=cols)
+
+    frame = pd.DataFrame(rows_out)
+    frame["_rank"] = frame["points"].abs()
+    # Line moves first, then by magnitude of the repricing.
+    frame = frame.sort_values(["line_moved", "_rank"], ascending=[False, False])
+    return frame.drop(columns="_rank").head(top_n).reset_index(drop=True)
+
+
+def _safe_price(value) -> int | None:
+    try:
+        if value is None or pd.isna(value):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
