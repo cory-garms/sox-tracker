@@ -1,336 +1,252 @@
-# 🎲 Odds Sprint — Handoff for the Next Agent
+# 🎲 Odds — Handoff for the Next Agent
 
-> Updated 2026-07-25 after the consistency sprint. General project state lives in
-> [HANDOFF_GUIDE.md](HANDOFF_GUIDE.md); this document covers only live odds.
+> Rewritten **2026-07-27** at the end of the market-pricing sprint. General
+> project state lives in [HANDOFF_GUIDE.md](HANDOFF_GUIDE.md); the prioritised
+> backlog lives in [ODDS_PAGE_PLAN.md](ODDS_PAGE_PLAN.md). This document is what
+> you need to not break anything.
 
 ---
 
 ## 1. TL;DR
 
-The live odds pipeline works end to end. Two prop models — strikeouts and batter
-total bases — are debugged, backtested against held-out data, and guarded by
-their own measured error bars. Neither currently calls a side, which is the
-accurate description of what they can prove rather than a fault. Every other
-section of the page has had its invented lines and hand-picked thresholds
-removed. Every build's prices are now logged to
-`data/cache/odds_history.parquet`, so the page can report line movement.
+The page no longer relies on its own models to be right about anything.
 
-`ODDS_API_KEY` is set both locally (`.env`) and as a GitHub Actions secret, so CI
-builds with real lines. Cost is now **2 credits per build** — one per prop market
-— which is ~240/month against the 500 quota.
+The two prop models — strikeouts and batter total bases — still decline to call
+sides, which remains the accurate description of what they can prove. What
+changed on 2026-07-27 is that the page acquired a source of edge that does not
+route through a model at all: **every US book is now priced against every other
+one**, and **promotions are valued exactly**. On the first live night the
+consensus found nothing mispriced across 32 selections, which is the correct
+result for a retail bettor at a liquid book and is what the page now says.
 
----
+The betting side also became its own interface: a mode switch at the top of the
+site, and three pages behind it — a board you read in the ninety seconds before
+a bet, a models page, and a method page nobody has to read.
 
-## 2. The API key
-
-`ODDS_API_KEY` lives in **`.env` in the repo root**. It is 32 characters and
-confirmed working.
-
-- `.env` is gitignored (`.gitignore:11`) and **untracked**. Keep it that way.
-- Never print, echo, log, or paste the value anywhere.
-- `config.py` loads it with `python-dotenv` (`load_dotenv(..., override=False)`),
-  so a real environment variable always beats the file and a stale local `.env`
-  can never shadow the CI secret. Both directions were verified.
+There is now a real measurement loop. Bets are logged, closing prices are
+captured near first pitch, and CLV is computed. **That loop, not the models, is
+the thing to protect.**
 
 ---
 
-## 3. Verified facts (measured 2026-07-25)
+## 2. The rule this repo runs on
 
-Run `python scripts/verify_odds.py` to reproduce.
+Unchanged, and every mistake made during this sprint was a violation of it:
 
-```
-✓ 15 upcoming MLB events        quota: 500 remaining / 0 used
-✓ Event: Toronto Blue Jays @ Boston Red Sox
-    id=e7cd26360ce2edd30f37cdfc01391fd5   commence_time=2026-07-25T20:11:00Z
-✓ Game lines (DraftKings): h2h BOS -109 | TOR -110 · totals O/U 7.5 -110
-✓ pitcher_strikeouts: Dylan Cease 7.5 · Sonny Gray 4.5 (O -137 / U +108)
-✓ batter_total_bases: 7 players
-```
+> **A number is only published when something real stands behind it.** A
+> projection is real work; an edge requires a line a book actually quoted; a
+> *recommendation* requires the model's error to have been measured against
+> held-out data and to be smaller than the edge claimed.
 
-Player props **are** available on this key — an earlier note claiming they were
-paid-tier-only was wrong. Quota is 500/month; `get_events()` is free and each
-build costs roughly one credit per prop market.
+Corollary that bit repeatedly on 2026-07-27: **only identical bets are
+comparable.** An Over 10.0 is not an Over 9.5. A pre-game price is not an
+in-play price. A 34-minute-out snapshot is not a close.
 
 ---
 
-## 4. ✅ The strikeout model — resolved
+## 3. The API key and the budget
 
-The model claimed **+2.00 K edge and +36% EV** on Sonny Gray against a
-DraftKings line of 4.5. Treated as a bug report, it was three bugs.
+`ODDS_API_KEY` lives in **`.env`** (gitignored, untracked) and as a GitHub
+Actions secret. `config.py` loads it with `python-dotenv(override=False)` so a
+real environment variable always beats the file. Never print or paste the value.
 
-**1. Innings were read as decimals.** `ip` is baseball notation — `6.1` is six
-and one *third*, not six and one tenth. Summing the column lost a third of an
-inning per partial start: across the team's 2026 starts it understated the
-total by **13.5 IP** and inflated every K/9 by ~2.7%. `ip_outs` is the
-unambiguous field. `analysis.betting._innings()` now derives from it.
-
-**2. The projection compounded recency.** It blended K/9 across season and
-last-5, then multiplied by the **last-5 innings alone** — so a pitcher who was
-both striking out more *and* going deeper had two hot streaks multiplied
-together. Innings are now blended with the same weights, and that weight comes
-from the innings behind the rolling split rather than a flat 0.6 on ~30 innings.
-
-**3. EV came from an invented constant.** The 0.12-win-probability-per-K
-sensitivity was never fitted to anything, and it anchored on the book's own
-de-vigged price, so the model could never truly disagree with the market. It is
-now a Poisson distribution around the projection, which also handles pushes on
-whole-number lines.
-
-### ⚠️ The old leading hypothesis was wrong — do not chase it again
-
-The previous handoff said Gray was probably on a short leash and the book was
-pricing ~4 innings. **The game logs refute this.** His last five starts are
-21, 22, 18, 18 and 18 outs — a full, healthy workload.
-
-The real explanation is simpler and worth internalising:
-
-| | |
-| :--- | ---: |
-| Gray's actual season rate | **5.00 K/start** over 18 starts |
-| DraftKings' de-vigged implied expectation | **~4.9 K** |
-| Old model | 6.50 |
-| Fixed model | 5.66 |
-
-**The book was right.** Its number matched the pitcher's season rate almost
-exactly. The model was chasing five starts of noise.
-
-### The model's error bar — the number that matters
-
-A walk-forward backtest (project each start using only the starts before it,
-71 held-out starts) gives:
+**The Odds API bills per market × region, never per bookmaker.** Verified
+against the `x-requests-last` header: a one-book and a six-book request for the
+same market each cost exactly 1 credit. This is why `all_books=True` is the
+default on `OddsAPIClient` and why the consensus table is free.
 
 ```
-total RMSE            2.63 K
-irreducible Poisson   2.20 K     <- a perfect projection would still scatter this much
-model's own error     1.43 K     <- MODEL_ERROR_K in analysis/betting.py
+refresh.yml   3 credits x 4 builds/day       = 12/day
+close.yml     4 credits x ~1 capture/day     =  4/day
+                                              ~480/month against 500
 ```
 
-**Nothing smaller than 1.43 K is a signal.** That is also the honest ceiling on
-any edge this model can claim to have found.
+Cory's stated position (2026-07-27) is that the quota is **not** the binding
+constraint and the plan tier can be upgraded if the CLV record justifies it. Do
+not contort a design to save a credit. Do still count them before adding a
+market, because 480/500 leaves little room for manual runs.
 
-### ⛔ The model no longer calls sides — this is deliberate
+---
 
-Look at the two thresholds in `analysis/betting.py` together:
+## 4. What exists now — the map
 
-```python
-MIN_EDGE_K           = MODEL_ERROR_K   # 1.43 — floor: clear your own noise
-MAX_PLAUSIBLE_EDGE_K = 1.5             # ceiling: past here you are a bug
-```
+### Pages (all under the "Gambling Takes" mode switch)
 
-**They are almost the same number.** Any edge big enough to clear this model's
-noise floor is already big enough to look implausible against a liquid market,
-so there is no honest window left to recommend from. The K table therefore
-publishes the projection, the line, and the gap — and **no bet**. Rows inside
-the error bar read `NO CALL ⚖️` and publish no EV; rows past the ceiling read
-`REVIEW ⚠️`.
+| Page | File | What it is |
+| :--- | :--- | :--- |
+| Tonight's Board | `tonights_board_BOS_2026.html` | Movers, your position vs the close, consensus, promos, quoted props at a glance |
+| Models & Method | `models_BOS_2026.html` | The strikeout and TB models, F5, NRFI, usage/form |
+| How This Works | `method_BOS_2026.html` | Every methodological note, collected automatically |
+| Today's Matchup | `matchup_BOS_2026.html` | Probables, platoon splits, first pitch |
 
-That is not a bug, it is the accurate description of a model with ±1.43 K of
-error. Cory chose this over shipping recommendations the backtest cannot
-support. The band is written as two named constants rather than switched off,
-so **recommendations resume on their own once `MODEL_ERROR_K` is re-measured
-lower** — but only after the accuracy actually improves.
+`betting_BOS_2026.html` is a redirect stub; the URL was public for months.
 
-The backtest also found that **no weighting scheme meaningfully beat a plain
-season average** (MAE 2.03–2.06 across every variant tried). Do not spend
-effort tuning the blend weights; the return is not there.
+**Navigation is generated from one place** — `viz/theme.PAGES` plus
+`theme.nav_bar()`. It was previously five pasted copies of one link. Add a page
+by registering it there; tests enforce that generators, the index and the
+registry agree.
 
-### Which pitcher markets this key actually returns
+### Modules added 2026-07-27
 
-Probed one market at a time against the live BOS/TOR event on 2026-07-25
-(7 credits). Result:
-
-| Market | Status |
+| File | Purpose |
 | :--- | :--- |
-| `pitcher_strikeouts` | ✅ in use |
-| `pitcher_outs` | ✅ available — **see below** |
-| `pitcher_hits_allowed` | ✅ available |
-| `pitcher_walks` | ✅ available |
-| `pitcher_earned_runs` | ✅ available |
-| `pitcher_strikeouts_alternate` | ✅ available (long-odds ladder, one-sided) |
-| `pitcher_record_a_win` | supported, no lines posted at probe time |
-| `pitcher_saves` | ❌ **not a market on The Odds API** |
-
-**There is no save market**, so a closer prop (the "Chapman save" idea) cannot be
-built from this provider. `pitcher_record_a_win` is the nearest thing and was
-empty when probed.
-
-### 🔑 `pitcher_outs` independently validates half the model
-
-DraftKings posted **Sonny Gray 17.5 outs, O -177 / U +132** — a de-vigged 59.7%
-on the over, so the book expects roughly **6.0 IP**. The fixed model projects
-**5.93 IP**. Those agree almost exactly.
-
-That isolates the disagreement precisely. The innings half of the projection is
-sound; the entire gap is in the strikeout *rate*:
-
-| | K/9 |
-| :--- | ---: |
-| Model's blended rate | 8.59 |
-| Gray's season rate | 7.97 |
-| **What DK is pricing** (~4.9 K over ~6 IP) | **~7.35** |
-
-The book is pricing Gray **below his own season rate** — which is exactly what
-an opponent adjustment against a low-strikeout Toronto lineup would look like.
-This is strong corroboration that roadmap item 1 is the missing piece, and it
-means future work should target K/9, not innings.
-
-`pitcher_outs` is also worth considering as a direct input: anchoring projected
-innings on the market's own outs line would remove a source of model error
-entirely. Cory has not decided on this.
-
-### The one thing that would make this model useful again
-
-The **missing opponent adjustment** (`roadmap.md` item 1) — there is still no
-opponent K-rate, park, or platoon context. It is the highest-value remaining
-work and the only obvious route to a smaller error bar. It needs opponent
-batting data the fetcher does not currently cache.
-
-Re-run the backtest (`walk-forward, project each start from prior starts only,
-decompose RMSE against Poisson scatter`) after any modelling change, and update
-`MODEL_ERROR_K` from the measurement — never by hand.
+| `data/bet_log.py` | Bets (real and paper), graded against the close; CLV summary |
+| `data/opponent.py` | League-wide hitting **game logs**, opponent K factor |
+| `scripts/capture_close.py` | Near-close odds capture, gated on a free schedule read |
+| `scripts/backtest_pitcher_k.py` | Walk-forward K backtest; prints `MODEL_ERROR_K` |
+| `scripts/measure_early_win_lift.py` | Measures the early-win token's value |
+| `scripts/merge_odds_history.py` | **Lossless** union of two odds histories |
+| `scripts/log_bet.py` | CLI: log, grade, summarise |
+| `.github/workflows/close.yml` | Runs the capture every 20 min in MLB's start window |
 
 ---
 
-## 4b. ✅ The batter total-bases model — now measured too
+## 5. Things that will bite you
 
-This was the largest remaining piece of the same disease the strikeout model was
-cured of. The old version called `OVER 1.5 🔥` whenever a projection cleared 1.65
-or a ten-game hit rate cleared 60%. **The 1.5 was invented** — no book price, no
-edge, no EV — and both thresholds were picked by hand.
-`OddsAPIClient.batter_total_base_lines()` had existed and been tested for weeks,
-returning real DraftKings lines, and was called by nothing.
+### 5a. Never resolve an `odds_history.parquet` conflict by picking a side
 
-### What changed
+It is committed from three directions (page builds, closing capture, local runs)
+and **cannot be reconstructed**. `--ours`, `--theirs`, `git checkout` and
+`-X theirs` all destroy data: merging the two versions in flight on 2026-07-27
+gave 193 rows where one side had 159 and the other 162.
 
-1. **Real lines.** `fetch_book_lines()` makes one trip to the provider for the
-   whole page and hands both markets to the models, which is also the only
-   sane place to log the snapshot from.
-2. **The edge is in probability, not bases.** Every hitter is posted at 1.5;
-   DraftKings had seven of them at 1.5 with prices from +124 to +152. The book
-   moves the *price*, so "projection minus line" would have ranked hitters by
-   quality the price already charges for — which is exactly what the old
-   `proj_tb >= 1.65` rule was doing. The model compares its own
-   over-probability to the de-vigged price.
-3. **A distribution, not a point estimate.** Total bases are not Poisson — a
-   home run pays four at once — so the model convolves per-plate-appearance
-   outcomes (out / 1B / 2B / 3B / HR) and mixes over how often the hitter has
-   had each number of appearances.
-4. **Starts only.** A prop is offered on a hitter who is *in the lineup*. The old
-   model averaged over bench and pinch-hit games, dividing every regular's
-   production by games they never batted in.
-5. **Rates regressed to the team's own.** A hitter's per-PA mix is shrunk toward
-   the team's measured mix with a 50-PA prior — swept out of sample, not chosen.
-
-### The error bar — measured, and it says the same thing
-
-`python scripts/backtest_batter_tb.py` reproduces all of this: walk-forward over
-the 2026 cached starts, projecting each start from only the starts before it, 714
-held out.
-
-```
-parameter noise (bootstrap)   0.049   <- MODEL_ERROR_TB_PROB, in probability
-calibration resolution        0.043       (measured gap 0.032, below its own
-                                            noise floor — so unresolvable finer)
-demonstrated information      0.051   <- MAX_PLAUSIBLE_EDGE_TB_PROB
-                                          (recalibration slope 0.74 x sd 0.069)
-AUC                           0.57    <- 0.50 is a coin flip
-Brier skill vs the base rate  +0.012
+```bash
+git show :2:data/cache/odds_history.parquet > /tmp/ours.parquet
+git show :3:data/cache/odds_history.parquet > /tmp/theirs.parquet
+python scripts/merge_odds_history.py /tmp/ours.parquet /tmp/theirs.parquet
+git add data/cache/odds_history.parquet
 ```
 
-**The floor and the ceiling nearly meet again** — 4.9 points of noise against 5.1
-points of demonstrated opinion — so the total-bases table publishes the line,
-both probabilities and the gap, and **no bet**, exactly as the strikeout table
-does. Rows inside the band read `NO CALL ⚖️`; rows past the ceiling read
-`REVIEW ⚠️` and publish no EV. On 2026-07-25 Wilyer Abreu came out `NO CALL`
-(+2.4 points) and Ceddanne Rafaela `REVIEW` (+6.4 points).
+### 5b. In-play prices are in the log, on purpose
 
-That the two models arrived at the same shape independently is worth noting: it
-is what a model with no opponent, park or platoon context looks like when it is
-honestly measured against a market that has all three.
+Every build snapshots, and builds run during games. Anything that compares
+prices over time **must** go through `odds_history.pre_game_only()`. Skipping it
+reported Yoshida −101 → +155 as a 10.2-point line move; it was a lineup having
+batted. Movers, `line_movement()` and grading all filter; new consumers must too.
 
-The backtest also found that recency weighting buys nothing here either — the
-0.4-season / 0.6-last-10 blend was *worse* out of sample (MAE 1.297) than a plain
-season rate (1.281). Do not spend effort tuning blend weights on this page.
+### 5c. `board_` is a substring of `dashboard_`
 
----
+Which is why the file is `tonights_board_BOS_2026.html`. Matching page filenames
+by containment produced two failures in one sitting — a nav test false positive
+and a `sed` that rewrote `dashboard_` into `dashtonights_board_`. **Match on
+`href="…"` exactly.**
 
-## 4c. ✅ The rest of the page
+### 5d. Grading must keep re-running
 
-- **First 5 Innings.** The `OVER 4.5 🟢` call is gone. It compared a prorated
-  full-start ERA — not a measured first-five split, as the code comment already
-  admitted — against a 4.5 no book had quoted. The estimate is still published
-  and labelled as an estimate. A separate bug went with it: an unreadable ERA
-  used to fall back to a flat **4.00**, inventing a number in precisely the
-  situation where the page knew nothing. It now reports nothing.
-- **Home runs / RBI.** The `🚀 HIGH` badge (two homers in ten games, or one per
-  18 PA) is gone; the section is labelled as the usage-and-form leaderboard it
-  always was. The rates underneath are fine and were kept.
-- **Market vs model, rendered.** Both prop tables now show the book's de-vigged
-  probability beside the model's, and — because a fourteen-column table on a
-  390px phone hides everything past column two — repeat it in prose above the
-  table.
+`grade_from_history()` deliberately has no "already graded, skip" guard. The
+last pre-game snapshot improves as first pitch approaches and then freezes
+forever. Re-adding that guard would pin whichever early snapshot landed first
+and present it as final.
+
+### 5e. The Odds API's coverage is not the book's offering
+
+DraftKings prices home runs; the feed does not carry that market. Do not
+conclude a market does not exist because the payload lacks it — check the app.
 
 ---
 
-## 5. What the code does now
+## 6. Measured constants — outputs, never settings
 
-- `client/odds_api_client.py` — The Odds API v4 wrapper, confirmed against a
-  live payload. `_parse_player_lines()` carries the bookmaker's `last_update`
-  through. `batter_total_base_lines()` is finally wired up.
-- `client/odds_math.py` — conversion, de-vig, EV. Unchanged.
-- `analysis/betting.py` — `fetch_book_lines()` (one provider trip for the whole
-  page), `_innings()`, `_poisson_over_push()`, `_prop_ev()`, the strikeout guard
-  and its constants; `project_batter_tb()`, `_tb_pmf()`, `_pmf_over_push()` and
-  the total-bases guard and its constants.
-- `data/odds_history.py` — append-only snapshot log and `line_movement()`.
-- `scripts/backtest_batter_tb.py` — the measurement behind the total-bases
-  constants. Re-run it after any change to that model and copy what it prints.
-- `betting_report.py` — timestamp banner, movement notes, the model-vs-market
-  read, REVIEW states, error-bar notes.
-- `client/draftkings_client.py` — dormant, 403-blocked. Leave it alone.
+| Constant | Value | Measured by |
+| :--- | ---: | :--- |
+| `MODEL_ERROR_K` | **1.39** K | `scripts/backtest_pitcher_k.py`, 73 held-out starts |
+| `MAX_PLAUSIBLE_EDGE_K` | 1.5 K | ceiling; above it the model is reporting a bug |
+| `MODEL_ERROR_TB_PROB` | 0.049 | `scripts/backtest_batter_tb.py`, 714 held-out starts |
+| `EARLY_WIN_LIFT_2RUN` | **+0.1028** | `scripts/measure_early_win_lift.py`, 3,172 team-games |
 
-**230 tests, all passing, fully offline** (`pytest`, ~0.7s).
+**The recommendation window is 1.39 → 1.5 K, or 0.11 K wide.** Still a sliver.
+The page still calls nothing. Recommendations resume *on their own* when
+`MODEL_ERROR_K` is re-measured lower — never by editing the constant.
 
-> Environment note: this repo's deps have gone missing from the system Python
-> before now, and `pip install -r requirements.txt` fixes it. Pandas imports also
-> emit NumPy 1.x/2.x ABI warnings from system numexpr/bottleneck; they are noise.
+### The opponent adjustment did not work
 
----
+Item 1 of `roadmap.md` was built on 2026-07-27 and **measured no improvement**:
 
-## 6. Deployment
+```
+baseline (pitcher only)   RMSE 2.61  Poisson 2.21  model error 1.39
+adjusted (+ opponent)     RMSE 2.61  Poisson 2.21  model error 1.39
+```
 
-GitHub Pages serves a file, so the page shows odds **as of its last build**.
+Only mean absolute error moved, 2.02 → 2.00 K. It is kept because it is
+principled and free, **not** because it was shown to help, and the constant is
+commented to say so. The drop from 1.43 to 1.39 is re-measurement on more
+starts; do not credit the adjustment with it.
 
-1. ✅ **Lines are timestamped.** The page prints "Lines as of HH:MM UTC" from
-   the bookmaker's `last_update`, plus its own build time, and says the odds do
-   not update after publication. When the book sends no timestamp it says so
-   rather than inventing one.
-2. ✅ **Builds run near first pitch.** `refresh.yml` runs at 07:00, 12:00, 15:00
-   and 17:30 ET — a build within ~90 minutes of every common start time. At 2
-   credits a build that is ~240/month against the 500 quota, up from ~120 now
-   that total bases is priced as well.
-3. ✅ **The repo secret is set.** CI builds with real lines.
-4. ⚠️ **Check the history file is actually being committed.** `refresh.yml` now
-   runs `git add data/cache/odds_history.parquet` alongside `docs/`; before that
-   line the runner would have taken a snapshot and thrown it away with the
-   workspace. Confirm after the first scheduled run that the file grows — it is
-   the one artefact on this page that cannot be reconstructed later.
+Why the test could not see it: opponent factors span 0.874–1.108, so a typical
+adjustment is worth ~0.3 K on a 6 K projection against 1.39 K of model error and
+2.21 K of Poisson scatter over 73 starts. **That is a statement about the power
+of the measurement, not evidence the adjustment is wrong.** Resolving it needs a
+multi-season backtest.
 
 ---
 
-## 7. Ground rules
+## 7. The measurement loop — protect this
 
-- **Mobile first.** Verify at ~390px (`--window-size=390,N`). Chromium under
-  snap cannot write to `/tmp` — screenshot into a non-hidden home directory.
-- **Never sort games by `game_pk`.** Use `analysis.streaks.played_in_order()`.
-- **Styling lives in `viz/theme.py`.** The validated contract is `CATEGORICAL`
-  (the chart palette) — do not reorder or extend it; there is deliberately no
-  5th hue. Badge classes are separate and safe to add to.
-- **Never invent a number to fill a slot.** If data is unavailable, the page
-  says so. This includes model constants: `MODEL_ERROR_K`, `MODEL_ERROR_TB_PROB`
-  and `MAX_PLAUSIBLE_EDGE_TB_PROB` are all outputs of a backtest, and the last
-  two are printed by `scripts/backtest_batter_tb.py`. Any new threshold needs the
-  same treatment or it does not ship.
-- **Treat "our model beat the market" as a bug report.** It was right twice.
-- Run `pytest` before committing. Each test class docstring names the bug it
-  guards against; keep that convention.
+1. `python scripts/log_bet.py --selection … --price … --stake …` (stake 0 = paper, grades identically)
+2. `close.yml` captures the last pre-game price automatically
+3. `python scripts/log_bet.py --grade` then `--summary`
+
+**CLV needs ~20 graded bets before its sign means anything.** As of 2026-07-27
+there are 10, at 20% beat-close and −0.38 mean points, which is an anecdote and
+the page says so.
+
+Known weakness: "closing" means the last price observed. The gate fires between
+35 and 2 minutes before first pitch, so it is close but not the true close.
+
+---
+
+## 8. What the first live night actually found
+
+Boston at Athletics, 2026-07-27. 32 selections across 14 prop and 6 game markets,
+priced against up to 8 books.
+
+- **Nothing was mispriced.** Best raw price on the board was −0.98%.
+- **The only positive expectation came from a promotion.** A 50% profit boost on
+  the longest fairly-priced leg was +25.4%; everything else was paying vig.
+- A profit boost pays `(1+b)·EV_raw + b·(1−p)`, so it belongs on the **longest**
+  fairly-priced selection, not the safest.
+- Cory's position: 3.75U across 7 bets, expected +0.14U — carried entirely by
+  the boost. The four unboosted props cost −0.13U in expectation.
+
+That result is the honest baseline. A future sweep that finds a large edge
+against 8 books is more likely a bug than an opportunity — check the line, the
+timestamp, and whether you are comparing identical bets.
+
+---
+
+## 9. Open work
+
+Highest value first. Full detail in [ODDS_PAGE_PLAN.md](ODDS_PAGE_PLAN.md).
+
+1. **Lineup cross-check.** Nick Kurtz carried a +117 total-bases prop on
+   2026-07-27 while not in the posted lineup, and nothing flagged it. One free
+   MLB call. This is a live trap, not a hypothetical.
+2. **Accumulate CLV to n≈20** before touching either model. This is the only
+   thing that can lower an error bar honestly.
+3. **Parlays cannot be graded.** Logged as one row across four markets; the
+   grader works per selection. Grade the legs, treat the parlay EV separately.
+4. **A multi-season K backtest** — the only way to settle whether the opponent
+   adjustment helps.
+5. **Park factors** (`roadmap.md` 3c) — still nothing. Sutter Health Park is a
+   converted Triple-A stadium and the model has no idea.
+
+### Deliberately not doing
+
+- Lowering an error constant to make the page speak.
+- More prop markets for breadth. Validated accuracy is the constraint.
+- Anchoring a projection on the book's own numbers — that circularity was the
+  original bug.
+- Parlays or Kelly staking on models that cannot justify one side.
+
+---
+
+## 10. House style
+
+- **Mobile first, verified.** Every UI change is checked at 390px in headless
+  chromium, not eyeballed on a desktop. Doing this caught EV columns hidden
+  behind a swipe.
+- **Text is a cost.** The board was once 53% prose by word count. Methodology
+  goes on the method page via `_method()`; the board keeps a one-line pointer.
+  A justification nobody reads is decoration, not honesty.
+- **Say what is not known.** Every page states when its prices were read, and
+  whether they are provisional.

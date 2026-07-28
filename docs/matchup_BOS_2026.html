@@ -68,6 +68,34 @@
     }
     a.mode-seg:hover { background: #244035; color: #F6F1E3; }
 
+    /* Method notes. The reasoning behind a number is read once; the number is
+       read every night. Collapsing the former keeps the page scannable without
+       deleting anything a reader might want to audit. */
+    details.method {
+      margin-top: 12px;
+      border-top: 1px solid #244035;
+      padding-top: 8px;
+    }
+    .method-link {
+      margin-top: 10px; font-family: 'Graduate', Georgia, serif;
+      font-size: 0.62rem; letter-spacing: 0.09em; text-transform: uppercase;
+    }
+    .method-link a { color: #9DB0A5; text-decoration: none; }
+    .method-link a:hover { color: #C5A059; }
+
+    details.method > summary {
+      cursor: pointer; list-style: none;
+      font-family: 'Graduate', Georgia, serif; font-size: 0.66rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: #9DB0A5;
+      padding: 4px 0;
+    }
+    details.method > summary::-webkit-details-marker { display: none; }
+    details.method > summary::before { content: "+ "; color: #C5A059; }
+    details.method[open] > summary::before { content: "- "; }
+    details.method > summary:hover { color: #F6F1E3; }
+    details.method .table-note { margin-top: 6px; }
+
     .nav-pages { display: flex; flex-wrap: wrap; gap: 6px; }
     .nav-page {
       color: #F6F1E3; text-decoration: none;
@@ -326,7 +354,7 @@
 <body>
   <div class="nav-bar">
     <div class="mode-switch" role="tablist" aria-label="Section"><span class="mode-seg active">&#127922; Gambling Takes</span><a href="dashboard_BOS_2026.html" class="mode-seg">&#128202; Season Stats</a></div>
-    <div class="nav-pages"><a href="betting_BOS_2026.html" class="nav-page">Board &amp; Props</a><span class="nav-page current">Today's Matchup</span>
+    <div class="nav-pages"><a href="tonights_board_BOS_2026.html" class="nav-page">Tonight's Board</a><a href="models_BOS_2026.html" class="nav-page">Models &amp; Method</a><span class="nav-page current">Today's Matchup</span><a href="method_BOS_2026.html" class="nav-page">How This Works</a>
       <a href="index.html" class="nav-page index-link">All pages</a>
     </div>
   </div>
@@ -334,7 +362,7 @@
   <header>
     <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
     <div>
-      <h1>⚾ Boston Red Sox vs Oakland Athletics <span class="badge">Pre-Game</span></h1>
+      <h1>⚾ Boston Red Sox vs Oakland Athletics <span class="badge">In Progress</span></h1>
       <p>Game Date: <strong>2026-07-27</strong> &nbsp;·&nbsp; First Pitch: <strong>9:40 PM ET (01:40 UTC)</strong> &nbsp;·&nbsp; Venue: <strong>Sutter Health Park</strong> &nbsp;·&nbsp; Pre-Game Intelligence Report</p>
     </div>
   </header>
@@ -355,11 +383,11 @@
           <tbody>
             <tr><td>Throwing Hand</td><td>L</td><td>R</td></tr>
             <tr><td>Season W-L</td><td>5-6</td><td>2-5</td></tr>
-            <tr><td>ERA</td><td>3.31</td><td>6.75</td></tr>
-            <tr><td>WHIP</td><td>1.10</td><td>1.42</td></tr>
-            <tr><td>K / 9</td><td>9.69</td><td>11.00</td></tr>
-            <tr><td>BB / 9</td><td>2.62</td><td>3.47</td></tr>
-            <tr><td>Innings Pitched</td><td>89.2</td><td>62.2</td></tr>
+            <tr><td>ERA</td><td>3.39</td><td>6.61</td></tr>
+            <tr><td>WHIP</td><td>1.12</td><td>1.41</td></tr>
+            <tr><td>K / 9</td><td>9.69</td><td>10.83</td></tr>
+            <tr><td>BB / 9</td><td>2.60</td><td>3.52</td></tr>
+            <tr><td>Innings Pitched</td><td>90.1</td><td>64.0</td></tr>
           </tbody>
         </table>
     </div>

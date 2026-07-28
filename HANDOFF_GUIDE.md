@@ -1,23 +1,48 @@
 # ⚾ `sox_tracker` — Handoff & Current State
 
-> Updated 2026-07-24. Supersedes the earlier migration/redesign blueprint — both
-> workstreams in that document have been carried out, with one exception that
-> turned out to be blocked for reasons no amount of code can fix (see §2).
+> Updated **2026-07-27**. Supersedes the earlier migration/redesign blueprint —
+> both workstreams in that document have been carried out, with one exception
+> that turned out to be blocked for reasons no amount of code can fix (see §2).
+>
+> **The betting side has outgrown this document.** It is now its own interface
+> with its own measurement loop, and everything specific to it —  the consensus
+> engine, promotions, the bet log, closing-line capture, and the traps that will
+> bite you — lives in [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md). Read that
+> before touching anything under "Gambling Takes".
 
 ---
 
 ## 🎯 1. What This Is
 
-`sox_tracker` is a Python MLB analytics suite that publishes five interactive
-GitHub Pages dashboards for the **Boston Red Sox** (`TEAM_ID = 111`).
+`sox_tracker` is a Python MLB analytics suite that publishes interactive GitHub
+Pages dashboards for the **Boston Red Sox** (`TEAM_ID = 111`).
+
+Since 2026-07-27 the suite is divided by a switch at the top of every page:
+
+| Mode | Pages | Character |
+| :--- | :--- | :--- |
+| 🎲 **Gambling Takes** | Tonight's Board, Models & Method, How This Works, Today's Matchup | Stale within the hour; every page states when it was read |
+| 📊 **Season Stats** | Season Dashboard, Stat Leaders, Win Streaks | The settled record; reads the same at noon and at midnight |
+
+**Navigation is generated from `viz/theme.PAGES` and `theme.nav_bar()`** — one
+definition, not one per exporter. Register a new page there; the tests enforce
+that the registry, the generators and `docs/index.html` agree. The mode shown is
+*derived* from the current page rather than stored, so the control cannot
+disagree with what is on screen.
 
 - **Repository path**: `/home/cgarms/Projects/sox-tracker`
 - **Virtual environment**: Python 3.11+, `pip install -r requirements.txt`
 - **Output**: `docs/` → published at
   [cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)
-- **Refresh**: `.github/workflows/refresh.yml` runs daily at 11:00 UTC and now
-  rebuilds **all five** pages (it previously rebuilt only the main dashboard,
-  leaving the other four stale).
+- **Refresh**: `.github/workflows/refresh.yml` rebuilds every page four times a
+  day (07:00 / 12:00 / 15:00 / 17:30 ET), so the board is never many hours stale
+  by first pitch.
+- **Closing capture**: `.github/workflows/close.yml` runs every 20 minutes across
+  MLB's start window and spends credits *only* when first pitch is imminent —
+  the schedule read that gates it costs zero quota. See
+  [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md) §3.
+- **Odds budget**: ~480 credits/month against a 500 quota. Count before adding a
+  market.
 
 ---
 
@@ -201,6 +226,25 @@ deleted by the next person who finds it inconvenient.
 ---
 
 ## 📋 8. Known Gaps / Next Up
+
+> Betting-specific gaps live in [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md)
+> §9. What follows is everything else.
+
+**Live traps, in priority order:**
+
+1. **No lineup cross-check.** On 2026-07-27 a hitter carried a live total-bases
+   prop while not in the posted lineup and nothing flagged it. One free MLB call.
+2. **`docs/index.html` is hand-maintained** while `viz/theme.PAGES` is generated.
+   A test asserts they agree, but the index is edited by hand and will drift.
+   Generating it is the real fix.
+3. **`data/cache/bet_log.parquet` is committed to a public repo.** Cory is aware
+   and has chosen to keep it public (2026-07-27); stakes are in units, not
+   dollars. Do not "helpfully" redact it without asking.
+4. **The `bottleneck` package is compiled against NumPy 1.x** in this
+   environment, so every script prints an `_ARRAY_API not found` traceback. It is
+   noise — every report still generates. `pip install --upgrade bottleneck` fixes
+   it; it is environmental, not a repo problem.
+
 
 1. **Neither prop model has an opponent, park, or platoon adjustment.**
    (`roadmap.md` item 1, never built.) Walk-forward backtests put the strikeout

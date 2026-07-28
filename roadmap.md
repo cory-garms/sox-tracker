@@ -7,7 +7,14 @@ A strategic feature roadmap for transforming **`sox_tracker`** into an elite pre
 ## 🎯 1. Player Prop Betting Intelligence
 
 ### ⚾ Pitcher Strikeout Over/Under Model (`O/U K's`)
-- **Opposing Lineup K-Rate Matching**: Compare starting pitcher K/9 against opposing team strikeout rates vs. RHP/LHP over the last 15 games.
+- ~~**Opposing Lineup K-Rate Matching**~~ — **built 2026-07-27, measured no
+  improvement.** `data/opponent.py` applies a league-relative team K rate,
+  regressed by plate appearances and computed only from games *before* the one
+  being projected. Over 73 held-out starts the model error was 1.39 K with and
+  without it. Kept because it is principled and free, not because it works. See
+  §6 of [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md) — the effect is ~0.3 K
+  against 1.39 K of error, which this sample cannot resolve. A split by pitcher
+  handedness and a multi-season backtest are the open version of this item.
 - **Pitch Count & Innings Limit Predictor**: Projected strikeouts based on pitch-count limits, 3-day rest, and 5-start rolling K% per 100 pitches.
 
 ### 💥 Batter Total Bases (TB) & Home Run Props

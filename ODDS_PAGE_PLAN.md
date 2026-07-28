@@ -1,8 +1,8 @@
 # 🎲 Odds Page — What to Build Next
 
-> Rewritten 2026-07-25 at the end of the consistency sprint. Ordered by value per
-> unit of effort, not by ambition. The §0 debt this document opened with has been
-> paid; what follows is what is left.
+> Rewritten 2026-07-25, extended 2026-07-27. Ordered by value per unit of effort,
+> not by ambition. §0-§4 are the consistency sprint; §5 is the market-pricing
+> sprint; §6 is what is actually left.
 
 ---
 
@@ -290,3 +290,68 @@ The quota is no longer the binding constraint — the plan is to upgrade the tie
 if the CLV record shows the models are worth feeding. What has not changed is
 that **a new market still needs its own measured error bar before it can say
 anything.** Breadth was never the constraint; validated accuracy is.
+
+
+---
+
+## 6. What is left — 2026-07-27
+
+Reordered after the market-pricing sprint. The headline finding of that sprint
+changes the priorities: **the models were never the binding constraint on this
+page's usefulness — the absence of a market benchmark was.** With consensus
+pricing and promotion valuation in place, the page is useful on nights when both
+models decline to speak, which is every night so far.
+
+### 6a. Lineup cross-check — do this first
+A hitter carried a live +117 total-bases prop on 2026-07-27 while not in the
+posted lineup, and nothing on the page flagged it. The lineup is one free MLB
+call and is already fetched for the matchup page. Cross-reference propped
+players against it and mark anyone not starting. *Effort: ~2 hours. This is a
+live trap, not a hypothetical.*
+
+### 6b. Accumulate CLV to n≈20 before touching a model
+Ten graded bets is an anecdote. Twenty is roughly where the sign of a mean CLV
+starts to carry information, and CLV is the only route to lowering an error bar
+honestly. **Resist the urge to improve a model before the measurement can tell
+you whether you did.** The 2026-07-27 opponent adjustment is the cautionary
+example: principled, free, and completely invisible to a 73-start test.
+
+### 6c. Grade parlays
+A parlay is logged as one row spanning four markets; the grader works per
+selection, so it never gets a closing price. Grade the legs individually and
+compute the parlay's own EV separately — and note that correlated legs make the
+independence assumption optimistic, sometimes badly.
+
+### 6d. Multi-season strikeout backtest
+The only way to settle whether the opponent adjustment helps. A ~0.3 K effect
+against 1.39 K of model error needs far more than 73 starts to resolve. Until
+then the adjustment stays in, uncredited.
+
+### 6e. Park factors
+`roadmap.md` 3c, still untouched. Sutter Health Park is a converted Triple-A
+stadium and the total-bases model has no idea. Do it after 6b, so the error bar
+can say whether it helped.
+
+### 6f. Generate `docs/index.html`
+It is hand-maintained while `viz/theme.PAGES` is generated. A test asserts they
+agree, which catches drift but does not prevent it.
+
+---
+
+## 7. The finding worth carrying forward
+
+On the first night the consensus engine ran live — 32 selections, 14 prop
+markets, 6 game markets, up to 8 books — **nothing was mispriced.** The best
+raw price on the board was −0.98%.
+
+The only positive expectation available came from a **promotion**, and it was
+worth more than every model on the site combined: a 50% profit boost on the
+longest fairly-priced leg returned +25.4% against a slate whose four unboosted
+props cost −0.13U in expectation.
+
+That is the correct result for a retail bettor at a liquid book, and it should
+be the prior. **A future sweep that reports a large edge against eight books is
+more likely a bug than an opportunity** — this one did exactly that on its first
+run, reporting +0.27% on a total because a 10.0 line was being compared against
+books sitting on 9.5. Check that you are comparing identical bets, at
+comparable timestamps, before believing any of it.

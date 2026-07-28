@@ -10,7 +10,7 @@ Live Web Suite: **[cory-garms.github.io/sox-tracker](https://cory-garms.github.i
 
 ## 🌐 GitHub Pages Interactive Web Suite
 
-Five mobile-first, vintage-ballpark HTML pages, rebuilt daily by GitHub Actions and tracked with GoatCounter analytics:
+Mobile-first, vintage-ballpark HTML pages, rebuilt daily by GitHub Actions and tracked with GoatCounter analytics. A switch at the top of every page divides the suite into **🎲 Gambling Takes** (time-sensitive, stale within the hour) and **📊 Season Stats** (the settled record):
 
 | Page | Description | CLI Exporter | Live Output |
 | :--- | :--- | :--- | :--- |
@@ -19,7 +19,9 @@ Five mobile-first, vintage-ballpark HTML pages, rebuilt daily by GitHub Actions 
 | 📊 **Main Season Dashboard** | Season timeline, 7/15-game rolling win%, run differential, rotation game scores, bullpen load | `python viz_report.py` | [View Dashboard](https://cory-garms.github.io/sox-tracker/dashboard_BOS_2026.html) |
 | 🏆 **The 15-Game Win Streak** | Tribute to the July 3–22, 2026 run that tied the franchise record, measured against Franchise (15 W), AL (22 W), and MLB (26 W) marks | `python streak_report.py` | [View Streak Report](https://cory-garms.github.io/sox-tracker/streak_records_BOS_2026.html) |
 | 🥇 **Team Stat Leaders** | Top-5 leaderboards in HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV | `python leaders_report.py` | [View Stat Leaders](https://cory-garms.github.io/sox-tracker/leaders_BOS_2026.html) |
-| 🎲 **Betting & Prop Intelligence** | Today's starter's strikeout projection vs the live book line, batter total-bases and HR/RBI props, First-5 starter cards, NRFI/YRFI tracking | `python betting_report.py` | [View Betting Page](https://cory-garms.github.io/sox-tracker/betting_BOS_2026.html) |
+| 🎲 **Tonight's Board** | Biggest line moves, your logged position against the close, DraftKings priced against the market consensus, and what a promotion is actually worth | `python betting_report.py` | [View Board](https://cory-garms.github.io/sox-tracker/tonights_board_BOS_2026.html) |
+| 🔬 **Models & Method** | Strikeout and total-bases models with their measured error bars, First-5 starter cards, NRFI/YRFI tracking | *(same exporter)* | [View Models](https://cory-garms.github.io/sox-tracker/models_BOS_2026.html) |
+| 📚 **How This Works** | Every methodological note the board would otherwise carry — collected automatically at build time | *(same exporter)* | [View Method](https://cory-garms.github.io/sox-tracker/method_BOS_2026.html) |
 
 ---
 
@@ -52,8 +54,37 @@ python viz_report.py     --team BOS --season 2026
 python leaders_report.py --team BOS --season 2026
 python matchup_report.py --team BOS --season 2026
 python betting_report.py --team BOS --season 2026
-python streak_report.py
+python streak_report.py     # betting_report.py emits three pages: board, models, method
 ```
+
+### Betting workflow
+
+```bash
+# log a bet - stake 0 is a paper bet and grades identically
+python scripts/log_bet.py --selection "Athletics" --market h2h --side Moneyline \
+    --price +158 --stake 1 --promo boost_50
+
+# capture the closing line (free outside the window; ~4 credits inside it)
+python scripts/capture_close.py
+
+# grade against the close and report closing line value
+python scripts/log_bet.py --grade
+python scripts/log_bet.py --summary
+```
+
+### Measurement scripts
+
+| Script | What it measures |
+| :--- | :--- |
+| `scripts/backtest_pitcher_k.py` | Walk-forward strikeout error; prints `MODEL_ERROR_K` |
+| `scripts/backtest_batter_tb.py` | Total-bases error bar |
+| `scripts/measure_early_win_lift.py` | Value of an "up 2 runs" early-win token |
+| `scripts/merge_odds_history.py` | Lossless union of two odds-history files |
+| `scripts/verify_odds.py` | End-to-end odds pipeline check |
+
+> **Constants like `MODEL_ERROR_K` are outputs of these scripts, never settings.**
+> Lowering one by hand to make the page recommend something defeats the only
+> mechanism keeping it honest.
 
 ---
 

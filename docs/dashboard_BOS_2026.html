@@ -68,6 +68,34 @@
     }
     a.mode-seg:hover { background: #244035; color: #F6F1E3; }
 
+    /* Method notes. The reasoning behind a number is read once; the number is
+       read every night. Collapsing the former keeps the page scannable without
+       deleting anything a reader might want to audit. */
+    details.method {
+      margin-top: 12px;
+      border-top: 1px solid #244035;
+      padding-top: 8px;
+    }
+    .method-link {
+      margin-top: 10px; font-family: 'Graduate', Georgia, serif;
+      font-size: 0.62rem; letter-spacing: 0.09em; text-transform: uppercase;
+    }
+    .method-link a { color: #9DB0A5; text-decoration: none; }
+    .method-link a:hover { color: #C5A059; }
+
+    details.method > summary {
+      cursor: pointer; list-style: none;
+      font-family: 'Graduate', Georgia, serif; font-size: 0.66rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: #9DB0A5;
+      padding: 4px 0;
+    }
+    details.method > summary::-webkit-details-marker { display: none; }
+    details.method > summary::before { content: "+ "; color: #C5A059; }
+    details.method[open] > summary::before { content: "- "; }
+    details.method > summary:hover { color: #F6F1E3; }
+    details.method .table-note { margin-top: 6px; }
+
     .nav-pages { display: flex; flex-wrap: wrap; gap: 6px; }
     .nav-page {
       color: #F6F1E3; text-decoration: none;
@@ -328,7 +356,7 @@
 </head>
 <body>
   <div class="nav-bar">
-    <div class="mode-switch" role="tablist" aria-label="Section"><a href="betting_BOS_2026.html" class="mode-seg">&#127922; Gambling Takes</a><span class="mode-seg active">&#128202; Season Stats</span></div>
+    <div class="mode-switch" role="tablist" aria-label="Section"><a href="tonights_board_BOS_2026.html" class="mode-seg">&#127922; Gambling Takes</a><span class="mode-seg active">&#128202; Season Stats</span></div>
     <div class="nav-pages"><span class="nav-page current">Season Dashboard</span><a href="leaders_BOS_2026.html" class="nav-page">Stat Leaders</a><a href="streak_records_BOS_2026.html" class="nav-page">Win Streaks</a>
       <a href="index.html" class="nav-page index-link">All pages</a>
     </div>
