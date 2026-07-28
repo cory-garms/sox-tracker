@@ -58,7 +58,8 @@ class TestNavBar:
             for other, (filename, _, other_mode) in theme.PAGES.items():
                 if other_mode == mode:
                     continue
-                assert filename not in links, f"{slug} leaked {other} into its page links"
+                assert f'href="{filename}"' not in links, \
+                    f"{slug} leaked {other} into its page links"
 
     def test_the_switch_reaches_the_other_mode(self):
         for slug, (_, _, mode) in theme.PAGES.items():
@@ -67,7 +68,7 @@ class TestNavBar:
             for other_mode in theme.MODE_LABELS:
                 if other_mode == mode:
                     continue
-                assert theme._mode_landing(other_mode) in switch, slug
+                assert f'href="{theme._mode_landing(other_mode)}"' in switch, slug
 
     def test_the_current_page_is_not_a_link_to_itself(self):
         for slug, (filename, _, _) in theme.PAGES.items():
@@ -112,4 +113,4 @@ class TestGeneratedPagesCarryTheNav:
             pytest.skip("index.html not present")
         html = index.read_text(encoding="utf-8")
         for slug, (filename, _, _) in theme.PAGES.items():
-            assert filename in html, f"index.html does not link {slug}"
+            assert f'href="{filename}"' in html, f"index.html does not link {slug}"
