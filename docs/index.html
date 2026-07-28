@@ -69,6 +69,19 @@
     p.subtitle a { color: #b08a02; text-decoration: none; }
     p.subtitle a:hover { text-decoration: underline; }
 
+    .group-head {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.86rem, 2.6vw, 1.05rem);
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: #F6F1E3; text-align: left;
+      margin: clamp(18px, 4vw, 28px) 0 4px;
+      padding-bottom: 7px; border-bottom: 1px solid #C5A059;
+    }
+    .group-sub {
+      text-align: left; color: #9DB0A5;
+      font-size: clamp(0.76rem, 2vw, 0.88rem);
+      line-height: 1.5; margin-bottom: 14px;
+    }
     .cards {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -138,7 +151,20 @@
 
     @media (max-width: 480px) {
       body { padding: 16px 12px; }
-      .cards { grid-template-columns: 1fr; }
+      .group-head {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.86rem, 2.6vw, 1.05rem);
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: #F6F1E3; text-align: left;
+      margin: clamp(18px, 4vw, 28px) 0 4px;
+      padding-bottom: 7px; border-bottom: 1px solid #C5A059;
+    }
+    .group-sub {
+      text-align: left; color: #9DB0A5;
+      font-size: clamp(0.76rem, 2vw, 0.88rem);
+      line-height: 1.5; margin-bottom: 14px;
+    }
+    .cards { grid-template-columns: 1fr; }
       .card { padding: 18px 16px; }
       .card::before, .card::after { display: none; }
     }
@@ -152,53 +178,54 @@
       <p class="subtitle">Interactive Plotly dashboards & performance analytics by <strong>Cory Garms</strong> (<a href="https://github.com/cory-garms">@cory-garms</a>)</p>
     </header>
 
+    <h2 class="group-head">&#127922; Gambling Takes</h2>
+    <p class="group-sub">Tonight's board. Stale within the hour by design &mdash; every page here
+    states the moment its prices were read.</p>
     <div class="cards">
+      <a href="betting_BOS_2026.html" class="card">
+        <div>
+          <h2>&#127922; Board &amp; Props</h2>
+          <p>Biggest line moves, DraftKings priced against the market consensus, promotion
+          value, and the strikeout / total-bases models &mdash; each stating what it can and
+          cannot support.</p>
+        </div>
+        <div class="cta">View Tonight's Board &rarr;</div>
+      </a>
       <a href="matchup_BOS_2026.html" class="card">
         <div>
-          <h2>⚾ Today's Matchup Preview</h2>
-          <p>Pre-game intelligence preview including probable starter metrics, platoon hitting advantage splits, and bullpen availability.</p>
+          <h2>&#9918; Today's Matchup</h2>
+          <p>Pre-game intelligence: probable starter metrics, platoon hitting advantage
+          splits, and first pitch.</p>
         </div>
         <div class="cta">View Pre-Game Matchup &rarr;</div>
       </a>
+    </div>
 
+    <h2 class="group-head">&#128202; Season Stats</h2>
+    <p class="group-sub">The settled record. These read the same at noon and at midnight.</p>
+    <div class="cards">
       <a href="dashboard_BOS_2026.html" class="card">
         <div>
-          <h2>📊 Main Season Dashboard</h2>
-          <p>Interactive Plotly charts for Season Timeline, 7/15-Game Rolling Win%, Run Differential, Rotation Game Scores, and Bullpen Workload.</p>
+          <h2>&#128202; Season Dashboard</h2>
+          <p>Interactive Plotly charts for Season Timeline, 7/15-Game Rolling Win%, Run
+          Differential, Rotation Game Scores, and Bullpen Workload.</p>
         </div>
         <div class="cta">View Dashboard &rarr;</div>
       </a>
-
+      <a href="leaders_BOS_2026.html" class="card">
+        <div>
+          <h2>&#129351; Team Stat Leaders</h2>
+          <p>Top-5 player leaderboards in major offensive and pitching categories (HR, AVG,
+          OPS, ERA, K/9, Wins, Saves).</p>
+        </div>
+        <div class="cta">View Stat Leaders &rarr;</div>
+      </a>
       <a href="streak_records_BOS_2026.html" class="card">
         <div>
-          <h2>🏆 The 15-Game Win Streak</h2>
-          <p>July 3&ndash;22, 2026 &mdash; the run that tied the franchise record, game by game, measured against Franchise (15 W), AL (22 W), and MLB records.</p>
+          <h2>&#127942; The 15-Game Win Streak</h2>
+          <p>July 3&ndash;22, 2026 &mdash; the run that tied the franchise record, game by game,
+          measured against Franchise (15 W), AL (22 W), and MLB records.</p>
         </div>
         <div class="cta">Relive the Streak &rarr;</div>
       </a>
 
-      <a href="leaders_BOS_2026.html" class="card">
-        <div>
-          <h2>🥇 Team Stat Leaders</h2>
-          <p>Top-5 player leaderboards in major offensive and pitching categories (HR, AVG, OPS, ERA, K/9, Wins, Saves).</p>
-        </div>
-        <div class="cta">View Stat Leaders &rarr;</div>
-      </a>
-
-      <a href="betting_BOS_2026.html" class="card">
-        <div>
-          <h2>🎲 Sports Betting &amp; Prop Intelligence</h2>
-          <p>Pitcher Strikeout O/U prop models, First 5 Innings (F5) starter matchup cards, and NRFI/YRFI 1st-inning trend analytics.</p>
-        </div>
-        <div class="cta">View Betting Intelligence &rarr;</div>
-      </a>
-    </div>
-
-    <footer>
-      Created by <strong>Cory Garms</strong> (<a href="https://github.com/cory-garms">@cory-garms</a>)<br>
-      Data: MLB Stats API & Baseball Savant &nbsp;·&nbsp; Built with <a href="https://github.com/cory-garms/sox-tracker">sox-tracker</a>
-      <div class="stamp">Est. 1912 &middot; Fenway Park &middot; Boston</div>
-    </footer>
-  </div>
-</body>
-</html>

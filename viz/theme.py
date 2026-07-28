@@ -188,6 +188,51 @@ def page_css() -> str:
     }}
     .nav-back:hover {{ background: {OUTFIELD_GREEN}; color: #06120d; }}
 
+    /* Mode switch. Two segments sharing one border so they read as one
+       control with a selected half, rather than as two buttons. Each half
+       takes 50% so the pair is a stable target on a narrow screen instead of
+       resizing with the label text. */
+    .mode-switch {{
+      display: flex; width: 100%;
+      border: 1px solid {BRASS}; border-radius: 3px;
+      overflow: hidden; margin-bottom: 10px;
+    }}
+    .mode-seg {{
+      flex: 1 1 50%; text-align: center;
+      padding: 10px 6px;
+      font-family: {FONT_STENCIL}; font-size: clamp(0.66rem, 2.5vw, 0.8rem);
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: {INK_MUTED}; text-decoration: none;
+      background: {PRESS_BOX};
+      transition: background 0.18s ease, color 0.18s ease;
+      /* 44px is the usual floor for a comfortable touch target. */
+      min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }}
+    .mode-seg + .mode-seg {{ border-left: 1px solid {BRASS}; }}
+    .mode-seg.active {{
+      background: {MONSTER_DARK}; color: {PARCHMENT};
+      box-shadow: inset 0 -3px 0 {OUTFIELD_GREEN};
+    }}
+    a.mode-seg:hover {{ background: {TURF_GRID}; color: {PARCHMENT}; }}
+
+    .nav-pages {{ display: flex; flex-wrap: wrap; gap: 6px; }}
+    .nav-page {{
+      color: {PARCHMENT}; text-decoration: none;
+      font-family: {FONT_STENCIL}; font-size: 0.7rem;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 7px 11px;
+      background: {MONSTER_CARD};
+      border: 1px solid {TURF_GRID};
+      border-radius: 3px;
+      transition: background 0.18s ease;
+    }}
+    a.nav-page:hover {{ background: {MONSTER_DARK}; border-color: {BRASS}; }}
+    .nav-page.current {{
+      background: {MONSTER_DARK}; border-color: {BRASS}; color: {PARCHMENT};
+      cursor: default;
+    }}
+    .nav-page.index-link {{ color: {INK_MUTED}; background: transparent; }}
+
     /* ---- Green Monster header ---- */
     header {{
       background:
@@ -402,3 +447,88 @@ def page_css() -> str:
       .kpi-grid, .stat-grid {{ grid-template-columns: repeat(2, 1fr); }}
     }}
 """
+
+
+# ---------------------------------------------------------------------------
+# Site navigation
+# ---------------------------------------------------------------------------
+#
+# The suite grew into two genuinely different things that happen to share a
+# theme. One is a season record - what has happened, settled, and worth
+# browsing. The other is a live board that is stale within the hour and exists
+# to support a decision before first pitch. Reading them as one undifferentiated
+# list of five pages made the betting work harder to find the moment it became
+# the part with the most in it.
+#
+# The mode is derived from whichever page you are on rather than stored. A
+# toggle that remembers a preference can disagree with the page actually being
+# displayed; deriving it means the control can never be wrong, and it needs no
+# storage, no script, and no hydration on a static file.
+
+MODE_BETTING = "betting"
+MODE_SEASON = "season"
+
+MODE_LABELS = {
+    MODE_BETTING: "&#127922; Gambling Takes",
+    MODE_SEASON: "&#128202; Season Stats",
+}
+
+# slug -> (filename, nav label, mode). Order within a mode is nav order, and the
+# first entry of each mode is where its toggle lands.
+PAGES: dict[str, tuple[str, str, str]] = {
+    "betting":  ("betting_BOS_2026.html",        "Board &amp; Props",  MODE_BETTING),
+    "matchup":  ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_BETTING),
+    "dashboard": ("dashboard_BOS_2026.html",     "Season Dashboard",   MODE_SEASON),
+    "leaders":  ("leaders_BOS_2026.html",        "Stat Leaders",       MODE_SEASON),
+    "streaks":  ("streak_records_BOS_2026.html", "Win Streaks",        MODE_SEASON),
+}
+
+
+def _mode_landing(mode: str) -> str:
+    """The page a mode's toggle navigates to - its first registered page."""
+    for filename, _, page_mode in PAGES.values():
+        if page_mode == mode:
+            return filename
+    return "index.html"
+
+
+def nav_bar(current: str) -> str:
+    """
+    The mode switch and the current mode's page links.
+
+    `current` is a key of PAGES. An unknown key degrades to the season mode with
+    nothing marked active, which is the right failure for a nav: a page that
+    forgot to register itself should still be navigable.
+
+    Rendered from one place because the five generators previously carried five
+    identical copies of a "Back to Suite Index" link, and a nav that has to be
+    edited in five files is a nav that will eventually differ in five files.
+    """
+    entry = PAGES.get(current)
+    mode = entry[2] if entry else MODE_SEASON
+
+    switch = ""
+    for candidate, label in MODE_LABELS.items():
+        active = " active" if candidate == mode else ""
+        href = "#" if candidate == mode else _mode_landing(candidate)
+        # The active segment is a span, not a link to where you already are.
+        if candidate == mode:
+            switch += f'<span class="mode-seg{active}">{label}</span>'
+        else:
+            switch += f'<a href="{href}" class="mode-seg">{label}</a>'
+
+    links = ""
+    for slug, (filename, label, page_mode) in PAGES.items():
+        if page_mode != mode:
+            continue
+        if slug == current:
+            links += f'<span class="nav-page current">{label}</span>'
+        else:
+            links += f'<a href="{filename}" class="nav-page">{label}</a>'
+
+    return f"""  <div class="nav-bar">
+    <div class="mode-switch" role="tablist" aria-label="Section">{switch}</div>
+    <div class="nav-pages">{links}
+      <a href="index.html" class="nav-page index-link">All pages</a>
+    </div>
+  </div>"""

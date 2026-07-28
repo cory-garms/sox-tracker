@@ -41,6 +41,51 @@
     }
     .nav-back:hover { background: #4E9F3D; color: #06120d; }
 
+    /* Mode switch. Two segments sharing one border so they read as one
+       control with a selected half, rather than as two buttons. Each half
+       takes 50% so the pair is a stable target on a narrow screen instead of
+       resizing with the label text. */
+    .mode-switch {
+      display: flex; width: 100%;
+      border: 1px solid #C5A059; border-radius: 3px;
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .mode-seg {
+      flex: 1 1 50%; text-align: center;
+      padding: 10px 6px;
+      font-family: 'Graduate', Georgia, serif; font-size: clamp(0.66rem, 2.5vw, 0.8rem);
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: #9DB0A5; text-decoration: none;
+      background: #0E1714;
+      transition: background 0.18s ease, color 0.18s ease;
+      /* 44px is the usual floor for a comfortable touch target. */
+      min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }
+    .mode-seg + .mode-seg { border-left: 1px solid #C5A059; }
+    .mode-seg.active {
+      background: #00483A; color: #F6F1E3;
+      box-shadow: inset 0 -3px 0 #4E9F3D;
+    }
+    a.mode-seg:hover { background: #244035; color: #F6F1E3; }
+
+    .nav-pages { display: flex; flex-wrap: wrap; gap: 6px; }
+    .nav-page {
+      color: #F6F1E3; text-decoration: none;
+      font-family: 'Graduate', Georgia, serif; font-size: 0.7rem;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 7px 11px;
+      background: #152620;
+      border: 1px solid #244035;
+      border-radius: 3px;
+      transition: background 0.18s ease;
+    }
+    a.nav-page:hover { background: #00483A; border-color: #C5A059; }
+    .nav-page.current {
+      background: #00483A; border-color: #C5A059; color: #F6F1E3;
+      cursor: default;
+    }
+    .nav-page.index-link { color: #9DB0A5; background: transparent; }
+
     /* ---- Green Monster header ---- */
     header {
       background:
@@ -280,7 +325,10 @@
 </head>
 <body>
   <div class="nav-bar">
-    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
+    <div class="mode-switch" role="tablist" aria-label="Section"><span class="mode-seg active">&#127922; Gambling Takes</span><a href="dashboard_BOS_2026.html" class="mode-seg">&#128202; Season Stats</a></div>
+    <div class="nav-pages"><a href="betting_BOS_2026.html" class="nav-page">Board &amp; Props</a><span class="nav-page current">Today's Matchup</span>
+      <a href="index.html" class="nav-page index-link">All pages</a>
+    </div>
   </div>
 
   <header>

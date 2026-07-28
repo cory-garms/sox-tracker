@@ -215,9 +215,7 @@ def build(
   </style>
 </head>
 <body>
-  <div class="nav-bar">
-    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
-  </div>
+{theme.nav_bar('dashboard')}
   <header>
     <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
     <div>

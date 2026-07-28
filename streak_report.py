@@ -363,9 +363,7 @@ def main() -> None:
   </style>
 </head>
 <body>
-  <div class="nav-bar">
-    <a href="index.html" class="nav-back">&larr; Back to Suite Index</a>
-  </div>
+{theme.nav_bar('streaks')}
   <header>
     <img src="images/sox_retro_logo.png" alt="Boston Red Sox Logo" class="team-logo">
     <div>
