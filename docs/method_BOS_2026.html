@@ -416,9 +416,29 @@
   </header>
 
 
+  <section class="card" id="how-the-consensus-is-built">
+    <h2>How the consensus is built</h2>
+    <p class="table-note">Each book is de-vigged on its own before they are combined, and the book being priced is excluded from its own benchmark. Only books quoting the <em>same</em> number are compared, and a selection needs 3 others before it appears. Showing the 12 best of 24 priced selections. These are retail US books, not sharp limits &mdash; treat a small positive as noise, not an edge.</p>
+  </section>
+
   <section class="card" id="what-clv-measures">
     <h2>What CLV measures</h2>
     <p class="table-note">The change in de-vigged implied probability between the price taken and the price at the close, in points. Positive means the market moved toward the bet after it was placed. It is the honest scoreboard here precisely because results are far noisier than the line's own drift.</p>
+  </section>
+
+  <section class="card" id="where-these-numbers-come-from">
+    <h2>Where these numbers come from</h2>
+    <p class="table-note">A 50% profit boost pays <strong>1.5 &times; EV<sub>raw</sub> + 0.5 &times; (1 &minus; p)</strong> &mdash; +25% on a fair even-money bet, +40% on a fair +400 one. The token adds a fixed 10.3 points of win probability, measured by <code>scripts/measure_early_win_lift.py</code> over 3,172 team-games: P(ever led by 2+ <em>or</em> won) &minus; P(won) = <strong>+0.1028</strong>. Stored as a lift, not a rate, because a team's own P(ever up 2) is anchored to the schedule it played. Assumes the bet settles normally when the trigger never happens &mdash; check the promotion's terms, that assumption does real work.</p>
+  </section>
+
+  <section class="card" id="why-the-strikeout-model-calls-nothing">
+    <h2>Why the strikeout model calls nothing</h2>
+    <p class="table-note"><strong>Market %</strong> is the book's price with the vig stripped out; <strong>Model %</strong> is this page's Poisson probability around its projection. Reading them side by side is the point of the table, and edge is projection minus line. The model's own error is &plusmn;1.39 K per start &mdash; a walk-forward backtest over 73 held-out starts, after removing the irreducible scatter a perfect projection would still show &mdash; so a smaller edge cannot be told apart from zero. An edge larger than 1.5 K against a liquid market means the model is reporting its own bug, and is marked REVIEW. Those two limits nearly meet, which leaves no honest window to recommend from. An opponent K-rate adjustment was added on 2026-07-27 and measured no improvement at all; there is still no park or platoon context.</p>
+  </section>
+
+  <section class="card" id="why-the-total-bases-model-calls-nothing">
+    <h2>Why the total-bases model calls nothing</h2>
+    <p class="table-note">Lines are DraftKings' own, fetched with the strikeout market. Comparing a projection to the line would rank hitters by quality the book already charges for, so the model prices a probability instead. That over-probability moves by &plusmn;4.9 points when its inputs are resampled, while the entire spread of opinion it has been shown to hold out of sample is 5.1 points &mdash; walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 for a coin flip. An edge must be larger than the first and smaller than the second to mean anything, and almost nothing is. The honest reading is the two probability columns side by side, not the last one.</p>
   </section>
 
 
