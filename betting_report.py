@@ -17,7 +17,7 @@ from client.odds_math import american_to_implied_prob
 from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
-from data import bet_log, odds_history, opponent
+from data import bet_log, league_pitching, odds_history, opponent
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.betting import (
     EARLY_WIN_LIFT_2RUN,
@@ -849,9 +849,17 @@ def generate_betting_html(
     if opp_id is None and not games.empty and "opponent_id" in games.columns:
         opp_id = int(games.sort_values("game_date").iloc[-1]["opponent_id"])
 
+    # The league rate the projection regresses toward. None when the league logs
+    # are unavailable, which drops the model back to each pitcher's own season
+    # rate rather than to a hardcoded prior.
+    league_k9 = league_pitching.league_k_per_9(
+        league_pitching.load_league_logs(season, client=client)
+    )
+
     k_df = pitcher_strikeout_model(
         pitching, batting, games, client, book.get(MARKET_K, {}), team_id, season,
         opponent_logs=opp_logs, opponent_team_id=opp_id, as_of_date=date_str,
+        league_k9=league_k9,
         # Deliberately a set even when empty: an unresolved probable must yield
         # an empty table the page can explain, never a fallback to the whole
         # rotation.
@@ -985,26 +993,45 @@ def generate_betting_html(
     )
 
     if lines_live:
+        # Derived from the table rather than asserted. This line read "No sides
+        # called" for as long as the error bar made that true, and kept saying
+        # it into the first build where it was not.
+        called = 0
+        if not k_df.empty and "recommendation" in k_df.columns:
+            called = int(k_df["recommendation"].str.startswith(("OVER", "UNDER")).sum())
+        if called:
+            headline = (
+                f"<strong>{called} side{'s' if called > 1 else ''} called.</strong> "
+                f"Measured error &plusmn;{MODEL_ERROR_K:.2f} K per start, so only a "
+                f"gap wider than that is reported as a bet."
+            )
+        else:
+            headline = (
+                f"<strong>No sides called tonight.</strong> Every gap on the board "
+                f"is inside the model's own &plusmn;{MODEL_ERROR_K:.2f} K error."
+            )
         k_note = (
-            f"<strong>No sides called.</strong> Measured error "
-            f"&plusmn;{MODEL_ERROR_K:.2f} K per start &mdash; as large as any edge "
-            "this model can demonstrate."
+            headline
             + _method(
-                "Why the strikeout model calls nothing",
+                "How the strikeout model decides",
                 "<strong>Market %</strong> is the book's price with the vig "
                 "stripped out; <strong>Model %</strong> is this page's Poisson "
                 "probability around its projection. Reading them side by side is "
                 "the point of the table, and edge is projection minus line. The "
                 f"model's own error is &plusmn;{MODEL_ERROR_K:.2f} K per start "
-                "&mdash; a walk-forward backtest over 73 held-out starts, after "
-                "removing the irreducible scatter a perfect projection would still "
-                "show &mdash; so a smaller edge cannot be told apart from zero. An "
-                f"edge larger than {MAX_PLAUSIBLE_EDGE_K:.1f} K against a liquid "
-                "market means the model is reporting its own bug, and is marked "
-                "REVIEW. Those two limits nearly meet, which leaves no honest "
-                "window to recommend from. An opponent K-rate adjustment was added "
-                "on 2026-07-27 and measured no improvement at all; there is still "
-                "no park or platoon context."
+                "&mdash; a walk-forward backtest over 2,347 held-out starts by "
+                "every starter in the league, after removing the irreducible "
+                "scatter a perfect projection would still show &mdash; so a "
+                "smaller edge cannot be told apart from zero. An edge larger than "
+                f"{MAX_PLAUSIBLE_EDGE_K:.1f} K against a liquid market means the "
+                "model is reporting its own bug, and is marked REVIEW. "
+                "<strong>Until 2026-08-04 this page called nothing at all:</strong> "
+                "the error was measured on 73 starts of one rotation, which put it "
+                "at 1.39 K and left no room between those two limits. Measuring the "
+                "whole league instead showed the projection was always better than "
+                "that, and that regressing a pitcher's rate toward the league mean "
+                "&mdash; rather than chasing his last five starts &mdash; is better "
+                "again. There is still no park or platoon context."
             )
         )
     else:

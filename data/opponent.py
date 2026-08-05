@@ -25,6 +25,7 @@ import pandas as pd
 
 import config
 from client.mlb_client import MLBClient
+from data import cache_freshness
 
 log = logging.getLogger(__name__)
 
@@ -81,26 +82,50 @@ def fetch_team_hitting_logs(
 
 
 def load_team_hitting_logs(
-    season: int, client: MLBClient | None = None, force_refresh: bool = False
+    season: int,
+    client: MLBClient | None = None,
+    force_refresh: bool = False,
+    max_age_hours: float = cache_freshness.DEFAULT_MAX_AGE_HOURS,
 ) -> pd.DataFrame:
     """
     Cached league-wide hitting logs. Returns an empty frame rather than raising
     when the data cannot be had, because every consumer degrades to "no
     opponent adjustment" and a page must still build.
+
+    Refetches when the cache is older than `max_age_hours`. It previously
+    returned whatever was on disk forever, which had the opponent K factor
+    running on six-day-old logs with no signal that anything was wrong. Pass
+    `max_age_hours=0` to read the cache regardless of age - what a backtest of a
+    finished season wants.
     """
     path = cache_path(season)
+    stale = cache_freshness.is_stale(path, max_age_hours)
+    cached = None
     if path.exists() and not force_refresh:
         try:
-            return pd.read_parquet(path)
+            cached = pd.read_parquet(path)
         except Exception as e:
             log.warning("Could not read %s: %s", path, e)
+        if cached is not None and not stale:
+            return cached
+        if cached is not None:
+            log.info("%s is %.1fh old; refreshing", path.name,
+                     cache_freshness.age_hours(path))
     if client is None:
-        return pd.DataFrame(columns=COLUMNS)
-    frame = fetch_team_hitting_logs(client, season)
-    if not frame.empty:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        frame.to_parquet(path, index=False)
-        log.info("Cached %d team-game hitting rows -> %s", len(frame), path)
+        # Stale beats nothing: the caller cannot refetch, and an empty frame
+        # would silently drop the adjustment entirely.
+        return cached if cached is not None else pd.DataFrame(columns=COLUMNS)
+    try:
+        frame = fetch_team_hitting_logs(client, season)
+    except Exception as e:
+        log.warning("Refresh of %s failed (%s); using the cached copy",
+                    path.name, e)
+        return cached if cached is not None else pd.DataFrame(columns=COLUMNS)
+    if frame.empty:
+        return cached if cached is not None else frame
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_parquet(path, index=False)
+    log.info("Cached %d team-game hitting rows -> %s", len(frame), path)
     return frame
 
 

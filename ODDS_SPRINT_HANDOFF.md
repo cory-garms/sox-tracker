@@ -149,34 +149,52 @@ conclude a market does not exist because the payload lacks it — check the app.
 
 | Constant | Value | Measured by |
 | :--- | ---: | :--- |
-| `MODEL_ERROR_K` | **1.39** K | `scripts/backtest_pitcher_k.py`, 73 held-out starts |
+| `MODEL_ERROR_K` | **0.45** K | `scripts/backtest_league_k.py`, 2,347 held-out starts |
 | `MAX_PLAUSIBLE_EDGE_K` | 1.5 K | ceiling; above it the model is reporting a bug |
 | `MODEL_ERROR_TB_PROB` | 0.049 | `scripts/backtest_batter_tb.py`, 714 held-out starts |
 | `EARLY_WIN_LIFT_2RUN` | **+0.1028** | `scripts/measure_early_win_lift.py`, 3,172 team-games |
 
-**The recommendation window is 1.39 → 1.5 K, or 0.11 K wide.** Still a sliver.
-The page still calls nothing. Recommendations resume *on their own* when
-`MODEL_ERROR_K` is re-measured lower — never by editing the constant.
+**The recommendation window is 0.45 → 1.5 K.** As of 2026-08-04 the strikeout
+page calls sides for the first time. Nothing in the gating logic changed to
+allow that — only the measurement did, exactly as this section previously said
+it would. Recommendations must never resume by editing the constant.
 
-### The opponent adjustment did not work
+### The opponent adjustment does work — the old test could not see it
 
-Item 1 of `roadmap.md` was built on 2026-07-27 and **measured no improvement**:
+This section previously read "the opponent adjustment did not work", on the
+strength of a backtest over 73 Boston starts where baseline and adjusted both
+measured 1.39 K. **That conclusion was an artefact of the sample size**, and the
+note recording it said as much without acting on it.
+
+`pitcher_strikeout_model` projects a starter from his own game log and knows
+nothing about Boston, so it can be backtested on every starter in the league:
+2,347 held-out starts instead of 73, standard error ±0.12 K instead of ±0.41 K.
+On that sample, as a paired bootstrap over the same starts (95% CI on the MSE
+gap, K²):
 
 ```
-baseline (pitcher only)   RMSE 2.61  Poisson 2.21  model error 1.39
-adjusted (+ opponent)     RMSE 2.61  Poisson 2.21  model error 1.39
+the last-5 term earned nothing        blend vs season      [-0.018, +0.058]
+regression to the league mean helps   blend vs marcel      [+0.114, +0.308]
+the opponent factor helps             marcel vs marcel+opp [+0.016, +0.121]
+the change as a whole                 blend vs marcel+opp  [+0.167, +0.383]
 ```
 
-Only mean absolute error moved, 2.02 → 2.00 K. It is kept because it is
-principled and free, **not** because it was shown to help, and the constant is
-commented to say so. The drop from 1.43 to 1.39 is re-measurement on more
-starts; do not credit the adjustment with it.
+So the shipped model became **Marcel + opponent factor**: the pitcher's own K/9
+regressed toward the league mean by the innings behind it, times the opponent
+factor, times his innings per start. The season/last-5 blend is retired — it was
+never better than a plain season average.
 
-Why the test could not see it: opponent factors span 0.874–1.108, so a typical
-adjustment is worth ~0.3 K on a 6 K projection against 1.39 K of model error and
-2.21 K of Poisson scatter over 73 starts. **That is a statement about the power
-of the measurement, not evidence the adjustment is wrong.** Resolving it needs a
-multi-season backtest.
+**Two traps this uncovered, both worth remembering:**
+
+1. **`scripts/backtest_pitcher_k.py` cannot referee a modelling decision.** At 80
+   starts its standard error is ±0.4 K; it reported the model error as 1.43,
+   1.39 and 1.26 across runs that changed nothing. It no longer sets
+   `MODEL_ERROR_K` and is kept only as a per-team sanity check.
+2. **Do not bootstrap a CI on `model_err` directly.** It is
+   `sqrt(max(0, mse - poisson))`, and mse (~5.24) sits barely above the Poisson
+   floor (~4.97), so resamples routinely clip at zero and the CI's lower bound
+   comes back as exactly `+0.00000` under every seed. That artefact hid a real
+   effect. Compare on **MSE**, which has no clip; `paired_ci` does.
 
 ---
 

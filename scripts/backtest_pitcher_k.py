@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 """
-Walk-forward backtest of the strikeout model, with and without the opponent
-adjustment. Prints the number that MODEL_ERROR_K must be set from.
+Walk-forward backtest of the strikeout model over one team's starts.
 
-Method. For each start, project it using only the starts before it - the same
-blend the live model uses - then compare to what actually happened. Nothing
-about the start being projected, or anything after it, is visible to the
-projection. The opponent's strikeout rate is likewise bounded to games before
-that date, which is the whole reason data/opponent.py stores a game log rather
-than a season total.
+**This script no longer sets MODEL_ERROR_K.** `scripts/backtest_league_k.py`
+does, and this one is kept as the local sanity check beside it.
+
+Why it lost that job. It can only see one team's rotation - about 80 held-out
+starts - where the standard error on the measurement is roughly +/-0.4 K. That
+is wide enough to contain almost any answer: it reported the model error as 1.43,
+then 1.39, then 1.26 across three runs that changed nothing about the model, and
+it declared the opponent adjustment worthless when a league-wide test later put
+that effect comfortably clear of zero. A measurement that noisy cannot referee a
+modelling decision, and treating it as though it could is what kept a falsified
+comment in analysis/betting.py for a week.
+
+What it is still good for: the projection knows nothing about which team it is
+run on, so Boston's number should sit within sampling error of the league one.
+If it does not, something is wrong with *this team's* data - a mis-parsed game
+log, a reliever counted as a starter - and that is worth catching.
+
+Method. For each start, project it using only the starts before it, then compare
+to what actually happened. Nothing about the start being projected, or anything
+after it, is visible. The opponent's strikeout rate is likewise bounded to games
+before that date, which is the whole reason data/opponent.py stores a game log
+rather than a season total.
 
 The decomposition is the point:
 
@@ -19,14 +34,8 @@ exactly right, and for a Poisson that scatter is sqrt(mean). Subtracting it
 leaves the part that is the model actually being wrong, which is the only part
 a better model can remove - and the only honest floor on an edge.
 
-    MODEL_ERROR_K = sqrt(max(0, total_RMSE^2 - mean_projection))
-
 Usage:
     python scripts/backtest_pitcher_k.py [--season 2026] [--min-prior-starts 3]
-
-Whatever this prints is what the constant becomes. Setting it by hand, or
-keeping an older lower value because the new one is inconvenient, defeats the
-only mechanism keeping this page honest.
 """
 
 from __future__ import annotations
@@ -36,52 +45,15 @@ import math
 import sys
 from pathlib import Path
 
-import pandas as pd
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
-from analysis.betting import L5_REGRESSION_INNINGS  # noqa: E402
+from analysis.betting import MODEL_ERROR_K  # noqa: E402
+from analysis.k_projections import project_marcel  # noqa: E402
 from client.mlb_client import MLBClient  # noqa: E402
+from data import league_pitching as lp  # noqa: E402
 from data import opponent as opp  # noqa: E402
 from data.fetcher import Fetcher  # noqa: E402
-
-
-def _innings(frame: pd.DataFrame) -> float:
-    if "ip_outs" in frame.columns:
-        return float(frame["ip_outs"].sum()) / 3.0
-    return float(frame["ip"].sum())
-
-
-def project(prior: pd.DataFrame, k_factor: float = 1.0) -> tuple[float, float]:
-    """
-    (projected strikeouts, projected innings) from prior starts only.
-
-    Deliberately a re-implementation of the live blend rather than a call into
-    it: the model function takes a whole team's frame and returns a table, and
-    bending it to answer "one start, as of one date" would mean passing it
-    filtered data and trusting that the filter is the only difference. Keeping
-    the arithmetic visible here is what makes the backtest auditable.
-    """
-    tot_ip = _innings(prior)
-    if tot_ip <= 0:
-        return float("nan"), float("nan")
-    season_k9 = float(prior["so"].sum()) * 9.0 / tot_ip
-    season_avg_ip = tot_ip / len(prior)
-
-    last5 = prior.tail(5)
-    l5_ip = _innings(last5)
-    if l5_ip > 0:
-        l5_k9 = float(last5["so"].sum()) * 9.0 / l5_ip
-        l5_avg_ip = l5_ip / len(last5)
-    else:
-        l5_k9, l5_avg_ip = season_k9, season_avg_ip
-
-    w5 = l5_ip / (l5_ip + L5_REGRESSION_INNINGS) if l5_ip > 0 else 0.0
-    ws = 1.0 - w5
-    k9 = (season_k9 * ws + l5_k9 * w5) * k_factor
-    ip = season_avg_ip * ws + l5_avg_ip * w5
-    return k9 * ip / 9.0, ip
 
 
 def decompose(projected: list[float], actual: list[float]) -> dict[str, float]:
@@ -128,13 +100,19 @@ def main() -> int:
     fetcher = Fetcher(team_id=team_id, season=args.season, client=client)
     pitching = fetcher.load("pitching")
     games = fetcher.load("games")
-    logs = opp.load_team_hitting_logs(args.season, client=client)
+    logs = opp.load_team_hitting_logs(args.season, client=client, max_age_hours=0)
+    league_logs = lp.load_league_logs(args.season, client=client, max_age_hours=0)
+    league_k9 = lp.league_k_per_9(league_logs)
 
     if pitching.empty:
         print("No pitching data cached.")
         return 1
     if logs.empty:
         print("No opponent hitting logs - cannot measure the adjustment.")
+        return 1
+    if not league_k9:
+        print("No league pitching logs - the shipped model regresses toward the")
+        print("league mean and cannot be reproduced without them.")
         return 1
 
     # game_pk -> opponent, so each start knows who it faced.
@@ -159,12 +137,14 @@ def main() -> int:
             actual = float(row["so"])
             date = str(row["game_date"])
 
-            proj_base, _ = project(prior, 1.0)
+            # League rate as of this date only - never its own future.
+            lk9 = lp.league_k_per_9(league_logs, before=date) or league_k9
+            proj_base, _ = project_marcel(prior, lk9)
             if proj_base != proj_base:               # NaN
                 continue
 
             factor = opp.opponent_k_factor(logs, int(row["opponent_id"]), before=date)
-            proj_adj, _ = project(prior, factor)
+            proj_adj, _ = project_marcel(prior, lk9, k_factor=factor)
 
             base_p.append(proj_base); base_a.append(actual)
             adj_p.append(proj_adj);   adj_a.append(actual)
@@ -177,27 +157,23 @@ def main() -> int:
 
     base = decompose(base_p, base_a)
     adj = decompose(adj_p, adj_a)
-    report("BASELINE  (pitcher only)", base)
+    report("MARCEL          (pitcher only)", base)
     print()
-    report("ADJUSTED  (+ opponent K rate)", adj)
+    report("MARCEL + OPP    (as shipped)", adj)
 
-    print("\n" + "=" * 58)
-    delta = adj["model_err"] - base["model_err"]
-    if delta < -0.005:
-        print(f"The adjustment REDUCED model error by {abs(delta):.2f} K "
-              f"({base['model_err']:.2f} -> {adj['model_err']:.2f}).")
-    elif delta > 0.005:
-        print(f"The adjustment INCREASED model error by {delta:.2f} K "
-              f"({base['model_err']:.2f} -> {adj['model_err']:.2f}).")
-        print("Keep the baseline. An adjustment that does not measure better is")
-        print("a story, not a model.")
-    else:
-        print(f"No measurable change ({base['model_err']:.2f} -> "
-              f"{adj['model_err']:.2f} K).")
-    print("=" * 58)
-    print(f"\nSet MODEL_ERROR_K = {min(adj['model_err'], base['model_err']):.2f}")
-    print("Copy the measurement. Do not round it down, and do not keep an older")
-    print("lower value because it let the page speak.")
+    print("\n" + "=" * 62)
+    print(f"{args.team} sits at {adj['model_err']:.2f} K over {adj['n']} starts, "
+          f"against the")
+    print(f"league-wide {MODEL_ERROR_K:.2f} K that MODEL_ERROR_K is actually set "
+          f"from.")
+    print()
+    print("At this sample the standard error is roughly +/-0.4 K, so these two")
+    print("agreeing to within about 0.8 K is all this script can tell you - and")
+    print("all it is being asked. A large gap means this team's game logs are")
+    print("wrong, not that the constant should move.")
+    print("=" * 62)
+    print("\nMODEL_ERROR_K comes from scripts/backtest_league_k.py. Do not set it")
+    print("from the number above; 80 starts cannot resolve a modelling change.")
     return 0
 
 

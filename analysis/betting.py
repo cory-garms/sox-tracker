@@ -60,34 +60,46 @@ _ID_TO_ABBR: dict[int, str] = {v["id"]: k for k, v in config.TEAMS.items()}
 MIN_STARTS_FOR_PROP = 3   # below this the rolling K/9 is noise, not signal
 
 # Innings needed before a rolling K/9 split carries as much weight as the
-# season rate. Pitcher strikeout rate is generally taken to stabilise somewhere
-# around 60 IP; five starts is roughly half that, so a five-start split gets
-# roughly a third of the weight rather than the 60% it used to be handed.
+# season rate. No longer used by the strikeout projection, which regresses
+# toward the league instead (see MARCEL_PRIOR_IP); kept because the retired
+# blend is still measured as a baseline in analysis/k_projections.py, and a
+# baseline you stop measuring is one you can silently regress past.
 L5_REGRESSION_INNINGS = 60.0
+
+# Innings of league-average prior mixed into a pitcher's own rate. Pitcher
+# strikeout rate is generally taken to stabilise near 70 batters faced, roughly
+# 17-25 innings; 25 is the conservative end, and is chosen rather than fitted
+# because fitting it on the same starts it is evaluated against is how a
+# backtest starts flattering itself.
+MARCEL_PRIOR_IP = 25.0
 
 # The model's own measured error bar, in strikeouts.
 #
-# Re-measured 2026-07-27 by scripts/backtest_pitcher_k.py over 73 held-out
-# starts: project each start from only the starts before it, then decompose the
-# residual. Total RMSE 2.61 K, of which 2.21 K is the irreducible Poisson
-# scatter a perfect projection would still show. The rest is the model being
-# wrong.
+# Re-measured 2026-08-04 by scripts/backtest_league_k.py over 2,347 held-out
+# starts by 201 starters - the whole league, not one team. Project each start
+# from only the starts before it, then decompose the residual: total RMSE
+# 2.27 K, of which 2.23 K is the irreducible Poisson scatter a perfect
+# projection would still show. The rest is the model being wrong.
 #
-# The opponent K-rate adjustment (roadmap.md item 1, added the same day) did
-# NOT move this. Baseline and adjusted both measure 1.39 K; only mean absolute
-# error shifted, 2.02 -> 2.00 K. The adjustment is kept because it is
-# principled and costs nothing, not because it was shown to help.
+# Why the number fell from 1.39, and why that is not the model improving:
+# 1.39 was measured on 73 Boston starts, where the standard error is +/-0.41 K.
+# Its 95% interval spans 0.57-2.21, which contains the value measured here for
+# the same model (0.68 K). The old constant was mostly small-sample noise. The
+# league-wide test has SE +/-0.12 K, which is what makes any of this decidable.
 #
-# Why the test could not see it: the opponent factors span 0.874 to 1.108, so a
-# typical adjustment is worth ~0.3 K on a 6 K projection, against 1.39 K of
-# model error and 2.21 K of Poisson scatter across 73 starts. An effect that
-# size is invisible at this sample. That is a statement about the power of the
-# measurement, not evidence the adjustment is wrong - and it is the reason the
-# constant did not go down.
+# What changed in the model, measured as a paired bootstrap over the same
+# starts (95% CI on the MSE gap, K^2):
 #
-# The drop from 1.43 is re-measurement on more starts, not the adjustment
-# working. Do not attribute it to the adjustment.
-MODEL_ERROR_K = 1.39
+#   the last-5 term earned nothing        blend vs season     [-0.018, +0.058]
+#   regression to the league mean helps   blend vs marcel     [+0.114, +0.308]
+#   the opponent factor helps             marcel vs +opp      [+0.016, +0.121]
+#   the change as a whole                 blend vs marcel+opp [+0.167, +0.383]
+#
+# So the shipped model is Marcel + opponent factor, at 0.45 K. Note the second
+# line especially: the opponent adjustment was previously recorded here as
+# measuring "no help". That was a limit of a 73-start test, not a property of
+# the adjustment, exactly as the note it replaced suspected.
+MODEL_ERROR_K = 0.45
 
 # Floor: an edge must clear the model's own error before it counts as a signal.
 # A gap smaller than the model's typical miss is indistinguishable from zero,
@@ -99,13 +111,19 @@ MIN_EDGE_K = MODEL_ERROR_K
 # much, so when the model claims it has, the model is what's broken.
 MAX_PLAUSIBLE_EDGE_K = 1.5
 
-# Note what those two lines mean together: the floor and the ceiling are almost
-# the same number. Any edge big enough to clear this model's noise is already
-# big enough to be implausible, so in practice it recommends nothing — which is
-# the honest description of a model with a ±1.43 K error. The band is written as
-# two named constants rather than hardcoded off, so that when an opponent K-rate
-# adjustment (roadmap.md item 1) shrinks MODEL_ERROR_K, recommendations resume
-# on their own — but only once the accuracy has been re-measured to justify it.
+# Note what those two lines mean together. Until 2026-08-04 the floor (1.39)
+# and the ceiling (1.5) were nearly the same number, so the band between them
+# was empty and the page recommended nothing at all — the honest description of
+# a model whose error had never been measured precisely enough to beat. They
+# were written as two named constants rather than hardcoded off precisely so
+# that a properly re-measured error would reopen the band on its own, without
+# anyone having to decide the page should start speaking.
+#
+# That is what has now happened: 0.45 against a 1.5 ceiling leaves a real band,
+# and the page calls sides again for the first time. Nothing about the gating
+# logic changed to allow it — only the measurement did. If a future
+# re-measurement pushes MODEL_ERROR_K back up toward the ceiling, the page
+# should fall silent again by the same mechanism, and that is correct.
 
 
 def _innings(frame: pd.DataFrame) -> float:
@@ -312,6 +330,7 @@ def pitcher_strikeout_model(
     opponent_logs: pd.DataFrame | None = None,
     opponent_team_id: int | None = None,
     as_of_date: str | None = None,
+    league_k9: float | None = None,
 ) -> pd.DataFrame:
     """
     Strikeout prop model for the team's starting pitchers.
@@ -326,10 +345,14 @@ def pitcher_strikeout_model(
     every arm that has ever started qualifies, which sweeps in openers and
     long relievers who will not throw tonight and have no prop line.
 
-    Projects strikeouts by blending the season and last-5-start K/9, weighting
-    the rolling split by how many innings stand behind it, then applying the
-    same blend to innings per start. That projection is compared to the
-    *sportsbook's* line.
+    Projects strikeouts by regressing the pitcher's own K/9 toward the league
+    mean by how many innings stand behind it (a Marcel-style projection),
+    applying the opponent factor, then multiplying by his average innings per
+    start. That projection is compared to the *sportsbook's* line.
+
+    `league_k9` is the league starter K/9 the projection regresses toward, from
+    data/league_pitching.py. Without it the projection cannot regress and falls
+    back to the pitcher's own season rate — measurably worse, so pass it.
 
     Edge and EV are only produced when a real book line is available. Deriving
     the line from the projection (as an earlier version did) makes the edge
@@ -383,30 +406,32 @@ def pitcher_strikeout_model(
         season_k9 = (tot_so * 9.0 / tot_ip) if tot_ip > 0 else 0.0
         season_avg_ip = tot_ip / starts_cnt if starts_cnt > 0 else 0.0
 
-        # Last 5 starts rolling
+        # Reported for the page, not used by the projection. A rolling split is
+        # what a reader wants to see; it is not what the model should trust.
         last_5 = sorted_starts.tail(5)
         l5_ip = _innings(last_5)
         l5_so = int(last_5["so"].sum())
         l5_k9 = (l5_so * 9.0 / l5_ip) if l5_ip > 0 else season_k9
-        l5_avg_ip = l5_ip / len(last_5) if len(last_5) > 0 else season_avg_ip
 
-        # How much to trust the rolling split, by how many innings are behind
-        # it. The old model handed the last five starts a flat 60% weight, which
-        # is far too much confidence in ~30 innings.
-        l5_weight = l5_ip / (l5_ip + L5_REGRESSION_INNINGS) if l5_ip > 0 else 0.0
-        season_weight = 1.0 - l5_weight
-
-        blended_k9_own = (season_k9 * season_weight) + (l5_k9 * l5_weight)
+        # Regress his own rate toward the league by the innings behind it. With
+        # no league rate available there is nothing to regress toward, so this
+        # degrades to his own season rate rather than inventing a prior.
+        if league_k9 and tot_ip > 0:
+            regressed_k9_own = ((tot_so * 9.0 + league_k9 * MARCEL_PRIOR_IP)
+                                / (tot_ip + MARCEL_PRIOR_IP))
+        else:
+            regressed_k9_own = season_k9
 
         # Who he is facing. A league-average lineup leaves this untouched.
-        blended_k9 = blended_k9_own * k_factor
+        blended_k9 = regressed_k9_own * k_factor
 
-        # Blend the workload with the *same* weights. The old model blended K/9
-        # but then multiplied by the last-5 innings alone, so a pitcher who was
-        # both striking out more and going deeper had both hot streaks
-        # multiplied together. That compounding is what produced the 6.50
-        # projection against a 4.5 line for a starter averaging 5.0 K a start.
-        proj_ip = (season_avg_ip * season_weight) + (l5_avg_ip * l5_weight)
+        # Workload is his own season average. It is deliberately NOT blended
+        # with the last-5 innings: the old model blended K/9 but multiplied by
+        # last-5 innings alone, so a pitcher both striking out more and going
+        # deeper had two hot streaks multiplied together. That compounding is
+        # what produced a 6.50 projection against a 4.5 line for a starter
+        # averaging 5.0 K a start.
+        proj_ip = season_avg_ip
 
         proj_k = blended_k9 * (proj_ip / 9.0)
 
@@ -418,7 +443,7 @@ def pitcher_strikeout_model(
             "season_k9": round(season_k9, 2),
             "l5_k9": round(l5_k9, 2),
             "avg_ip_start": round(proj_ip, 2),
-            "blended_k9_own": round(blended_k9_own, 2),
+            "blended_k9_own": round(regressed_k9_own, 2),
             "opp_k_factor": round(k_factor, 4),
             "blended_k9": round(blended_k9, 2),
             "proj_k": round(proj_k, 2),

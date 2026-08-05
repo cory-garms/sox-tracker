@@ -76,7 +76,8 @@ python scripts/log_bet.py --summary
 
 | Script | What it measures |
 | :--- | :--- |
-| `scripts/backtest_pitcher_k.py` | Walk-forward strikeout error; prints `MODEL_ERROR_K` |
+| `scripts/backtest_league_k.py` | Walk-forward strikeout error across every league starter; **sets `MODEL_ERROR_K`** and compares the model against Marcel and simpler baselines |
+| `scripts/backtest_pitcher_k.py` | The same test on one team only — a sanity check, far too small (~80 starts) to set a constant from |
 | `scripts/backtest_batter_tb.py` | Total-bases error bar |
 | `scripts/measure_early_win_lift.py` | Value of an "up 2 runs" early-win token |
 | `scripts/merge_odds_history.py` | Lossless union of two odds-history files |
@@ -170,7 +171,7 @@ Use `analysis.streaks.played_in_order(games)`, which sorts by `(game_date, game_
 ## 🔮 Roadmap
 
 See **[ODDS_PAGE_PLAN.md](ODDS_PAGE_PLAN.md)** for the prioritised plan for the
-betting page, **[roadmap.md](roadmap.md)** for longer-term prop modelling ideas, and [HANDOFF_GUIDE.md §8](HANDOFF_GUIDE.md#-8-known-gaps--next-up) for known gaps — the largest being that the strikeout model has **no opponent, park, or platoon adjustment**, which is why it currently declines to recommend any side.
+betting page, **[roadmap.md](roadmap.md)** for longer-term prop modelling ideas, and [HANDOFF_GUIDE.md §8](HANDOFF_GUIDE.md#-8-known-gaps--next-up) for known gaps. The strikeout model began calling sides on 2026-08-04, when re-measuring its error across all 2,347 league starts (rather than 73 of Boston's) put it at **±0.45 K** and the recommendation band opened on its own. It still has **no park or platoon adjustment**, and the total-bases model's error bar remains wider than any edge it has found, so that table still declines to call a side.
 
 ---
 

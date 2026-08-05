@@ -246,14 +246,21 @@ class TestProjectionDoesNotCompoundRecency:
         # between them — taking the last-5 figure alone was the bug.
         assert 5.0 < row["avg_ip_start"] < 7.0
 
-    def test_five_start_sample_gets_less_weight_than_the_season(self):
+    def test_the_hot_streak_does_not_pull_the_projection_at_all(self):
+        """
+        Stronger than the guarantee this replaced. The model used to blend the
+        last five starts in at reduced weight; measured over 2,347 league starts
+        that term earned nothing over a plain season rate (95% CI on the MSE gap
+        [-0.018, +0.058]), so it is gone. A five-start heater must now move the
+        projected rate by exactly zero.
+        """
         row = pitcher_strikeout_model(self._hot_finish(), pd.DataFrame(),
                                       games_df([])).iloc[0]
 
-        season_k9, l5_k9, blended = row["season_k9"], row["l5_k9"], row["blended_k9"]
-        assert season_k9 < blended < l5_k9
-        # ~35 innings behind the split, against a 60-inning regression constant.
-        assert abs(blended - season_k9) < abs(blended - l5_k9)
+        # l5_k9 is still reported - a reader wants to see the streak - but the
+        # projection must not have used it.
+        assert row["l5_k9"] > row["season_k9"]
+        assert row["blended_k9"] == pytest.approx(row["season_k9"], abs=0.01)
 
     def test_projects_lower_than_the_old_compounding_formula(self):
         row = pitcher_strikeout_model(self._hot_finish(), pd.DataFrame(),
@@ -266,12 +273,16 @@ class TestProjectionDoesNotCompoundRecency:
         assert old == pytest.approx(8.12, abs=0.01)
         assert row["proj_k"] < old - 1.0
 
-    def test_projection_lands_between_the_season_and_hot_streak_rates(self):
-        """5.39 K/start across the season, 9.0 over the hot five."""
+    def test_projection_stays_at_the_season_rate_not_the_hot_streak(self):
+        """
+        5.39 K/start across the season, 9.0 over the hot five. With no league
+        rate to regress toward the projection is the season rate exactly, and
+        must not drift up toward the streak.
+        """
         row = pitcher_strikeout_model(self._hot_finish(), pd.DataFrame(),
                                       games_df([])).iloc[0]
 
-        assert 5.39 < row["proj_k"] < 9.0
+        assert row["proj_k"] == pytest.approx(5.39, abs=0.01)
 
 
 class TestPlausibilityGuard:
@@ -329,14 +340,14 @@ class TestNoiseFloor:
     """
 
     def test_edge_inside_the_error_bar_calls_no_side(self):
-        """Projection 7.0 against a 6.0 line — a +1.0 edge, under the 1.43 floor."""
-        row = model_with_line(five_starts(ip=6.0, so=7), book(6.0))
+        """Projection 7.0 against a 6.75 line — a +0.25 edge, under the floor."""
+        row = model_with_line(five_starts(ip=6.0, so=7), book(6.75))
 
         assert 0 < row["edge"] < MIN_EDGE_K
         assert row["recommendation"] == "NO CALL ⚖️"
 
     def test_no_call_publishes_no_ev(self):
-        row = model_with_line(five_starts(ip=6.0, so=7), book(6.0))
+        row = model_with_line(five_starts(ip=6.0, so=7), book(6.75))
 
         assert row["ev_pct"] is None
 
@@ -349,29 +360,33 @@ class TestNoiseFloor:
         assert row["edge"] == pytest.approx(1.0)
 
     def test_negative_edge_inside_the_error_bar_calls_no_side(self):
-        row = model_with_line(five_starts(ip=6.0, so=7), book(8.0))
+        row = model_with_line(five_starts(ip=6.0, so=7), book(7.25))
 
         assert -MIN_EDGE_K < row["edge"] < 0
         assert row["recommendation"] == "NO CALL ⚖️"
 
-    def test_floor_and_ceiling_leave_almost_no_room_to_recommend(self):
+    def test_floor_and_ceiling_leave_real_room_to_recommend(self):
         """
-        The finding this whole state encodes: an edge big enough to clear the
-        model's noise is already big enough to look implausible.
+        The inverse of what this test asserted until 2026-08-04.
 
-        The window was 0.07 K when MODEL_ERROR_K was 1.43. Re-measuring on 73
-        held-out starts moved the error to 1.39, so it is now 0.11 K - still a
-        sliver, and still not a licence to recommend, but wide enough that this
-        assertion had to be revisited exactly as its previous version said it
-        would. Widen the bound deliberately when the measurement moves; never
-        move the measurement to satisfy the bound.
+        For as long as MODEL_ERROR_K was 1.39 the floor and the 1.5 ceiling were
+        a 0.11 K sliver apart, so the page recommended nothing and this test
+        pinned the window shut. Re-measuring on 2,347 league starts instead of 73
+        Boston ones put the error at 0.45 K, and the band opened on its own.
+
+        It is asserted from the constants rather than hardcoded, so re-measuring
+        the model still drives it. What it now guards is the opposite failure:
+        the page silently going mute again because a future error estimate
+        crept back up toward the ceiling. If that is genuinely what was
+        measured, widen this deliberately - never move the measurement to
+        satisfy the bound.
         """
         assert MIN_EDGE_K == MODEL_ERROR_K
         window = MAX_PLAUSIBLE_EDGE_K - MIN_EDGE_K
-        assert 0 < window < 0.2, (
-            f"recommendation window is {window:.2f} K - if this has grown "
-            f"meaningfully, the page can start calling sides again and the "
-            f"handoff docs need rewriting to say so"
+        assert window > 0.5, (
+            f"recommendation window is {window:.2f} K - the band has closed "
+            f"back up and the page can no longer call any side. Confirm that "
+            f"is what the backtest measured before accepting it."
         )
 
     def test_an_edge_inside_the_narrow_band_would_still_recommend(self):

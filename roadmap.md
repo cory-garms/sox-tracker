@@ -7,14 +7,18 @@ A strategic feature roadmap for transforming **`sox_tracker`** into an elite pre
 ## 🎯 1. Player Prop Betting Intelligence
 
 ### ⚾ Pitcher Strikeout Over/Under Model (`O/U K's`)
-- ~~**Opposing Lineup K-Rate Matching**~~ — **built 2026-07-27, measured no
-  improvement.** `data/opponent.py` applies a league-relative team K rate,
+- ~~**Opposing Lineup K-Rate Matching**~~ — **built 2026-07-27, and confirmed to
+  work on 2026-08-04.** `data/opponent.py` applies a league-relative team K rate,
   regressed by plate appearances and computed only from games *before* the one
-  being projected. Over 73 held-out starts the model error was 1.39 K with and
-  without it. Kept because it is principled and free, not because it works. See
-  §6 of [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md) — the effect is ~0.3 K
-  against 1.39 K of error, which this sample cannot resolve. A split by pitcher
-  handedness and a multi-season backtest are the open version of this item.
+  being projected. It was recorded here for a week as "measured no improvement",
+  on a 73-start test too small to resolve it. Across all 2,347 league starts it
+  is worth a paired-bootstrap MSE gap of [+0.016, +0.121] K² on top of Marcel —
+  clear of zero. A split by pitcher handedness is the open version of this item.
+- ~~**Regress the projection toward the league mean**~~ — **built 2026-08-04.**
+  The largest single accuracy gain found so far ([+0.114, +0.308] K²), and it
+  replaced rather than extended the season/last-5 blend, which measured as worth
+  nothing at all over a plain season average. See
+  [`analysis/k_projections.py`](analysis/k_projections.py).
 - **Pitch Count & Innings Limit Predictor**: Projected strikeouts based on pitch-count limits, 3-day rest, and 5-start rolling K% per 100 pitches.
 
 ### 💥 Batter Total Bases (TB) & Home Run Props

@@ -187,7 +187,7 @@ sox_tracker/
 │   └── odds_history.py    # append-only log of every build's lines
 ├── analysis/              # standings, offense, pitching, defense,
 │                          # streaks, matchup, history, betting
-├── scripts/               # verify_odds.py, backtest_batter_tb.py
+├── scripts/               # verify_odds.py, backtest_league_k.py, backtest_batter_tb.py
 └── viz/
     ├── theme.py           # ★ palette, fonts, Plotly base, page CSS
     ├── charts.py          # Plotly chart builders
@@ -212,6 +212,7 @@ python streak_report.py                              # no --team flag yet
 pytest                                               # 230 tests, offline, ~0.7s
 python scripts/verify_odds.py                        # live odds pipeline + quota
 python scripts/backtest_batter_tb.py                 # re-measure the total-bases error bar
+python scripts/backtest_league_k.py                  # re-measure MODEL_ERROR_K (all league starters)
 ```
 
 **Run `pytest` before every commit.** The suite is fully offline — no network, no
@@ -246,15 +247,24 @@ deleted by the next person who finds it inconvenient.
    it; it is environmental, not a repo problem.
 
 
-1. **Neither prop model has an opponent, park, or platoon adjustment.**
-   (`roadmap.md` item 1, never built.) Walk-forward backtests put the strikeout
-   model's own error at **±1.43 K per start** and the total-bases model's at
-   **±4.9 probability points**, both larger than any edge either has found — so
-   neither recommends a side at all, and the tables publish the line, both
-   probabilities and the gap instead. Closing this gap is the only route back to
-   a page that can call anything. See
-   [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md) and
-   [ODDS_PAGE_PLAN.md](ODDS_PAGE_PLAN.md).
+1. **The strikeout model now calls sides; the total-bases model still does not.**
+   Resolved for strikeouts on 2026-08-04 — `MODEL_ERROR_K` fell from 1.39 to
+   **0.45 K** and the recommendation band opened on its own. What actually
+   changed was the *measurement*: the old number came from 73 starts of one
+   rotation (SE ±0.41 K), which could not resolve any modelling change and had
+   wrongly recorded the opponent adjustment as useless. Re-run over all 2,347
+   league starts, regression toward the league mean and the opponent factor both
+   measure as real, and the season/last-5 blend measures as worthless.
+
+   **Still open:** no park or platoon adjustment, and the total-bases model's
+   **±4.9 probability points** remains larger than any edge it has found, so that
+   table still publishes the line, both probabilities and the gap without calling
+   a side. See [ODDS_SPRINT_HANDOFF.md §6](ODDS_SPRINT_HANDOFF.md) for the
+   measurement and the two statistical traps it exposed.
+
+   **Watch this.** The page recommends real bets for the first time and the CLV
+   record is 10 graded bets long. Log new ones as paper (`--stake 0`) until the
+   sign means something.
 2. **Repo weight.** Pages embed the full ~4.7 MB Plotly bundle
    (`include_plotlyjs=True`), and the daily Action commits them, so history grows
    ~5 MB/page/day. This is deliberate — a code comment notes it avoids CDN
