@@ -143,6 +143,30 @@ and present it as final.
 DraftKings prices home runs; the feed does not carry that market. Do not
 conclude a market does not exist because the payload lacks it — check the app.
 
+### 5f. A silent `.get()` fallback adjusted for the wrong opponent for weeks
+
+`betting_report` read tonight's opponent as `preview["opponent"]["id"]`. The
+preview has never had a nested `opponent` dict — the key is **`opponent_id`,
+flat** — so the lookup returned `None` on every build and fell through to a
+fallback that uses *the last game in the cache*.
+
+Which is right for as long as a series is in progress, and wrong on exactly the
+day a series turns over. Fixed 2026-08-05, after it applied a Dodgers K rate
+(factor 0.933) to a White Sox game (1.066) and produced an UNDER call at
++18.2% EV that the correct factor does not support — a 0.66 K swing in the
+projection. Nothing was staked on it.
+
+Two lessons worth more than the fix:
+
+- **A fallback that cannot announce itself hides the bug it is covering.** This
+  one had a perfectly reasonable comment above it saying it existed for when the
+  opponent "cannot be resolved". It ran every single time.
+- **A blunt model hides its own input errors.** It survived this long because the
+  page recommended nothing regardless of the factor. The week the model started
+  calling sides is the week the bug produced a bet. Expect more of these now that
+  inputs actually move the output — `tests/test_opponent_resolution.py` pins this
+  one.
+
 ---
 
 ## 6. Measured constants — outputs, never settings

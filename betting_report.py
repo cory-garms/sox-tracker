@@ -19,6 +19,7 @@ from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
 from data import bet_log, league_pitching, odds_history, opponent
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
+from analysis.streaks import played_in_order
 from analysis.betting import (
     EARLY_WIN_LIFT_2RUN,
     MARKET_H2H,
@@ -842,12 +843,24 @@ def generate_betting_html(
         first_pitch = format_first_pitch(previews[0]) if previews else "TBD"
     # Who tonight's starter is facing. Falls back to no adjustment when the
     # league logs or the opponent cannot be resolved.
+    #
+    # The key here is `opponent_id`, flat. This read `["opponent"]["id"]` until
+    # 2026-08-05 - a nested dict _parse_single_preview has never produced - so it
+    # silently resolved to None on every build and fell through to the branch
+    # below, adjusting tonight's starter for *last night's* opponent. It went
+    # unnoticed because it is only wrong when a series turns over, and until this
+    # week the model was too blunt to recommend anything either way. On the first
+    # night it could, it turned a Dodgers K rate into an UNDER call at +18.2% EV
+    # on a White Sox game.
     opp_logs = opponent.load_team_hitting_logs(season, client=client)
     opp_id = None
     if previews:
-        opp_id = (previews[0] or {}).get("opponent", {}).get("id")
+        opp_id = (previews[0] or {}).get("opponent_id")
     if opp_id is None and not games.empty and "opponent_id" in games.columns:
-        opp_id = int(games.sort_values("game_date").iloc[-1]["opponent_id"])
+        # Last game *played*, which is not the last row by date: a doubleheader
+        # nightcap shares its date with game 1. See analysis.streaks.
+        opp_id = int(played_in_order(games).iloc[-1]["opponent_id"])
+    opp_id = int(opp_id) if opp_id is not None else None
 
     # The league rate the projection regresses toward. None when the league logs
     # are unavailable, which drops the model back to each pitcher's own season
