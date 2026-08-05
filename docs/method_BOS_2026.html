@@ -418,7 +418,12 @@
 
   <section class="card" id="how-the-consensus-is-built">
     <h2>How the consensus is built</h2>
-    <p class="table-note">Each book is de-vigged on its own before they are combined, and the book being priced is excluded from its own benchmark. Only books quoting the <em>same</em> number are compared, and a selection needs 3 others before it appears. Showing the 12 best of 18 priced selections. These are retail US books, not sharp limits &mdash; treat a small positive as noise, not an edge.</p>
+    <p class="table-note">Each book is de-vigged on its own before they are combined, and the book being priced is excluded from its own benchmark. Only books quoting the <em>same</em> number are compared, and a selection needs 3 others before it appears. Showing the 12 best of 16 priced selections. These are retail US books, not sharp limits &mdash; treat a small positive as noise, not an edge.</p>
+  </section>
+
+  <section class="card" id="how-movement-is-ranked">
+    <h2>How movement is ranked</h2>
+    <p class="table-note">Across 2 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
   </section>
 
   <section class="card" id="what-clv-measures">
