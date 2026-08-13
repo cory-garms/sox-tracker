@@ -418,12 +418,12 @@
 
   <section class="card" id="how-the-consensus-is-built">
     <h2>How the consensus is built</h2>
-    <p class="table-note">Each book is de-vigged on its own before they are combined, and the book being priced is excluded from its own benchmark. Only books quoting the <em>same</em> number are compared, and a selection needs 3 others before it appears. Showing the 12 best of 22 priced selections. These are retail US books, not sharp limits &mdash; treat a small positive as noise, not an edge.</p>
+    <p class="table-note">Each book is de-vigged on its own before they are combined, and the book being priced is excluded from its own benchmark. Only books quoting the <em>same</em> number are compared, and a selection needs 3 others before it appears. These are retail US books, not sharp limits &mdash; treat a small positive as noise, not an edge.</p>
   </section>
 
   <section class="card" id="how-movement-is-ranked">
     <h2>How movement is ranked</h2>
-    <p class="table-note">Across 2 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
+    <p class="table-note">Across 6 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
   </section>
 
   <section class="card" id="what-clv-measures">
@@ -439,11 +439,6 @@
   <section class="card" id="how-the-strikeout-model-decides">
     <h2>How the strikeout model decides</h2>
     <p class="table-note"><strong>Market %</strong> is the book's price with the vig stripped out; <strong>Model %</strong> is this page's Poisson probability around its projection. Reading them side by side is the point of the table, and edge is projection minus line. The model's own error is &plusmn;0.45 K per start &mdash; a walk-forward backtest over 2,347 held-out starts by every starter in the league, after removing the irreducible scatter a perfect projection would still show &mdash; so a smaller edge cannot be told apart from zero. An edge larger than 1.5 K against a liquid market means the model is reporting its own bug, and is marked REVIEW. <strong>Until 2026-08-04 this page called nothing at all:</strong> the error was measured on 73 starts of one rotation, which put it at 1.39 K and left no room between those two limits. Measuring the whole league instead showed the projection was always better than that, and that regressing a pitcher's rate toward the league mean &mdash; rather than chasing his last five starts &mdash; is better again. There is still no park or platoon context.</p>
-  </section>
-
-  <section class="card" id="why-the-total-bases-model-calls-nothing">
-    <h2>Why the total-bases model calls nothing</h2>
-    <p class="table-note">Lines are DraftKings' own, fetched with the strikeout market. Comparing a projection to the line would rank hitters by quality the book already charges for, so the model prices a probability instead. That over-probability moves by &plusmn;4.9 points when its inputs are resampled, while the entire spread of opinion it has been shown to hold out of sample is 5.1 points &mdash; walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 for a coin flip. An edge must be larger than the first and smaller than the second to mean anything, and almost nothing is. The honest reading is the two probability columns side by side, not the last one.</p>
   </section>
 
 
