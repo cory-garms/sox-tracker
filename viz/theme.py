@@ -493,26 +493,26 @@ def page_css() -> str:
 # displayed; deriving it means the control can never be wrong, and it needs no
 # storage, no script, and no hydration on a static file.
 
-MODE_BETTING = "betting"
 MODE_SEASON = "season"
+MODE_BETTING = "betting"
 
 MODE_LABELS = {
-    MODE_BETTING: "&#127922; Gambling Takes",
-    MODE_SEASON: "&#128202; Season Stats",
+    MODE_SEASON: "&#128202; Season &amp; Matchup",
+    MODE_BETTING: "&#127922; Odds &amp; Models",
 }
 
 # slug -> (filename, nav label, mode). Order within a mode is nav order, and the
 # first entry of each mode is where its toggle lands.
 PAGES: dict[str, tuple[str, str, str]] = {
-    "matchup":  ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_BETTING),
-    "board":    ("tonights_board_BOS_2026.html", "Tonight's Board",  MODE_BETTING),
-    "models":   ("models_BOS_2026.html",         "Models &amp; Method", MODE_BETTING),
-    # Every methodological justification on the board lives here instead. The
-    # board is read in the minutes before a bet; this is read once, if ever.
-    "method":   ("method_BOS_2026.html",         "How This Works",     MODE_BETTING),
+    # Season & Matchup (Primary baseball stats & game intelligence)
+    "matchup":   ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_SEASON),
     "dashboard": ("dashboard_BOS_2026.html",     "Season Dashboard",   MODE_SEASON),
-    "leaders":  ("leaders_BOS_2026.html",        "Stat Leaders",       MODE_SEASON),
-    "streaks":  ("streak_records_BOS_2026.html", "Win Streaks",        MODE_SEASON),
+    "leaders":   ("leaders_BOS_2026.html",        "Stat Leaders",       MODE_SEASON),
+    "streaks":   ("streak_records_BOS_2026.html", "Win Streaks",        MODE_SEASON),
+    # Odds & Models (Secondary analytical & betting models)
+    "board":     ("tonights_board_BOS_2026.html", "Tonight's Board",    MODE_BETTING),
+    "models":    ("models_BOS_2026.html",         "Models &amp; Method", MODE_BETTING),
+    "method":    ("method_BOS_2026.html",         "How This Works",     MODE_BETTING),
 }
 
 
