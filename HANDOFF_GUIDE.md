@@ -27,12 +27,39 @@
 - **Refresh**: `.github/workflows/refresh.yml` rebuilds every page four times a
   day (07:00 / 12:00 / 15:00 / 17:30 ET), so the board is never many hours stale
   by first pitch.
+- **Post-game**: `.github/workflows/postgame.yml` rebuilds the *stats* pages
+  within ~30 minutes of a final out. The four scheduled builds are aimed at the
+  pre-game board; none was aimed at the end of the game, so a 19:10 ET result
+  did not reach the site until 07:00 the next morning. Gated by
+  `scripts/postgame_check.py` on a free MLB schedule read, and it skips
+  `betting_report.py` — a finished game has no line worth pricing, and that is
+  the build that spends quota. **Cost: zero credits.** This is also the caller
+  for `POST /api/v1/refresh`.
 - **Closing capture**: `.github/workflows/close.yml` runs every 20 minutes across
   MLB's start window and spends credits *only* when first pitch is imminent —
   the schedule read that gates it costs zero quota. See
   [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md) §3.
-- **Odds budget**: ~480 credits/month against a 500 quota. Count before adding a
+- **Odds budget**: ~450 credits/month against a 500 quota. Count before adding a
   market.
+
+### ⚠️ GitHub Actions is the *only* thing that may buy odds
+
+There are two schedulers in this project and they used to both fetch prices:
+
+| System | Reliable? | Fetches odds |
+|---|---|---|
+| GitHub Actions (`refresh.yml`, `close.yml`) | Yes | **Yes — the only owner** |
+| Render `backend/services/scheduler.py` | No — free plan spins the process down when idle | **No** |
+
+The Render job ran at 08:30/12:30/15:30/17:30 ET against the Action's
+07:00/12:00/15:00/17:30, so at 17:30 they fired simultaneously and bought the
+same board twice — about 240 credits/month of pure duplication on top of the
+Actions' ~450, against a 500 quota.
+
+`archive_predictions_job` now reads prices back out of Postgres
+(`repository.latest_lines_by_market`) instead of re-purchasing them, so it
+costs nothing. **Before adding any odds fetch, check which system you are
+adding it to.** If it is not a GitHub Action, it is the wrong one.
 
 ---
 
@@ -325,13 +352,8 @@ starlette's, which raises at import time without it.
    Note `get_batter_statcast` passes `min="q"` (qualified PA only), so bench
    bats come back blank — the leaderboard needs a lower threshold or an
    explicit "not qualified" state before this is worth surfacing.
-3. **Scheduler cron does not match its comment.** `scheduler.py` documents
-   "08:00 / 12:00 / 15:00 / 17:30 ET" but configures `hour="8,12,15,17",
-   minute="30"` — three of the four fire 30 minutes later than documented. The
-   credit count is unchanged (still 4/day); the 15:00 "lineup release" read
-   actually happens at 15:30.
-4. **Rotation/bullpen dashboard cards are roster-filtered but not labelled so.**
+3. **Rotation/bullpen dashboard cards are roster-filtered but not labelled so.**
    The card headings read "Rotation Game Scores" and "Bullpen Workload"; a
    reader cannot tell traded players are excluded.
-5. **Small-sample starter lines are shown unqualified.** The matchup page
+4. **Small-sample starter lines are shown unqualified.** The matchup page
    rendered the opposing starter at "ERA 0.00, WHIP 0.50" off 2.0 IP.

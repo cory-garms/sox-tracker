@@ -1,0 +1,136 @@
+name: Post-Game Rebuild
+
+# Puts last night's result on the site while it is still last night.
+#
+# refresh.yml builds at four fixed points aimed at the pre-game board (07:00 /
+# 12:00 / 15:00 / 17:30 ET). None of them is aimed at the final out: a 19:10 ET
+# game ends around 22:00 ET, so the dashboard, leaderboards and streak page
+# disagreed with the box score until 07:00 the next morning.
+#
+# Quota: **zero**. The gate is an MLB schedule read, which is free, and the
+# rebuild deliberately excludes betting_report.py — the one build that spends
+# odds credits. Prices on a finished game are of no further use; what actually
+# went stale is the stats side.
+#
+# This is also what finally calls POST /api/v1/refresh. The committed pages are
+# served by Render from the deployed checkout, so the push below is what
+# updates them; the webhook refreshes the *API's* parquet copy immediately
+# rather than leaving it stale for the few minutes the deploy takes.
+
+on:
+  schedule:
+    # Every 30 minutes across the hours games finish — 22:00 UTC (18:00 ET,
+    # after the earliest afternoon games end) through 06:00 UTC (02:00 ET,
+    # after the latest west-coast game). Outside this the runner is not woken.
+    - cron: "*/30 22-23 * * *"
+    - cron: "*/30 0-6 * * *"
+  workflow_dispatch:
+    inputs:
+      lookback:
+        description: "Days back to inspect (use after an outage)"
+        type: string
+        default: "1"
+
+# The scheduled refresh and the closing-line capture commit to this same
+# branch. Let a run finish before the next starts.
+concurrency:
+  group: postgame-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Free: reads the MLB schedule and compares it against the gamePks the
+      # published pages were last built for.
+      - name: Has a game gone final?
+        id: gate
+        run: |
+          python scripts/postgame_check.py \
+            --lookback "${{ inputs.lookback || '1' }}"
+
+      - name: Fetch latest data
+        if: steps.gate.outputs.rebuild == 'true'
+        run: python fetch.py --team ${{ vars.TEAM_ABBR || 'BOS' }} --season ${{ vars.SEASON || '2026' }} --refresh
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      # betting_report.py is deliberately absent: it is the build that spends
+      # odds credits, and a finished game has no line worth pricing.
+      - name: Rebuild the stats pages
+        if: steps.gate.outputs.rebuild == 'true'
+        env:
+          TEAM: ${{ vars.TEAM_ABBR || 'BOS' }}
+          SEASON: ${{ vars.SEASON || '2026' }}
+        run: |
+          python viz_report.py     --team "$TEAM" --season "$SEASON"
+          python leaders_report.py --team "$TEAM" --season "$SEASON"
+          python matchup_report.py --team "$TEAM" --season "$SEASON"
+          python streak_report.py
+
+      - name: Mark the games as built
+        if: steps.gate.outputs.rebuild == 'true'
+        run: python scripts/postgame_check.py --lookback "${{ inputs.lookback || '1' }}" --mark
+
+      - name: Commit the rebuild
+        if: steps.gate.outputs.rebuild == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/ data/cache/postgame_state.json
+          # The season tables changed too — that is the point of the rebuild.
+          git add data/cache/*.parquet || true
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit -m "chore: post-game rebuild — ${{ steps.gate.outputs.summary }}"
+          # refresh.yml and close.yml push to this branch too. Rebase rather
+          # than merge, and never touch odds_history.parquet here: this job does
+          # not write it, so the remote's copy is always the better one.
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected; rebasing onto the remote and retrying."
+            git fetch origin master
+            git checkout --ours data/cache/odds_history.parquet 2>/dev/null || true
+            git rebase origin/master || git rebase --abort
+          done
+          echo "Could not push the rebuild after 3 attempts."
+          exit 1
+
+      # Render serves the committed pages, so the push above is what updates
+      # them. This refreshes the API's own parquet copy so /api/v1/games and
+      # /api/v1/standings are current without waiting on the deploy.
+      - name: Refresh the live API
+        if: steps.gate.outputs.rebuild == 'true' && env.REFRESH_TOKEN != ''
+        env:
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        run: |
+          code=$(curl -sS -o /tmp/refresh.json -w '%{http_code}' \
+            -X POST "https://dirtywater.corygarms.com/api/v1/refresh" \
+            -H "X-Refresh-Token: $REFRESH_TOKEN" \
+            --max-time 120 || echo 000)
+          echo "HTTP $code"; cat /tmp/refresh.json || true
+          # The pages are already committed and deploying; a cold Render
+          # instance or a 503 here must not fail the run.
+          if [ "$code" != "200" ]; then
+            echo "::warning::Live API refresh returned $code; the deploy will still update it."
+          fi

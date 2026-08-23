@@ -74,6 +74,50 @@ def insert_odds_snapshots(session: Session, rows: list[dict[str, Any]]) -> int:
     return inserted_count
 
 
+def latest_lines_by_market(
+    session: Session,
+    market: str,
+    event_id: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """
+    Rebuild a book-line map from the odds already stored, spending no quota.
+
+    Returns the same shape the models take from ``fetch_book_lines`` —
+    ``{player: {"line": float, "over_odds": int, "under_odds": int}}`` — using
+    each player's most recently captured snapshot.
+
+    This exists so prediction archival does not have to buy prices a second
+    time. The GitHub Actions build already fetches every market four times a
+    day and commits the result; anything running afterwards can read that
+    record instead of re-purchasing it.
+    """
+    stmt = select(OddsSnapshot).where(OddsSnapshot.market == market)
+    if event_id:
+        stmt = stmt.where(OddsSnapshot.event_id == event_id)
+    stmt = stmt.order_by(OddsSnapshot.captured_at.asc())
+
+    lines: dict[str, dict[str, Any]] = {}
+    for snap in session.execute(stmt).scalars():
+        if snap.line is None:
+            continue
+        # Ascending order means the last write per player wins, which is the
+        # most recent capture.
+        lines[snap.player] = {
+            "line": float(snap.line),
+            "over_odds": snap.over_odds,
+            "under_odds": snap.under_odds,
+        }
+    return lines
+
+
+def latest_event_id(session: Session) -> str:
+    """The event id of the most recent odds snapshot, or "" if none stored."""
+    row = session.execute(
+        select(OddsSnapshot.event_id).order_by(desc(OddsSnapshot.captured_at)).limit(1)
+    ).scalar_one_or_none()
+    return row or ""
+
+
 def get_all_odds_snapshots(session: Session) -> list[OddsSnapshot]:
     """Retrieve all odds snapshots ordered by captured_at."""
     return list(session.execute(select(OddsSnapshot).order_by(OddsSnapshot.captured_at.asc())).scalars().all())
