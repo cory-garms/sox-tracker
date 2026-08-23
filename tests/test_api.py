@@ -112,3 +112,32 @@ def test_odds_movement_endpoint(client_with_db):
     data = resp.json()
     assert data["n_snapshots"] == 1
     assert data["first_line"] == 4.5
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/",
+        "/board",
+        "/models",
+        "/matchup",
+        "/method",
+        "/dashboard",
+        "/leaders",
+        "/streaks",
+        "/index.html",
+        "/models_BOS_2026.html",
+        "/tonights_board_BOS_2026.html",
+        "/matchup_BOS_2026.html",
+        "/method_BOS_2026.html",
+        "/dashboard_BOS_2026.html",
+        "/leaders_BOS_2026.html",
+        "/streak_records_BOS_2026.html",
+    ],
+)
+def test_dashboard_html_routes(client_with_db, path):
+    """Guards that all navigation tab URLs and clean slugs return 200 OK."""
+    resp = client_with_db.get(path)
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+
