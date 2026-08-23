@@ -130,6 +130,31 @@ LAYOUT_BASE = dict(
 )
 
 
+# Spread into apply() for charts plotted against a shared X axis:
+#
+#     theme.apply(fig, **theme.TIME_SERIES_HOVER, xaxis_title="Game Number")
+#
+# Plotly's default hovermode is "closest", which asks for a tap within a few
+# pixels of a marker. That is a fine mouse target and a poor thumb one — on a
+# phone, a 162-point trajectory line is mostly gaps. "x unified" widens the
+# target to the whole column and reads every series at that game in one label,
+# which is also the comparison the dual-axis charts exist to make.
+#
+# Deliberately opt-in: on a horizontal bar leaderboard "x unified" groups by
+# value rather than by player, and on a heatmap it means nothing at all.
+TIME_SERIES_HOVER = {
+    "hovermode": "x unified",
+    "spikedistance": -1,
+    "xaxis": dict(
+        showspikes=True,
+        spikemode="across",
+        spikethickness=1,
+        spikedash="dot",
+        spikecolor=BRASS,
+    ),
+}
+
+
 # Passed to every pio.to_html call. `responsive` is what makes a figure resize
 # to its container instead of baking in the width it was first rendered at —
 # without it, charts render wider than a phone viewport and get clipped.

@@ -189,6 +189,10 @@ def generate_matchup_html(
     """
 
     # 3. Bullpen Availability HTML (Active Relievers)
+    # Pass the whole active pitching staff and let bullpen_availability decide
+    # who is a reliever from recent usage — the roster tags every pitcher "SP".
+    # Today's starter is dropped here too, since he is unavailable out of the
+    # pen tonight even in the bullpen-game case where usage would list him.
     starter_names = {s1_our.get('name', ''), s2_our.get('name', '')} if is_dh else {s_our.get('name', '')}
     all_pitchers = set(roster_df[roster_df["position"] == "P"]["player_name"].dropna().unique()) if not roster_df.empty else set()
     active_relievers = all_pitchers - starter_names if all_pitchers else None

@@ -216,7 +216,49 @@ deleted by the next person who finds it inconvenient.
 
 ---
 
-## 📋 8. Known Gaps & Observations
+## 🔌 8. REST API surface
+
+Everything below is live in [`backend/api/routes.py`](backend/api/routes.py) and
+covered by `tests/test_api.py`. The season tables are read from the **parquet
+cache**, not Postgres — Postgres holds odds, predictions and the bet log. A
+route whose cache has not been built returns **503**, not 404: that is a
+deployment state, not a bad request.
+
+| Method | Route | Notes |
+|---|---|---|
+| GET | `/healthz` | Render health check |
+| GET | `/api/v1/games` | Season log, `?result=W&limit=n`. Ordered by `played_in_order`, never by `game_pk` |
+| GET | `/api/v1/standings` | Record, Pythagorean, splits, current + longest streaks |
+| GET | `/api/v1/analytics/turnaround` | Net games above .500 per game, with peak and trough |
+| GET | `/api/v1/analytics/matchup/today` | Opponent, probables, active-roster bullpen availability |
+| GET | `/api/v1/schedule/today` | Scheduler-synced rows, lineup confirmation |
+| GET/POST | `/api/v1/bets` | Bet log |
+| GET | `/api/v1/bets/clv` | Closing-line-value summary |
+| GET | `/api/v1/predictions` | Archived projections and edges |
+| GET | `/api/v1/odds/movement` | Line trajectory for one event/market/player |
+| POST | `/api/v1/refresh` | **Authenticated.** Re-ingests the parquet cache |
+
+### The refresh webhook
+
+```bash
+curl -X POST https://dirtywater.corygarms.com/api/v1/refresh \
+     -H "X-Refresh-Token: $REFRESH_TOKEN"
+# optional: ?tables=games,pitching
+```
+
+Auth is a shared secret in `REFRESH_TOKEN`, compared with `hmac.compare_digest`.
+**An unset token disables the route (503) rather than leaving it open** —
+refresh hits the MLB API and can spend odds credits, so it must never be
+triggerable by an anonymous caller.
+
+It runs synchronously and reports per-table outcomes (`status: ok | partial`),
+so the caller learns which tables actually refreshed instead of getting a bare
+202. Tables are refreshed in dependency order regardless of request order,
+because the per-game log tables are built by walking the games table.
+
+---
+
+## 📋 9. Known Gaps & Observations
 
 1. **`docs/index.html` sync**: `docs/index.html` is the primary stats-first landing page. `scripts/refresh_nav.py` updates the navigation bar across all HTML pages.
 2. **CDN vs Local JS**: Pages embed Plotly bundle (`include_plotlyjs=True` on first div) to avoid CDN version drift on standalone offline files.
@@ -225,30 +267,71 @@ deleted by the next person who finds it inconvenient.
 
 ---
 
-## 🔍 9. Instructions for Next Agent: Full Site Audit & Improvement Plan
+## 🔍 10. Site audit — 2026-08-23
 
-The next agent should perform a **comprehensive site audit** across design, data integrity, user experience, and backend services, followed by executing planned improvements:
+All eight pages, the chart layer and the backend were audited. Pages, roster
+filtering, doubleheader ordering, the model error bars and the NO CALL
+discipline all held up. Four things did not.
 
-### Phase 1: Full Site Audit Checklist
-- [ ] **Audit Page 1: Landing Page (`/` / `docs/index.html`)**
-  - Verify stats-first visual hierarchy, hero CTAs, card links, and mobile responsiveness at ~390px.
-- [ ] **Audit Page 2: Today's Matchup (`/matchup` / `docs/matchup_BOS_2026.html`)**
-  - Inspect probable starting pitcher cards, platoon splits against opposing starter, and 3-day bullpen availability. Verify traded pitchers/hitters are excluded.
-- [ ] **Audit Page 3: Season Dashboard (`/dashboard` / `docs/dashboard_BOS_2026.html`)**
-  - Verify all rolling charts (Synergy, Win%, Turnaround Momentum, Streak Timeline) use numeric **Game Number (1..162)** on the X-axis.
-  - Verify Active Starting Rotation Game Scores and Active Bullpen Workload heatmaps.
-- [ ] **Audit Page 4: Team Stat Leaders (`/leaders` / `docs/leaders_BOS_2026.html`)**
-  - Verify top-5 leaderboards for hitting and pitching (HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV) accurately reflect active Red Sox players.
-- [ ] **Audit Page 5: Win Streak Records (`/streak_records` / `docs/streak_records_BOS_2026.html`)**
-  - Check the 15-game win streak interactive timeline, game scores, and historical comparison charts.
-- [ ] **Audit Pages 6-8: Betting & Models (`/tonights_board`, `/models`, `/method`)**
-  - Verify line movements, edge calculations, strikeout prop models, First-5 starter cards, and NRFI/YRFI tracking.
-- [ ] **Audit Backend & Database API (`backend/main.py`, `backend/api/routes.py`)**
-  - Verify all REST endpoints (`/healthz`, `/api/v1/games`, `/api/v1/standings`, `/api/v1/bets`, `/api/v1/analytics/turnaround`, `/api/v1/analytics/matchup/today`).
-  - Verify Neon PostgreSQL sync and SQLAlchemy migrations.
+### Fixed in this pass
 
-### Phase 2: Improvement Planning & Execution
-1. **Dynamic HTML Generation**: Auto-generate `docs/index.html` from templates or FastAPI Jinja2 views to prevent static drift.
-2. **Automated Cache Refresh & Uptime**: Enhance background scheduler / webhook endpoint in FastAPI for on-demand cache refresh after completed games.
-3. **Advanced Statcast & Savant Integrations**: Overlay exit velocity, barrel %, and hard-hit % on active batting/pitching leaderboards.
-4. **Enhanced Mobile UX**: Optimize touch tooltips, card spacing, and table scroll indicators across small viewports.
+**1. The bullpen table listed the starting rotation as available relief.**
+The bug that mattered. `bullpen_availability` took its row list straight from
+the caller's roster-derived name set, and the roster is no help here — MLB tags
+every pitcher on the 26-man with `position_group == "SP"`. Only *today's*
+starter was subtracted, so Gray, Suárez, Tolle and Sandoval all got rows.
+
+Pitch counts were summed from relief appearances only, so a start contributed
+nothing: **Patrick Sandoval started on 8/22 and the 8/23 page showed him as
+`0 pitches — 🟢 FRESH`**, the least available arm on the staff rendered as the
+most.
+
+Role is now read from *recent usage* over a trailing `role_window_days=30`
+window, and pitch counts include starts. Recency matters in both directions:
+Brayan Bello opened 2026 in the rotation and has relieved exclusively since
+July, so he belongs in the table; a season-long "has he ever relieved?" rule
+would have kept him but equally kept a reliever *promoted* into the rotation.
+A pitcher with no appearances in the window falls back to his season split
+rather than vanishing. Guarded by `tests/test_bullpen_availability.py`.
+
+**2. Half the documented API did not exist.** This guide and the API docs
+listed `/api/v1/games`, `/api/v1/standings` and the analytics routes as live.
+The router stopped at `/schedule/today`. All are now implemented — see §8.
+
+**3. `POST /api/v1/refresh`** added, token-authenticated, disabled when
+unset. See §8.
+
+**4. Touch tooltips.** `hovermode` was never set anywhere in `viz/`, leaving
+Plotly's default `"closest"` — a fine mouse target and a poor thumb one, since
+a 162-point trajectory line is mostly gaps at 390px. Continuous-X and
+dual-axis charts now spread `theme.TIME_SERIES_HOVER` (`x unified` + a spike
+line), which widens the target to the whole column and reads every series at
+that game in one label. Deliberately opt-in: on a horizontal bar leaderboard
+`x unified` groups by value rather than by player, and on a heatmap it means
+nothing.
+
+Also: `httpx` was missing from `requirements-dev.txt`, so `tests/test_api.py`
+could not be collected from a clean checkout — `fastapi.testclient` re-exports
+starlette's, which raises at import time without it.
+
+### Open — not addressed in this pass
+
+1. **`docs/index.html` is hand-maintained.** 325 lines duplicating the theme
+   palette and the `theme.PAGES` registry. `test_navigation.py` checks every
+   registered page is linked, but nothing holds the labels, ordering or mode
+   grouping to the registry. Generating it from `theme.PAGES` is the fix.
+2. **Statcast overlay is wired but unused.** `analysis.offense.enrich_with_statcast`
+   exists and is called from nowhere; `leaders_report.py` never invokes it.
+   Note `get_batter_statcast` passes `min="q"` (qualified PA only), so bench
+   bats come back blank — the leaderboard needs a lower threshold or an
+   explicit "not qualified" state before this is worth surfacing.
+3. **Scheduler cron does not match its comment.** `scheduler.py` documents
+   "08:00 / 12:00 / 15:00 / 17:30 ET" but configures `hour="8,12,15,17",
+   minute="30"` — three of the four fire 30 minutes later than documented. The
+   credit count is unchanged (still 4/day); the 15:00 "lineup release" read
+   actually happens at 15:30.
+4. **Rotation/bullpen dashboard cards are roster-filtered but not labelled so.**
+   The card headings read "Rotation Game Scores" and "Bullpen Workload"; a
+   reader cannot tell traded players are excluded.
+5. **Small-sample starter lines are shown unqualified.** The matchup page
+   rendered the opposing starter at "ERA 0.00, WHIP 0.50" off 2.0 IP.

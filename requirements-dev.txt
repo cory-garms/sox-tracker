@@ -2,3 +2,8 @@
 
 # Test suite. Run with: pytest
 pytest>=8.0.0
+
+# fastapi.testclient is a re-export of starlette's, which builds on httpx and
+# raises at import time without it. Missing here, tests/test_api.py could not
+# even be collected from a clean checkout.
+httpx>=0.27.0

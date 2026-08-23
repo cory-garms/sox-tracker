@@ -226,34 +226,71 @@ def bullpen_availability(
     ref_date_str: str = "2026-07-21",
     days: int = 3,
     active_pitcher_names: list[str] | set[str] | None = None,
+    role_window_days: int = 30,
 ) -> pd.DataFrame:
     """
     Calculates pitch count history over the last `days` prior to ref_date_str.
     Categorizes availability: FRESH, MODERATE, HEAVY.
-    Filters to active relievers if active_pitcher_names is provided.
+
+    Who counts as a bullpen arm is decided by *recent usage*, not by the roster
+    and not by the season as a whole:
+
+    - The roster cannot answer it. MLB tags every pitcher on the 26-man with
+      position_group "SP", so it cannot tell a closer from a Sunday starter.
+    - The full season cannot answer it either, because roles move in both
+      directions. Brayan Bello opened 2026 in the rotation and has pitched
+      only in relief since July; a season-long rule that asked "has he ever
+      relieved?" would equally have kept a reliever who was *promoted* into
+      the rotation in July.
+
+    So role is read from a trailing `role_window_days` window: more relief
+    appearances than starts in that window makes a bullpen arm. A pitcher who
+    has not appeared at all in the window (injured, or simply rested) falls
+    back to his season-long split rather than silently vanishing.
+
+    Pitch counts include starts. A swingman who started two days ago spent that
+    availability just as surely as if he had come out of the pen, and for a
+    rotation arm a start is the single biggest thing making him unavailable
+    tonight.
+
+    `active_pitcher_names` narrows the result to the active roster; it never
+    adds anyone whose usage does not make him a reliever.
     """
-    relievers = pitching[pitching["is_starter"] == False].copy()
-    if relievers.empty and not active_pitcher_names:
+    if pitching.empty:
         return pd.DataFrame()
 
-    if not relievers.empty:
-        relievers["game_date"] = pd.to_datetime(relievers["game_date"])
-        ref_dt = pd.to_datetime(ref_date_str)
+    work = pitching.copy()
+    work["game_date"] = pd.to_datetime(work["game_date"])
+    ref_dt = pd.to_datetime(ref_date_str)
 
-        d1 = ref_dt - pd.Timedelta(days=1)
-        d2 = ref_dt - pd.Timedelta(days=2)
-        d3 = ref_dt - pd.Timedelta(days=3)
+    def _relief_majority(frame: pd.DataFrame) -> set[str]:
+        if frame.empty:
+            return set()
+        by_role = frame.groupby("player_name")["is_starter"].agg(
+            starts="sum", appearances="count",
+        )
+        return set(by_role.index[(by_role["appearances"] - by_role["starts"]) > by_role["starts"]])
 
-        p_d1 = relievers[relievers["game_date"] == d1].groupby("player_name")["pitches"].sum().to_dict()
-        p_d2 = relievers[relievers["game_date"] == d2].groupby("player_name")["pitches"].sum().to_dict()
-        p_d3 = relievers[relievers["game_date"] == d3].groupby("player_name")["pitches"].sum().to_dict()
-    else:
-        p_d1, p_d2, p_d3 = {}, {}, {}
+    recent = work[work["game_date"] > ref_dt - pd.Timedelta(days=role_window_days)]
+    bullpen_arms = _relief_majority(recent)
 
-    if active_pitcher_names:
-        all_relievers = sorted(active_pitcher_names)
-    else:
-        all_relievers = sorted(relievers["player_name"].dropna().unique())
+    # Anyone who has not pitched inside the window has no recent role to read.
+    rested = set(work["player_name"].dropna().unique()) - set(recent["player_name"].dropna().unique())
+    bullpen_arms |= _relief_majority(work[work["player_name"].isin(rested)])
+
+    if active_pitcher_names is not None:
+        bullpen_arms &= set(active_pitcher_names)
+
+    if not bullpen_arms:
+        return pd.DataFrame()
+
+    def _pitches_on(offset: int) -> dict[str, int]:
+        day = ref_dt - pd.Timedelta(days=offset)
+        return work[work["game_date"] == day].groupby("player_name")["pitches"].sum().to_dict()
+
+    p_d1, p_d2, p_d3 = _pitches_on(1), _pitches_on(2), _pitches_on(3)
+
+    all_relievers = sorted(bullpen_arms)
 
     rows = []
     for name in all_relievers:

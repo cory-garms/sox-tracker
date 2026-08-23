@@ -13,6 +13,10 @@ services:
         sync: false
       - key: ODDS_API_KEY
         sync: false
+      # Shared secret for POST /api/v1/refresh. Leave unset to keep the
+      # refresh webhook disabled; it is never open when the token is absent.
+      - key: REFRESH_TOKEN
+        sync: false
       - key: TEAM_ID
         value: "111"
       - key: TEAM_ABBR

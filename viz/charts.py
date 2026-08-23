@@ -93,6 +93,7 @@ def season_timeline(games: pd.DataFrame, team_name: str) -> go.Figure:
     ))
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Season Timeline", font=dict(size=16)),
         xaxis_title="Game Number",
         yaxis_title="Cumulative Total",
@@ -147,6 +148,7 @@ def rolling_win_pct_chart(
     fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500", annotation_position="top left")
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Rolling Win%", font=dict(size=16)),
         xaxis_title="Game Number",
         yaxis_title="Win%",
@@ -214,6 +216,7 @@ def run_differential_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
     )
     fig.add_hline(y=0, line_color=_DIM, line_width=1)
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Run Differential", font=dict(size=16)),
         xaxis_title="Game Number",
     )
@@ -261,6 +264,7 @@ def streak_timeline_chart(streak_df: pd.DataFrame, team_name: str) -> go.Figure:
     ))
     fig.add_hline(y=0, line_color=_DIM, line_width=1)
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Streak Timeline", font=dict(size=16)),
         xaxis_title="Game Number",
         yaxis_title="← Loss Streak  |  Win Streak →",
@@ -600,6 +604,7 @@ def pace_comparison_chart(
     fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500", annotation_position="top left")
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Season Pace Comparison", font=dict(size=16)),
         xaxis_title="Game Number",
         yaxis_title="Cumulative Win%",
@@ -635,6 +640,7 @@ def player_trend_chart(
         ))
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{player_name} — Rolling Slash Line", font=dict(size=16)),
         xaxis_title="Date",
         yaxis_title="Rate Stat",
@@ -705,6 +711,7 @@ def momentum_curve_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
     )
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Season Turnaround & Momentum Curve", font=dict(size=16)),
         xaxis_title="Game Number",
         yaxis_title="Games Above / Below .500",
@@ -751,6 +758,7 @@ def monthly_surge_chart(monthly_df: pd.DataFrame, team_name: str) -> go.Figure:
     fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, secondary_y=True)
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Monthly Surge & Run Differential", font=dict(size=16)),
         xaxis_title="Month",
     )
@@ -864,6 +872,7 @@ def rolling_synergy_chart(
     ), secondary_y=True)
 
     _apply_theme(fig,
+        **theme.TIME_SERIES_HOVER,
         title=dict(text=f"{team_name} — Rolling Synergy (OPS vs. ERA)", font=dict(size=16)),
         xaxis_title="Game Number",
     )

@@ -124,3 +124,14 @@ DATABASE_URL: str = _RAW_DB_URL
 ODDS_API_KEY: str = os.environ.get("ODDS_API_KEY", "")
 ODDS_BOOKMAKER: str = "draftkings"   # which book's prices to pull via the aggregator
 
+# ---------------------------------------------------------------------------
+# Refresh webhook (optional)
+# ---------------------------------------------------------------------------
+# Shared secret for POST /api/v1/refresh, which re-ingests the cache and
+# rebuilds the reports after a game goes final.
+#
+# Unset means the route is *disabled*, not open: an ingest endpoint that
+# anybody can POST to is a way to burn the odds quota and hammer the MLB API
+# from outside. The route returns 503 until a token is configured.
+REFRESH_TOKEN: str = os.environ.get("REFRESH_TOKEN", "")
+
