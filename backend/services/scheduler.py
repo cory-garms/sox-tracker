@@ -13,7 +13,11 @@ from typing import Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import config
-from analysis.betting import batter_tb_model, fetch_book_lines, pitcher_strikeout_model
+from analysis.betting import (
+    batter_total_bases_model,
+    fetch_book_lines,
+    pitcher_strikeout_model,
+)
 from backend.database import get_db_session
 from backend.repository import (
     grade_bets_from_snapshots,
@@ -136,7 +140,7 @@ async def fetch_odds_and_archive_job() -> None:
                 archive_strikeout_projections(session, k_df, event_id=event_id, game_date=today_str)
 
             if not batting.empty:
-                tb_df = batter_tb_model(batting, games, book_lines=tb_lines)
+                tb_df = batter_total_bases_model(batting, book_lines=tb_lines)
                 archive_total_bases_projections(session, tb_df, event_id=event_id, game_date=today_str)
 
             # 3. Grade any bets against new odds snapshots
