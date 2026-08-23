@@ -109,7 +109,7 @@ def rolling_win_pct_chart(
     team_name: str,
     windows: list[int] | None = None,
 ) -> go.Figure:
-    """Rolling win% for each window size, with a .500 reference line."""
+    """Rolling win% for each window size, with a .500 reference line plotted by Game Number."""
     if windows is None:
         windows = [7, 15]
 
@@ -129,30 +129,29 @@ def rolling_win_pct_chart(
         else:
             labels.append(d)
     f["game_label"] = labels
-
+    f["game_n"] = range(1, len(f) + 1)
     f["win_flag"] = (f["result"] == "W").astype(int)
 
     fig = go.Figure()
     for i, w in enumerate(windows):
         roll = f["win_flag"].rolling(w).mean()
         fig.add_trace(go.Scatter(
-            x=f["game_label"], y=roll,
+            x=f["game_n"], y=roll,
             name=f"{w}-Game Win%",
             mode="lines",
-            # Fixed order, never cycled — raises past the validated set.
             line=dict(color=theme.categorical(i), width=2),
-            hovertemplate="%{x}<br>Win%%: %{y:.3f}<extra></extra>",
+            text=f["game_label"],
+            hovertemplate="Game %{x} (%{text})<br>Win%%: %{y:.3f}<extra></extra>",
         ))
 
     fig.add_hline(y=0.500, line_dash="dot", line_color=_DIM, annotation_text=".500", annotation_position="top left")
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Rolling Win%", font=dict(size=16)),
-        xaxis_title="Game / Date",
+        xaxis_title="Game Number",
         yaxis_title="Win%",
         yaxis_range=[0, 1],
     )
-    fig.update_xaxes(type="category")
     return fig
 
 
@@ -230,6 +229,7 @@ def run_differential_chart(games: pd.DataFrame, team_name: str) -> go.Figure:
 def streak_timeline_chart(streak_df: pd.DataFrame, team_name: str) -> go.Figure:
     """
     Bar chart where positive = win-streak length, negative = loss-streak length.
+    Plotted by Game Number with date in hover tooltip.
     """
     if streak_df.empty:
         return go.Figure()
@@ -249,21 +249,22 @@ def streak_timeline_chart(streak_df: pd.DataFrame, team_name: str) -> go.Figure:
             labels.append(d)
 
     df["game_label"] = labels
+    df["game_n"] = range(1, len(df) + 1)
     colors = [_GREEN if v > 0 else _RED for v in df["streak_value"]]
 
     fig = go.Figure(go.Bar(
-        x=df["game_label"],
+        x=df["game_n"],
         y=df["streak_value"],
         marker_color=colors,
-        hovertemplate="%{x}<br>Streak: %{y}<extra></extra>",
+        text=df["game_label"],
+        hovertemplate="Game %{x} (%{text})<br>Streak: %{y}<extra></extra>",
     ))
     fig.add_hline(y=0, line_color=_DIM, line_width=1)
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Streak Timeline", font=dict(size=16)),
-        xaxis_title="Date",
+        xaxis_title="Game Number",
         yaxis_title="← Loss Streak  |  Win Streak →",
     )
-    fig.update_xaxes(type="category")
     return fig
 
 
@@ -791,7 +792,9 @@ def rolling_synergy_chart(
     ).reset_index()
 
     # Order strictly by chronological played_in_order
-    f_order = f[["game_pk", "game_date", "game_number"]].drop_duplicates()
+    f_copy = f.copy()
+    f_copy["game_n"] = range(1, len(f_copy) + 1)
+    f_order = f_copy[["game_pk", "game_date", "game_number", "game_n"]].drop_duplicates()
     merged = (
         f_order.merge(b_grp, on=["game_date", "game_pk"], how="inner")
         .merge(p_grp, on=["game_date", "game_pk"], how="inner")
@@ -843,26 +846,27 @@ def rolling_synergy_chart(
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
     fig.add_trace(go.Scatter(
-        x=merged["game_label"], y=merged["roll_ops"],
+        x=merged["game_n"], y=merged["roll_ops"],
         name=f"{window}-Game Team OPS",
         mode="lines",
         line=dict(color=_GREEN, width=3),
-        hovertemplate="%{x}<br>OPS: %{y:.3f}<extra></extra>",
+        text=merged["game_label"],
+        hovertemplate="Game %{x} (%{text})<br>OPS: %{y:.3f}<extra></extra>",
     ), secondary_y=False)
 
     fig.add_trace(go.Scatter(
-        x=merged["game_label"], y=merged["roll_era"],
+        x=merged["game_n"], y=merged["roll_era"],
         name=f"{window}-Game Team ERA",
         mode="lines",
         line=dict(color=_BLUE, width=3),
-        hovertemplate="%{x}<br>ERA: %{y:.2f}<extra></extra>",
+        text=merged["game_label"],
+        hovertemplate="Game %{x} (%{text})<br>ERA: %{y:.2f}<extra></extra>",
     ), secondary_y=True)
 
     _apply_theme(fig,
         title=dict(text=f"{team_name} — Rolling Synergy (OPS vs. ERA)", font=dict(size=16)),
-        xaxis_title="Date",
+        xaxis_title="Game Number",
     )
-    fig.update_xaxes(type="category")
     fig.update_yaxes(title_text="Team OPS", secondary_y=False, gridcolor=_GRID)
     fig.update_yaxes(title_text="Team ERA", secondary_y=True, gridcolor=_GRID, autorange="reversed")
     return fig
