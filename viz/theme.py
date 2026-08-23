@@ -503,6 +503,115 @@ def page_css() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Social preview cards
+# ---------------------------------------------------------------------------
+#
+# Without these a shared link renders as a bare URL — no title, no image, no
+# summary — in X, LinkedIn, Slack, Discord and iMessage alike. Every page had
+# none, so every share of this site looked broken.
+#
+# Absolute URLs are mandatory: scrapers do not resolve relative paths, and a
+# relative og:image silently yields no card at all.
+
+SITE_URL = "https://dirtywater.corygarms.com"
+SITE_NAME = "Dirty Water — Red Sox Analytics"
+
+# `summary`, not `summary_large_image`. The card image is a 739x712 logo, and a
+# large card crops to roughly 1.91:1 — which would cut the top and bottom off
+# it. A large card needs a purpose-made ~1200x630 image; until one exists, the
+# small square card is the one that renders correctly.
+SOCIAL_CARD_TYPE = "summary"
+SOCIAL_IMAGE = f"{SITE_URL}/images/sox_retro_logo.png"
+
+# What each page is, in one sentence, written to be read cold in a feed by
+# someone who has never heard of this site.
+PAGE_DESCRIPTIONS: dict[str, str] = {
+    "index": (
+        "Interactive Boston Red Sox analytics: season dashboards, pre-game "
+        "matchup intelligence, and prop models published with the error bars "
+        "they were measured against."
+    ),
+    "matchup": (
+        "Tonight's pre-game report: probable starters, platoon splits against "
+        "the opposing hand, head-to-head history, and bullpen availability "
+        "filtered to arms that have actually pitched in relief."
+    ),
+    "dashboard": (
+        "The 2026 season in thirteen charts — turnaround curve, rolling win%, "
+        "run differential, rotation game scores and bullpen workload, plotted "
+        "against a continuous game number."
+    ),
+    "leaders": (
+        "Top-five Red Sox leaderboards across hitting and pitching, filtered "
+        "to the active 26-man roster so traded players do not linger."
+    ),
+    "streaks": (
+        "The 15-game win streak of July 2026, game by game, measured against "
+        "the franchise, American League and MLB records."
+    ),
+    "board": (
+        "Tonight's sportsbook board: line movement since the morning, "
+        "DraftKings priced against the consensus of eight other books, and "
+        "closing line value on every logged position."
+    ),
+    "models": (
+        "Strikeout and total-bases projections, each published with the error "
+        "bar it was measured against — and declining to call a side wherever "
+        "that error is larger than the edge claimed."
+    ),
+    "record": (
+        "Every projection this site has published, scored against what "
+        "actually happened and against the market price it was quoted beside. "
+        "Neither model beats the market, and the page says so."
+    ),
+    "method": (
+        "How the numbers are made: consensus de-vigging, closing line value, "
+        "the measured error bars, and every methodological caveat the board "
+        "would otherwise carry."
+    ),
+}
+
+
+def social_meta(slug: str, title: str, description: str | None = None) -> str:
+    """
+    Open Graph and Twitter Card tags for one page.
+
+    `description` falls back to PAGE_DESCRIPTIONS, then to the index blurb, so
+    an unregistered page still produces a usable card rather than none.
+    """
+    entry = PAGES.get(slug)
+    filename = entry[0] if entry else "index.html"
+    url = f"{SITE_URL}/{filename}"
+    desc = description or PAGE_DESCRIPTIONS.get(slug) or PAGE_DESCRIPTIONS["index"]
+    clean = _attr(desc)
+    clean_title = _attr(title)
+
+    return f"""  <meta name="description" content="{clean}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{_attr(SITE_NAME)}">
+  <meta property="og:title" content="{clean_title}">
+  <meta property="og:description" content="{clean}">
+  <meta property="og:url" content="{url}">
+  <meta property="og:image" content="{SOCIAL_IMAGE}">
+  <meta property="og:image:alt" content="Boston Red Sox retro logo">
+  <meta name="twitter:card" content="{SOCIAL_CARD_TYPE}">
+  <meta name="twitter:title" content="{clean_title}">
+  <meta name="twitter:description" content="{clean}">
+  <meta name="twitter:image" content="{SOCIAL_IMAGE}">"""
+
+
+def _attr(text: str) -> str:
+    """Escape for an HTML attribute. A stray quote truncates the whole tag."""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace('"', "&quot;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+# ---------------------------------------------------------------------------
 # Site navigation
 # ---------------------------------------------------------------------------
 #

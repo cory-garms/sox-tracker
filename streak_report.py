@@ -329,6 +329,7 @@ def main() -> None:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Boston Red Sox — The {facts['length']}-Game Win Streak ({config.SEASON})</title>
+{theme.social_meta('streaks', f"Boston Red Sox — The {facts['length']}-Game Win Streak")}
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   {theme.FONTS_LINK}
   <style>

@@ -197,6 +197,7 @@ def build(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} — {season} Dashboard</title>
+{theme.social_meta('dashboard', f'{team_name} — {season} Season Dashboard')}
   {theme.FONTS_LINK}
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   <style>

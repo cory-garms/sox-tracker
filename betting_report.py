@@ -793,6 +793,7 @@ def _shell(title: str, slug: str, heading: str, subtitle: str, sections: str) ->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{title}</title>
+{theme.social_meta(slug, title)}
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   {theme.FONTS_LINK}
   <style>

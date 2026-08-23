@@ -295,6 +295,7 @@ def generate_matchup_html(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} vs {opp_name} — Today's Pre-Game Matchup Preview</title>
+{theme.social_meta('matchup', f'{team_name} vs {opp_name} — Pre-Game Matchup')}
   <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   {theme.FONTS_LINK}
   <style>

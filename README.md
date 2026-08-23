@@ -1,11 +1,67 @@
-# ⚾ Boston Red Sox MLB Analytics Suite (`sox_tracker`)
+# ⚾ Dirty Water — Boston Red Sox Analytics (`sox_tracker`)
 
-A full-stack Python analytics platform and interactive web application for tracking MLB team and player performance — season records, pre-game matchups, win streaks, team stat leaderboards, prop projections, and historical trends.
+**A baseball analytics suite that measures its own models and publishes the
+result — including when the result is that they don't work.**
 
-Authored by **Cory Garms** ([@cory-garms](https://github.com/cory-garms)).
+Live at **[dirtywater.corygarms.com](https://dirtywater.corygarms.com)** ·
+by **Cory Garms** ([@cory-garms](https://github.com/cory-garms))
 
-- **Live Production App**: **[dirtywater.corygarms.com](https://dirtywater.corygarms.com)** / **[dirtywater-app.onrender.com](https://dirtywater-app.onrender.com)**
-- **GitHub Pages Mirror**: **[cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)**
+---
+
+### The finding this project is actually about
+
+The site publishes strikeout and total-bases projections. It also publishes a
+[**Track Record**](https://dirtywater.corygarms.com/track_record) page scoring
+every one of them against what happened, and against the market price it was
+quoted beside. Over 164 graded player-games, **neither model beats the market** —
+both Brier gaps contain zero — and the page says so in those words.
+
+But "no edge" turned out not to mean "no skill". The same total-bases model,
+asked the same question about two different populations:
+
+| Population | n | AUC | Recalibration slope | Base rate | Hitters |
+|---|---|---|---|---|---|
+| All hitter-starts | 935 | **0.564** | **+0.710** | 0.353 | 54 |
+| Only those a sportsbook priced | 140 | 0.495 | −0.014 | 0.436 | 12 |
+
+Every line in both rows is 1.5 bases. The model can separate a good hitter-game
+from a bad one across the roster; it cannot among the twelve regulars a book
+bothers to quote, and the higher base rate there shows the book already
+selecting hitters likely to clear the number.
+
+That's a **selection effect** — the skill is real, and the market has already
+priced out the part of it you could act on. It generalises well past baseball:
+any model evaluated on a non-random subsample chosen by an informed party is
+measuring something other than what it thinks.
+
+### Why the plumbing had to be right first
+
+None of the above is measurable unless the boring parts are correct, and
+several of them weren't:
+
+- **The prediction archive was recording `NULL` for every line**, because the
+  archiver read column names the models never emitted and `row.get()` returns
+  `None` rather than raising. A prediction without its line cannot be graded at
+  all. Now guarded by a test that drives the real models and fails on a rename.
+- **Sorting games by `gamePk` read a 15-game win streak as 14** — a rained-out
+  makeup game carries a *lower* primary key than the nightcap it precedes.
+  Everything orders by `(game_date, game_number)` instead.
+- **The 882 "graded predictions" were 164 distinct player-games.** Every build
+  logs a snapshot, and one pitcher-game had been captured 23 times. Scoring the
+  raw rows would have claimed a sample five times larger than it is.
+- **Retroactive backfill is only worth anything if it can't see the future**, so
+  the replay truncates stats to before each date, recomputes the league rate as
+  of that date, and bounds the opponent factor — with a test that replays a date
+  against the full season and against a truncated cache and demands identical
+  output.
+
+**614 tests**, fully offline — no network, no API key, no cached data required.
+Each test class names the bug it exists to prevent.
+
+- **GitHub Pages mirror**: [cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)
+- **Backend**: FastAPI on Render + Neon Postgres · **Automation**: GitHub Actions
+- **Odds budget**: ~484 of 500 credits/month, measured against what the provider
+  actually charged rather than estimated
 
 ---
 
