@@ -113,6 +113,12 @@ def generate_leaders_html(
     # Aggregate Player Totals
     b_totals = player_season_totals(batting) if not batting.empty else pd.DataFrame()
 
+    # Active Roster Filter (exclude traded/former players from active leaders)
+    roster_df = fetcher.load("roster")
+    active_ids = set(roster_df["player_id"].dropna().astype(int)) if not roster_df.empty else set()
+    if active_ids and not b_totals.empty:
+        b_totals = b_totals[b_totals["player_id"].isin(active_ids)]
+
     # Pitching Totals
     if not pitching.empty:
         win_col = "win" if "win" in pitching.columns else ("w" if "w" in pitching.columns else None)
@@ -141,6 +147,8 @@ def generate_leaders_html(
             p_group["whip"] = 0.0
 
         p_totals = p_group
+        if active_ids and not p_totals.empty:
+            p_totals = p_totals[p_totals["player_id"].isin(active_ids)]
     else:
         p_totals = pd.DataFrame()
 

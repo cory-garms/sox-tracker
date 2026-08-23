@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from config import OUTPUT_DIR, TEAM_ABBR, SEASON
+from config import OUTPUT_DIR, TEAM_ABBR, SEASON, TEAMS, TEAM_ID
 from viz.charts import (
     _apply_theme, _BG, _PAPER_BG, _GRID, _TEXT, _GREEN, _RED, _BLUE, _YELLOW, _DIM, theme,
     season_timeline,
@@ -87,8 +87,15 @@ def build(
     fig_syn = rolling_synergy_chart(games, batting, pitching, team_name, window=7)
     figures.append(("7-Game Rolling Synergy (OPS vs. ERA)", fig_syn, 420))
 
-    # 4. Platoon Splits Diverging Bar
-    plat = platoon_table(batting, season)
+    # Fetch active roster to filter player-level charts (exclude traded/former players)
+    from data.roster import fetch_roster
+    team_id = TEAMS.get(team_abbr, {}).get("id", TEAM_ID)
+    roster_df = fetch_roster(team_id=team_id, season=season)
+    active_ids = set(roster_df["player_id"].dropna().astype(int)) if not roster_df.empty else set()
+
+    # 4. Platoon Splits Diverging Bar (Active Hitters)
+    plat_batting = batting[batting["player_id"].isin(active_ids)] if active_ids else batting
+    plat = platoon_table(plat_batting, season)
     if not plat.empty:
         piv = pivoted_platoon_summary(plat)
         if not piv.empty:
@@ -112,26 +119,32 @@ def build(
     fig4 = streak_timeline_chart(streak_df, team_name)
     figures.append(("Streak Timeline", fig4, 320))
 
-    # 9. Batting leaderboard heatmap
+    # 9. Batting leaderboard heatmap (Active Hitters)
     totals = player_season_totals(batting)
+    if active_ids and not totals.empty:
+        totals = totals[totals["player_id"].isin(active_ids)]
     if not totals.empty:
-        fig5 = batting_leaderboard_heatmap(totals, team_name)
+        fig5 = batting_leaderboard_heatmap(totals, team_name, min_pa=20)
         figures.append(("Batting Leaderboard", fig5, max(400, len(totals) * 30 + 100)))
 
-    # 10. Hot / cold
+    # 10. Hot / cold (Active Hitters)
     hc = hot_cold_summary(batting, windows=[7, 15])
+    if active_ids and not hc.empty:
+        hc = hc[hc["player_id"].isin(active_ids)]
     if not hc.empty:
         fig6 = hot_cold_chart(hc, team_name)
         figures.append(("Hot / Cold", fig6, max(380, len(hc) * 25 + 100)))
 
-    # 11. Rotation heatmap
-    if not pitching.empty:
-        fig7 = rotation_heatmap(pitching, team_name)
+    # 11. Rotation heatmap (Active Starters)
+    pitching_sp = pitching[pitching["player_id"].isin(active_ids)] if active_ids else pitching
+    if not pitching_sp.empty:
+        fig7 = rotation_heatmap(pitching_sp, team_name)
         figures.append(("Rotation Game Scores", fig7, 380))
 
-    # 12. Bullpen load
-    if not pitching.empty:
-        fig8 = bullpen_load_chart(pitching, team_name)
+    # 12. Bullpen load (Active Relievers)
+    pitching_rp = pitching[pitching["player_id"].isin(active_ids)] if active_ids else pitching
+    if not pitching_rp.empty:
+        fig8 = bullpen_load_chart(pitching_rp, team_name)
         figures.append(("Bullpen Workload", fig8, 380))
 
     # 9. ERA split

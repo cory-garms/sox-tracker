@@ -275,7 +275,7 @@ def streak_timeline_chart(streak_df: pd.DataFrame, team_name: str) -> go.Figure:
 def batting_leaderboard_heatmap(
     batting_totals: pd.DataFrame,
     team_name: str,
-    min_pa: int = 50,
+    min_pa: int = 20,
 ) -> go.Figure:
     """
     Heatmap: players (rows) × stats (cols), color = z-score within each stat.

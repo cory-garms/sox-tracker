@@ -225,27 +225,36 @@ def bullpen_availability(
     pitching: pd.DataFrame,
     ref_date_str: str = "2026-07-21",
     days: int = 3,
+    active_pitcher_names: list[str] | set[str] | None = None,
 ) -> pd.DataFrame:
     """
     Calculates pitch count history over the last `days` prior to ref_date_str.
     Categorizes availability: FRESH, MODERATE, HEAVY.
+    Filters to active relievers if active_pitcher_names is provided.
     """
     relievers = pitching[pitching["is_starter"] == False].copy()
-    if relievers.empty:
+    if relievers.empty and not active_pitcher_names:
         return pd.DataFrame()
 
-    relievers["game_date"] = pd.to_datetime(relievers["game_date"])
-    ref_dt = pd.to_datetime(ref_date_str)
+    if not relievers.empty:
+        relievers["game_date"] = pd.to_datetime(relievers["game_date"])
+        ref_dt = pd.to_datetime(ref_date_str)
 
-    d1 = ref_dt - pd.Timedelta(days=1)
-    d2 = ref_dt - pd.Timedelta(days=2)
-    d3 = ref_dt - pd.Timedelta(days=3)
+        d1 = ref_dt - pd.Timedelta(days=1)
+        d2 = ref_dt - pd.Timedelta(days=2)
+        d3 = ref_dt - pd.Timedelta(days=3)
 
-    p_d1 = relievers[relievers["game_date"] == d1].groupby("player_name")["pitches"].sum().to_dict()
-    p_d2 = relievers[relievers["game_date"] == d2].groupby("player_name")["pitches"].sum().to_dict()
-    p_d3 = relievers[relievers["game_date"] == d3].groupby("player_name")["pitches"].sum().to_dict()
+        p_d1 = relievers[relievers["game_date"] == d1].groupby("player_name")["pitches"].sum().to_dict()
+        p_d2 = relievers[relievers["game_date"] == d2].groupby("player_name")["pitches"].sum().to_dict()
+        p_d3 = relievers[relievers["game_date"] == d3].groupby("player_name")["pitches"].sum().to_dict()
+    else:
+        p_d1, p_d2, p_d3 = {}, {}, {}
 
-    all_relievers = sorted(relievers["player_name"].dropna().unique())
+    if active_pitcher_names:
+        all_relievers = sorted(active_pitcher_names)
+    else:
+        all_relievers = sorted(relievers["player_name"].dropna().unique())
+
     rows = []
     for name in all_relievers:
         p1 = int(p_d1.get(name, 0))

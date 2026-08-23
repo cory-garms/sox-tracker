@@ -138,9 +138,13 @@ def generate_matchup_html(
     </div>
         """
 
-    # 2. Platoon Lineup Advantage HTML
+    # 2. Platoon Lineup Advantage HTML (Active Hitters)
+    roster_df = fetcher.load("roster")
+    active_ids = set(roster_df["player_id"].dropna().astype(int)) if not roster_df.empty else set()
+
     g1_opp_hand = starter_season_summary(client, p1.get("opp_probable", {}).get("id"), season).get("hand", "R")
-    plat_df = platoon_recommendations(batting, g1_opp_hand, season)
+    plat_batting = batting[batting["player_id"].isin(active_ids)] if active_ids else batting
+    plat_df = platoon_recommendations(plat_batting, g1_opp_hand, season)
 
     plat_rows = ""
     if not plat_df.empty:
@@ -184,8 +188,12 @@ def generate_matchup_html(
     </div>
     """
 
-    # 3. Bullpen Availability HTML
-    bp_df = bullpen_availability(pitching, ref_date_str=date_str, days=3)
+    # 3. Bullpen Availability HTML (Active Relievers)
+    starter_names = {s1_our.get('name', ''), s2_our.get('name', '')} if is_dh else {s_our.get('name', '')}
+    all_pitchers = set(roster_df[roster_df["position"] == "P"]["player_name"].dropna().unique()) if not roster_df.empty else set()
+    active_relievers = all_pitchers - starter_names if all_pitchers else None
+
+    bp_df = bullpen_availability(pitching, ref_date_str=date_str, days=3, active_pitcher_names=active_relievers)
     bp_rows = ""
     if not bp_df.empty:
         for _, r in bp_df.iterrows():
