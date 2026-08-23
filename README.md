@@ -1,27 +1,28 @@
 # ⚾ Boston Red Sox MLB Analytics Suite (`sox_tracker`)
 
-A Python suite and interactive GitHub Pages web application for tracking MLB team and player performance — season records, pre-game matchups, win streaks, team stat leaderboards, prop projections, and historical trends.
+A full-stack Python analytics platform and interactive web application for tracking MLB team and player performance — season records, pre-game matchups, win streaks, team stat leaderboards, prop projections, and historical trends.
 
 Authored by **Cory Garms** ([@cory-garms](https://github.com/cory-garms)).
 
-Live Web Suite: **[cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)**
+- **Live Production App**: **[dirtywater.corygarms.com](https://dirtywater.corygarms.com)** / **[dirtywater-app.onrender.com](https://dirtywater-app.onrender.com)**
+- **GitHub Pages Mirror**: **[cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)**
 
 ---
 
-## 🌐 GitHub Pages Interactive Web Suite
+## 🌐 Interactive Web Suite
 
-Mobile-first, vintage-ballpark HTML pages, rebuilt daily by GitHub Actions and tracked with GoatCounter analytics. A switch at the top of every page divides the suite into **🎲 Gambling Takes** (time-sensitive, stale within the hour) and **📊 Season Stats** (the settled record):
+Mobile-first, vintage-ballpark HTML dashboards powered by FastAPI backend and GitHub Actions automation. The suite is organized with a **Stats-First** philosophy:
 
-| Page | Description | CLI Exporter | Live Output |
+| Page | Description | Route / File | Live Link |
 | :--- | :--- | :--- | :--- |
-| 🏠 **Suite Landing Index** | Responsive landing page linking to all dashboards | `docs/index.html` | [View Index](https://cory-garms.github.io/sox-tracker/) |
-| ⚾ **Today's Matchup Preview** | Probable starter metrics, platoon advantages, bullpen 3-day rest, head-to-head history | `python matchup_report.py` | [View Preview](https://cory-garms.github.io/sox-tracker/matchup_BOS_2026.html) |
-| 📊 **Main Season Dashboard** | Season timeline, 7/15-game rolling win%, run differential, rotation game scores, bullpen load | `python viz_report.py` | [View Dashboard](https://cory-garms.github.io/sox-tracker/dashboard_BOS_2026.html) |
-| 🏆 **The 15-Game Win Streak** | Tribute to the July 3–22, 2026 run that tied the franchise record, measured against Franchise (15 W), AL (22 W), and MLB (26 W) marks | `python streak_report.py` | [View Streak Report](https://cory-garms.github.io/sox-tracker/streak_records_BOS_2026.html) |
-| 🥇 **Team Stat Leaders** | Top-5 leaderboards in HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV | `python leaders_report.py` | [View Stat Leaders](https://cory-garms.github.io/sox-tracker/leaders_BOS_2026.html) |
-| 🎲 **Tonight's Board** | Biggest line moves, your logged position against the close, DraftKings priced against the market consensus, and what a promotion is actually worth | `python betting_report.py` | [View Board](https://cory-garms.github.io/sox-tracker/tonights_board_BOS_2026.html) |
-| 🔬 **Models & Method** | Strikeout and total-bases models with their measured error bars, First-5 starter cards, NRFI/YRFI tracking | *(same exporter)* | [View Models](https://cory-garms.github.io/sox-tracker/models_BOS_2026.html) |
-| 📚 **How This Works** | Every methodological note the board would otherwise carry — collected automatically at build time | *(same exporter)* | [View Method](https://cory-garms.github.io/sox-tracker/method_BOS_2026.html) |
+| 🏠 **Suite Landing Index** | Stats-first landing page guiding to Matchup & Dashboard | `/` (`docs/index.html`) | [View Landing](https://dirtywater.corygarms.com/) |
+| ⚾ **Today's Matchup Preview** | Probable starter metrics, platoon advantages, active bullpen 3-day rest, head-to-head history | `/matchup` | [View Matchup](https://dirtywater.corygarms.com/matchup) |
+| 📊 **Main Season Dashboard** | Season turnaround momentum, Game-Number rolling synergy, rolling win%, run differential, active rotation game scores, active bullpen load | `/dashboard` | [View Dashboard](https://dirtywater.corygarms.com/dashboard) |
+| 🥇 **Team Stat Leaders** | Top-5 leaderboards in HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV for active roster | `/leaders` | [View Stat Leaders](https://dirtywater.corygarms.com/leaders) |
+| 🏆 **The 15-Game Win Streak** | Tribute to the July 3–22, 2026 run that tied the franchise record, measured against Franchise (15 W), AL (22 W), and MLB (26 W) marks | `/streak_records` | [View Streak Report](https://dirtywater.corygarms.com/streak_records) |
+| 🎲 **Tonight's Board** | Biggest line moves, logged positions against the close, market consensus pricing | `/tonights_board` | [View Board](https://dirtywater.corygarms.com/tonights_board) |
+| 🔬 **Models & Method** | Strikeout and total-bases models with measured error bars, First-5 starter cards, NRFI/YRFI tracking | `/models` | [View Models](https://dirtywater.corygarms.com/models) |
+| 📚 **How This Works** | Every methodological note the board carries — collected automatically at build time | `/method` | [View Method](https://dirtywater.corygarms.com/method) |
 
 ---
 

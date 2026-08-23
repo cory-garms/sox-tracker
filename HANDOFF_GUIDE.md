@@ -1,39 +1,29 @@
 # ⚾ `sox_tracker` — Handoff & Current State
 
-> Updated **2026-07-27**. Supersedes the earlier migration/redesign blueprint —
-> both workstreams in that document have been carried out, with one exception
-> that turned out to be blocked for reasons no amount of code can fix (see §2).
+> Updated **2026-08-23**. Supersedes the earlier 2026-07-27 handoff guide.
 >
-> **The betting side has outgrown this document.** It is now its own interface
-> with its own measurement loop, and everything specific to it —  the consensus
-> engine, promotions, the bet log, closing-line capture, and the traps that will
-> bite you — lives in [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md). Read that
-> before touching anything under "Gambling Takes".
+> **Core Architecture & Philosophy Updates**:
+> 1. **Stats-First Pivot**: The web suite has pivoted to a **Stats-First** architecture. The default primary mode across the navigation and landing page is `📊 Season & Matchup` (`MODE_SEASON`), while `🎲 Odds & Models` (`MODE_BETTING`) is secondary.
+> 2. **Production Backend & Database**: Live FastAPI backend deployed on **Render** (`https://dirtywater-app.onrender.com` / `https://dirtywater.corygarms.com`), connected to a serverless PostgreSQL database (Neon.tech).
+> 3. **Active Roster Filtering**: All player-level charts (rotation heatmap, bullpen load, batting leaderboards, hot/cold tracker, platoon matchup) strictly filter by the active 26-man roster so traded players (e.g. Connelly Early, Marcelo Mayer) do not appear in active team views.
+> 4. **Continuous Game Number X-Axis**: Trajectory and rolling charts use continuous **Game Number (1..162)** on the X-axis with rich date/opponent tooltips on hover.
 
 ---
 
 ## 🎯 1. What This Is
 
-`sox_tracker` is a Python MLB analytics suite that publishes interactive GitHub
-Pages dashboards for the **Boston Red Sox** (`TEAM_ID = 111`).
+`sox_tracker` (branded as **Dirty Water**) is an MLB team analytics & performance suite focused on the **Boston Red Sox** (`TEAM_ID = 111`).
 
-Since 2026-07-27 the suite is divided by a switch at the top of every page:
-
+### Site Modes & Hierarchy
 | Mode | Pages | Character |
 | :--- | :--- | :--- |
-| 🎲 **Gambling Takes** | Tonight's Board, Models & Method, How This Works, Today's Matchup | Stale within the hour; every page states when it was read |
-| 📊 **Season Stats** | Season Dashboard, Stat Leaders, Win Streaks | The settled record; reads the same at noon and at midnight |
+| 📊 **Season & Matchup** (Default) | Today's Matchup, Season Dashboard, Stat Leaders, Win Streaks | Clean, analytical team record, player leaderboards, rotation/bullpen load, and pre-game advantages |
+| 🎲 **Odds & Models** (Secondary) | Tonight's Board, Models & Method, How This Works | Live line comparison against model projections, CLV tracking, and methodology notes |
 
-**Navigation is generated from `viz/theme.PAGES` and `theme.nav_bar()`** — one
-definition, not one per exporter. Register a new page there; the tests enforce
-that the registry, the generators and `docs/index.html` agree. The mode shown is
-*derived* from the current page rather than stored, so the control cannot
-disagree with what is on screen.
-
+- **Live URL**: [`https://dirtywater.corygarms.com`](https://dirtywater.corygarms.com) / [`https://dirtywater-app.onrender.com`](https://dirtywater-app.onrender.com)
+- **Static GitHub Pages Mirror**: [`https://cory-garms.github.io/sox-tracker/`](https://cory-garms.github.io/sox-tracker/)
 - **Repository path**: `/home/cgarms/Projects/sox-tracker`
 - **Virtual environment**: Python 3.11+, `pip install -r requirements.txt`
-- **Output**: `docs/` → published at
-  [cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)
 - **Refresh**: `.github/workflows/refresh.yml` rebuilds every page four times a
   day (07:00 / 12:00 / 15:00 / 17:30 ET), so the board is never many hours stale
   by first pitch.
@@ -226,57 +216,39 @@ deleted by the next person who finds it inconvenient.
 
 ---
 
-## 📋 8. Known Gaps / Next Up
+## 📋 8. Known Gaps & Observations
 
-> Betting-specific gaps live in [ODDS_SPRINT_HANDOFF.md](ODDS_SPRINT_HANDOFF.md)
-> §9. What follows is everything else.
+1. **`docs/index.html` sync**: `docs/index.html` is the primary stats-first landing page. `scripts/refresh_nav.py` updates the navigation bar across all HTML pages.
+2. **CDN vs Local JS**: Pages embed Plotly bundle (`include_plotlyjs=True` on first div) to avoid CDN version drift on standalone offline files.
+3. **Doubleheader Scheduling**: Doubleheaders are handled cleanly in `matchup_report.py` and `viz/charts.py` using `(game_date, game_number)` sorting via `analysis.streaks.played_in_order`.
+4. **Active Roster Ingestion**: `fetch.py --refresh` fetches active 26-man roster, ensuring trades (e.g. Early, Mayer) are updated in active team charts.
 
-**Live traps, in priority order:**
+---
 
-1. **No lineup cross-check.** On 2026-07-27 a hitter carried a live total-bases
-   prop while not in the posted lineup and nothing flagged it. One free MLB call.
-2. **`docs/index.html` is hand-maintained** while `viz/theme.PAGES` is generated.
-   A test asserts they agree, but the index is edited by hand and will drift.
-   Generating it is the real fix.
-3. **`data/cache/bet_log.parquet` is committed to a public repo.** Cory is aware
-   and has chosen to keep it public (2026-07-27); stakes are in units, not
-   dollars. Do not "helpfully" redact it without asking.
-4. **The `bottleneck` package is compiled against NumPy 1.x** in this
-   environment, so every script prints an `_ARRAY_API not found` traceback. It is
-   noise — every report still generates. `pip install --upgrade bottleneck` fixes
-   it; it is environmental, not a repo problem.
+## 🔍 9. Instructions for Next Agent: Full Site Audit & Improvement Plan
 
+The next agent should perform a **comprehensive site audit** across design, data integrity, user experience, and backend services, followed by executing planned improvements:
 
-1. **The strikeout model now calls sides; the total-bases model still does not.**
-   Resolved for strikeouts on 2026-08-04 — `MODEL_ERROR_K` fell from 1.39 to
-   **0.45 K** and the recommendation band opened on its own. What actually
-   changed was the *measurement*: the old number came from 73 starts of one
-   rotation (SE ±0.41 K), which could not resolve any modelling change and had
-   wrongly recorded the opponent adjustment as useless. Re-run over all 2,347
-   league starts, regression toward the league mean and the opponent factor both
-   measure as real, and the season/last-5 blend measures as worthless.
+### Phase 1: Full Site Audit Checklist
+- [ ] **Audit Page 1: Landing Page (`/` / `docs/index.html`)**
+  - Verify stats-first visual hierarchy, hero CTAs, card links, and mobile responsiveness at ~390px.
+- [ ] **Audit Page 2: Today's Matchup (`/matchup` / `docs/matchup_BOS_2026.html`)**
+  - Inspect probable starting pitcher cards, platoon splits against opposing starter, and 3-day bullpen availability. Verify traded pitchers/hitters are excluded.
+- [ ] **Audit Page 3: Season Dashboard (`/dashboard` / `docs/dashboard_BOS_2026.html`)**
+  - Verify all rolling charts (Synergy, Win%, Turnaround Momentum, Streak Timeline) use numeric **Game Number (1..162)** on the X-axis.
+  - Verify Active Starting Rotation Game Scores and Active Bullpen Workload heatmaps.
+- [ ] **Audit Page 4: Team Stat Leaders (`/leaders` / `docs/leaders_BOS_2026.html`)**
+  - Verify top-5 leaderboards for hitting and pitching (HR, RBI, OPS, AVG, SB, SO, ERA, WHIP, W, SV) accurately reflect active Red Sox players.
+- [ ] **Audit Page 5: Win Streak Records (`/streak_records` / `docs/streak_records_BOS_2026.html`)**
+  - Check the 15-game win streak interactive timeline, game scores, and historical comparison charts.
+- [ ] **Audit Pages 6-8: Betting & Models (`/tonights_board`, `/models`, `/method`)**
+  - Verify line movements, edge calculations, strikeout prop models, First-5 starter cards, and NRFI/YRFI tracking.
+- [ ] **Audit Backend & Database API (`backend/main.py`, `backend/api/routes.py`)**
+  - Verify all REST endpoints (`/healthz`, `/api/v1/games`, `/api/v1/standings`, `/api/v1/bets`, `/api/v1/analytics/turnaround`, `/api/v1/analytics/matchup/today`).
+  - Verify Neon PostgreSQL sync and SQLAlchemy migrations.
 
-   **Still open:** no park or platoon adjustment, and the total-bases model's
-   **±4.9 probability points** remains larger than any edge it has found, so that
-   table still publishes the line, both probabilities and the gap without calling
-   a side. See [ODDS_SPRINT_HANDOFF.md §6](ODDS_SPRINT_HANDOFF.md) for the
-   measurement and the two statistical traps it exposed.
-
-   **Watch this.** The page recommends real bets for the first time and the CLV
-   record is 10 graded bets long. Log new ones as paper (`--stake 0`) until the
-   sign means something.
-2. **Repo weight.** Pages embed the full ~4.7 MB Plotly bundle
-   (`include_plotlyjs=True`), and the daily Action commits them, so history grows
-   ~5 MB/page/day. This is deliberate — a code comment notes it avoids CDN
-   version-mismatch blanks — but `include_plotlyjs="cdn"` would cut each page to
-   ~30 KB. Worth revisiting.
-3. **`streak_report.py` is Red Sox only** — hardcoded franchise records, no
-   `--team` flag, hardcoded output filename.
-4. **`run_differential_chart` is a dual-axis chart** (per-game bars + cumulative
-   line on a secondary y). Two scales on one plot is a well-known way to imply
-   relationships that aren't there; splitting it into two charts or indexing to a
-   common base would be more honest.
-5. **Game-level markets are fetched but never shown.** `get_game_odds()` pulls
-   moneyline and totals, and nothing on the page uses them. `roadmap.md` item 2.
-   (Player props *are* available on the free tier — an earlier note here
-   claiming otherwise was wrong; see [CONFIGURE.md](CONFIGURE.md).)
+### Phase 2: Improvement Planning & Execution
+1. **Dynamic HTML Generation**: Auto-generate `docs/index.html` from templates or FastAPI Jinja2 views to prevent static drift.
+2. **Automated Cache Refresh & Uptime**: Enhance background scheduler / webhook endpoint in FastAPI for on-demand cache refresh after completed games.
+3. **Advanced Statcast & Savant Integrations**: Overlay exit velocity, barrel %, and hard-hit % on active batting/pitching leaderboards.
+4. **Enhanced Mobile UX**: Optimize touch tooltips, card spacing, and table scroll indicators across small viewports.
