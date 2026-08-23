@@ -95,11 +95,27 @@ MARCEL_PRIOR_IP = 25.0
 #   the opponent factor helps             marcel vs +opp      [+0.016, +0.121]
 #   the change as a whole                 blend vs marcel+opp [+0.167, +0.383]
 #
-# So the shipped model is Marcel + opponent factor, at 0.45 K. Note the second
-# line especially: the opponent adjustment was previously recorded here as
-# measuring "no help". That was a limit of a 73-start test, not a property of
-# the adjustment, exactly as the note it replaced suspected.
-MODEL_ERROR_K = 0.45
+# So the shipped model is Marcel + opponent factor. Note the second line
+# especially: the opponent adjustment was previously recorded here as measuring
+# "no help". That was a limit of a 73-start test, not a property of the
+# adjustment, exactly as the note it replaced suspected.
+#
+# Re-measured 2026-08-23, same script, now over 3,001 held-out starts by 216
+# starters as the season has filled in: marcel+opp 0.366 K (SE +/-0.179),
+# against 0.45 measured on 2,347 starts three weeks earlier. Rounded to 0.37.
+# The two intervals overlap heavily, so this is the same quantity measured
+# better, not the model improving.
+#
+# ⚠️ Lowering this floor makes the page speak MORE, and the published record
+# does not yet support that. analysis/scoring.py over our own 24 graded
+# strikeout predictions reports AUC 0.415 and a recalibration slope of -0.319 —
+# the ordering is backwards on that sample. Those measure different things:
+# 0.366 K is projection accuracy over 3,001 starts, the AUC is probability
+# discrimination over 24. The large sample wins on the question it answers, and
+# the small one is a warning that the *probability* layer may be the weak part
+# rather than the projection. See the Track Record page; revisit when n is
+# past ~100.
+MODEL_ERROR_K = 0.37
 
 # Floor: an edge must clear the model's own error before it counts as a signal.
 # A gap smaller than the model's typical miss is indistinguishable from zero,
@@ -806,7 +822,11 @@ TB_REGRESSION_PA = 50.0
 # resolution: the measured calibration gap was 0.032 against a sampling-noise
 # floor of 0.043, so nothing finer than about four points can even be resolved
 # by this test. The floor is the larger of the two.
-MODEL_ERROR_TB_PROB = 0.049
+#
+# Re-measured 2026-08-23 over 935 held-out starts (was 714): parameter noise
+# 0.0481, calibration gap 0.0250 against a 0.0377 noise floor. The floor is
+# still the larger of the two, and barely moved.
+MODEL_ERROR_TB_PROB = 0.048
 
 # Floor: an edge over the book's de-vigged price must clear the model's own
 # error before it counts as a signal.
@@ -819,12 +839,15 @@ MIN_EDGE_TB_PROB = MODEL_ERROR_TB_PROB
 # spread is real information: 0.74 x 0.069 = 0.051. That is the entire range of
 # genuine opinion the model has been shown to hold, so a claimed edge larger
 # than it is a claim the model has no standing to make.
-MAX_PLAUSIBLE_EDGE_TB_PROB = 0.051
+#
+# Re-measured 2026-08-23 over 935 held-out starts: sd 0.0682, slope 0.710,
+# so 0.710 x 0.0682 = 0.048. The ceiling has come down to meet the floor.
+MAX_PLAUSIBLE_EDGE_TB_PROB = 0.048
 
 # Note what those two lines mean together, exactly as for strikeouts: the floor
-# and the ceiling are almost the same number. Two tenths of a percentage point
-# separate them, so the window an edge would have to land in is narrower than
-# the rounding on either constant, and in practice the model calls nothing.
+# and the ceiling are now THE SAME NUMBER. Previously two tenths of a point
+# separated them; as of the 2026-08-23 re-measurement the window an edge would
+# have to land in has closed completely, and in practice the model calls nothing.
 # That is unsurprising: it has no opposing-pitcher, park or platoon
 # context while the book's price does, and its out-of-sample AUC on "will this
 # hitter clear 1.5 bases" is 0.57 against 0.50 for a coin flip. Recommendations

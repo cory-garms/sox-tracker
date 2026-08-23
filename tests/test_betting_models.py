@@ -15,6 +15,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from analysis import betting
 from analysis.betting import (
     MAX_PLAUSIBLE_EDGE_K,
     MAX_PLAUSIBLE_EDGE_TB_PROB,
@@ -854,36 +855,54 @@ class TestBatterTotalBasesNoiseFloor:
         assert "OVER" not in row["recommendation"]
         assert "UNDER" not in row["recommendation"]
 
-    def test_floor_and_ceiling_leave_almost_no_room_to_recommend(self):
+    def test_the_band_has_closed_completely(self):
         """
-        The finding this state encodes: the model's demonstrated information is
-        barely larger than its own noise. If a sharper model ever separates
-        these two constants, this assertion is the thing to revisit.
+        The 2026-08-23 re-measurement over 935 held-out starts brought the
+        ceiling down onto the floor: noise 0.0481, demonstrated information
+        0.710 x 0.0682 = 0.048. Two tenths of a point used to separate them;
+        now nothing does.
+
+        This is the finding, not a bug. The model's entire demonstrated
+        information is the same size as its own noise, so there is no width of
+        edge it could honestly recommend from. If a sharper model ever
+        separates these two constants, this assertion is the thing to revisit.
         """
         assert MIN_EDGE_TB_PROB == MODEL_ERROR_TB_PROB
-        assert MAX_PLAUSIBLE_EDGE_TB_PROB - MIN_EDGE_TB_PROB < 0.01
+        assert MAX_PLAUSIBLE_EDGE_TB_PROB <= MIN_EDGE_TB_PROB
 
-    def test_an_edge_inside_the_narrow_band_would_still_recommend(self):
+    def test_no_edge_of_any_size_can_be_recommended(self):
         """
-        The band is near-empty, not switched off. Constructed from the constants
-        so it survives them being re-measured.
+        The consequence, stated directly: below the floor is NO CALL, above the
+        ceiling is REVIEW, and the two now meet. Every side is refused.
         """
         model_prob = self._model_prob()
-        gap = (MIN_EDGE_TB_PROB + MAX_PLAUSIBLE_EDGE_TB_PROB) / 2
+        for offset in (0.005, 0.02, 0.048, 0.10, 0.20):
+            for signed in (offset, -offset):
+                rec = batter_total_bases_model(
+                    self._hitter(), priced_at(model_prob - signed)).iloc[0]["recommendation"]
+                assert "OVER" not in rec and "UNDER" not in rec, (
+                    f"a {signed:+.3f} edge produced {rec!r} from a closed band"
+                )
 
-        row = batter_total_bases_model(self._hitter(), priced_at(model_prob - gap)).iloc[0]
-
-        assert "OVER" in row["recommendation"]
-        assert row["ev_pct"] is not None
-
-    def test_the_under_side_of_the_band_works_the_same_way(self):
+    def test_the_machinery_is_closed_by_measurement_not_switched_off(self, monkeypatch):
+        """
+        Recommendations resume on their own if a future model re-measures the
+        constants apart. Widening the ceiling here — and nothing else — must be
+        enough to make a side appear, or the band is not what is silencing the
+        model.
+        """
+        monkeypatch.setattr(betting, "MAX_PLAUSIBLE_EDGE_TB_PROB", 0.25)
         model_prob = self._model_prob()
-        gap = (MIN_EDGE_TB_PROB + MAX_PLAUSIBLE_EDGE_TB_PROB) / 2
+        gap = MIN_EDGE_TB_PROB + 0.02
 
-        row = batter_total_bases_model(self._hitter(), priced_at(model_prob + gap)).iloc[0]
+        over = batter_total_bases_model(
+            self._hitter(), priced_at(model_prob - gap)).iloc[0]
+        under = batter_total_bases_model(
+            self._hitter(), priced_at(model_prob + gap)).iloc[0]
 
-        assert "UNDER" in row["recommendation"]
-        assert row["ev_pct"] is not None
+        assert "OVER" in over["recommendation"]
+        assert over["ev_pct"] is not None
+        assert "UNDER" in under["recommendation"]
 
 
 class TestTotalBasesDistribution:
