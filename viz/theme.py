@@ -504,15 +504,9 @@ MODE_LABELS = {
 # slug -> (filename, nav label, mode). Order within a mode is nav order, and the
 # first entry of each mode is where its toggle lands.
 PAGES: dict[str, tuple[str, str, str]] = {
-    # The board is time-sensitive and the models are not, which is why they are
-    # two pages: tonight's prices are read while deciding and stale within the
-    # hour, while the error bars are read once and then trusted or not.
-    # Deliberately not "board_...": that string is a substring of
-    # "dashboard_BOS_2026.html", and anything matching filenames by
-    # substring would silently confuse the two.
+    "matchup":  ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_BETTING),
     "board":    ("tonights_board_BOS_2026.html", "Tonight's Board",  MODE_BETTING),
     "models":   ("models_BOS_2026.html",         "Models &amp; Method", MODE_BETTING),
-    "matchup":  ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_BETTING),
     # Every methodological justification on the board lives here instead. The
     # board is read in the minutes before a bet; this is read once, if ever.
     "method":   ("method_BOS_2026.html",         "How This Works",     MODE_BETTING),

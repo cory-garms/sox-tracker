@@ -92,10 +92,11 @@ def _serve_page(filename: str) -> Response:
     return FileResponse(path, media_type="text/html", headers=headers)
 
 
-# Root landing page
+# Root landing page -> Today's Matchup
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root_page():
-    return _serve_page(f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html")
+    return _serve_page(f"matchup_{config.TEAM_ABBR}_{config.SEASON}.html")
+
 
 
 # Exact HTML filename routes
