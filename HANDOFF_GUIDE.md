@@ -53,8 +53,37 @@ There are two schedulers in this project and they used to both fetch prices:
 
 The Render job ran at 08:30/12:30/15:30/17:30 ET against the Action's
 07:00/12:00/15:00/17:30, so at 17:30 they fired simultaneously and bought the
-same board twice — about 240 credits/month of pure duplication on top of the
-Actions' ~450, against a 500 quota.
+same board twice.
+
+**Measured 2026-08-23, and the duplication was latent rather than active.** The
+provider had charged 359 credits in the 23 days since the cycle reset, of which
+338 are traceable to snapshots in `odds_history.parquet` — leaving 21 untracked
+over three weeks. Had the Render job really been fetching four times a day it
+would have added ~276 in that window. It was not: the free plan spins the
+process down when idle, which is the same unreliability that left
+`sync_game_schedule_job` silently broken. Removing the odds fetch from it closed
+a real risk, but it did **not** free up headroom that was being consumed.
+
+### Actual measured spend
+
+| | per day | per 31-day cycle |
+|---|---|---|
+| `refresh.yml` — 4 builds x 3 credits (K, TB, **and h2h**) | 12 | ~372 |
+| `close.yml` — the gate works; ~1 of 27 daily ticks spends | ~3 | ~90 |
+| verify runs, retries, failed fetches | ~1 | ~21 |
+| **total** | **~15.6** | **~484 / 500** |
+
+Read the live figure any time — `get_events()` costs nothing and every response
+carries the quota headers:
+
+```python
+c = OddsAPIClient(api_key=config.ODDS_API_KEY); c.get_events()
+c.requests_used, c.requests_remaining     # -> 359, 141
+```
+
+**The quota resets on the 1st.** There is about 16 credits of slack in a month,
+i.e. one day. A fifth build or a third prop market costs 4/day = ~124/cycle and
+does not fit; dropping the h2h credit would free the same amount.
 
 `archive_predictions_job` now reads prices back out of Postgres
 (`repository.latest_lines_by_market`) instead of re-purchasing them, so it
