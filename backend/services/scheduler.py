@@ -154,27 +154,31 @@ async def fetch_odds_and_archive_job() -> None:
 
 def start_scheduler() -> AsyncIOScheduler:
     """Configure and start the background scheduler."""
-    # Free MLB schedule listener every 10 minutes
-    scheduler.add_job(
-        sync_game_schedule_job,
-        "interval",
-        minutes=10,
-        id="sync_mlb_schedule",
-        replace_existing=True,
-    )
+    try:
+        # Free MLB schedule listener every 10 minutes
+        scheduler.add_job(
+            sync_game_schedule_job,
+            "interval",
+            minutes=10,
+            id="sync_mlb_schedule",
+            replace_existing=True,
+        )
 
-    # Gated Odds Polling & Prediction Archival:
-    # 08:00 ET (Morning Line), 12:00 ET (Midday), 15:00 ET (Lineup Release), 17:30 ET (Pre-Game Board)
-    scheduler.add_job(
-        fetch_odds_and_archive_job,
-        "cron",
-        hour="8,12,15,17",
-        minute="30",
-        timezone="America/New_York",
-        id="archive_odds_and_predictions",
-        replace_existing=True,
-    )
+        # Gated Odds Polling & Prediction Archival:
+        # 08:00 ET (Morning Line), 12:00 ET (Midday), 15:00 ET (Lineup Release), 17:30 ET (Pre-Game Board)
+        scheduler.add_job(
+            fetch_odds_and_archive_job,
+            "cron",
+            hour="8,12,15,17",
+            minute="30",
+            timezone="America/New_York",
+            id="archive_odds_and_predictions",
+            replace_existing=True,
+        )
 
-    scheduler.start()
-    log.info("Background scheduler started successfully.")
+        scheduler.start()
+        log.info("Background scheduler started successfully.")
+    except Exception as e:
+        log.warning("Background scheduler could not be started: %s", e)
     return scheduler
+

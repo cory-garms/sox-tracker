@@ -29,14 +29,24 @@ log = logging.getLogger("dirtywater")
 async def lifespan(app: FastAPI):
     """Application lifespan manager: initialize database and background scheduler."""
     log.info("Starting dirtywater backend on %s...", config.DATABASE_URL)
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        log.error("Database init warning: %s", e)
 
-    # Start background scheduler
-    sched = start_scheduler()
+    sched = None
+    try:
+        sched = start_scheduler()
+    except Exception as e:
+        log.error("Scheduler start warning: %s", e)
+
     yield
-    # Clean shutdown
-    if sched.running:
-        sched.shutdown()
+
+    if sched and hasattr(sched, "running") and sched.running:
+        try:
+            sched.shutdown()
+        except Exception:
+            pass
     log.info("dirtywater backend shutdown complete.")
 
 
@@ -50,12 +60,7 @@ app = FastAPI(
 # CORS Configuration for dirtywater.corygarms.com and local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://dirtywater.corygarms.com",
-        "https://corygarms.com",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,20 +78,19 @@ DOCS_DIR = config.ROOT_DIR / "docs"
 
 
 def _serve_page(filename: str) -> Response:
-    """Serve an HTML dashboard with Cloudflare Edge caching headers."""
+    """Serve an HTML dashboard using FileResponse with Edge caching headers."""
     path = DOCS_DIR / filename
     if not path.exists():
         return HTMLResponse(
             f"<h1>Page {filename} is generating...</h1><p>Please check back shortly.</p>",
             status_code=404,
         )
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
 
-    response = HTMLResponse(content)
-    # Cloudflare Edge Cache: browser caches 30s, Cloudflare edge caches 2 mins
-    response.headers["Cache-Control"] = "public, max-age=30, s-maxage=120, stale-while-revalidate=300"
-    return response
+    headers = {
+        "Cache-Control": "public, max-age=30, s-maxage=120, stale-while-revalidate=300",
+    }
+    return FileResponse(path, media_type="text/html", headers=headers)
+
 
 
 @app.get("/", include_in_schema=False)
