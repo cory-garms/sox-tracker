@@ -13,10 +13,45 @@ from typing import Any
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from analysis.betting import MODEL_ERROR_K, MODEL_ERROR_TB_PROB
 from backend.repository import insert_model_predictions, insert_odds_snapshots
 from data import odds_history
 
 log = logging.getLogger(__name__)
+
+
+# The exact column names the two models emit. Archiving read a different set of
+# names for months — `book_line` where the model says `prop_line`, `edge_prob`
+# where it says `prob_edge` — and since row.get() returns None for a missing
+# key rather than raising, every archived prediction carried line=None. A
+# prediction without its line cannot be graded at all: there is no over/under
+# to score it against. tests/test_archiver_keys.py drives a real model call and
+# fails if any name here stops existing.
+_K_FIELDS = {
+    "projection": "proj_k",
+    "line": "prop_line",
+    "edge": "edge",
+}
+_TB_FIELDS = {
+    "projection": "proj_tb",
+    "line": "prop_line",
+    "edge": "prob_edge",
+}
+
+
+def _num(row: pd.Series, column: str) -> float | None:
+    """
+    Read a numeric cell, or None if absent or NaN.
+
+    Deliberately not `row.get(a) or row.get(b)`: that chain treats a legitimate
+    0.0 as missing and falls through to the next candidate.
+    """
+    if column not in row:
+        return None
+    value = row[column]
+    if value is None or pd.isna(value):
+        return None
+    return float(value)
 
 
 def archive_market_odds(
@@ -51,16 +86,17 @@ def archive_strikeout_projections(
     predictions = []
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for _, row in k_df.iterrows():
-        name = row.get("player_name") or row.get("name") or "Unknown"
-        proj = row.get("proj_k") or row.get("projection") or 0.0
-        line = row.get("book_line") or row.get("line")
-        edge = row.get("edge_k") or row.get("edge")
+        name = row.get("player_name") or "Unknown"
+        over_prob = _num(row, "model_over_prob")
+        row_factor = _num(row, "opp_k_factor")
 
         details = {
-            "proj_ip": row.get("proj_ip"),
-            "season_k9": row.get("season_k9"),
-            "opponent_k_factor": opponent_factor or row.get("opponent_k_factor"),
-            "starts": row.get("starts"),
+            "proj_ip": _num(row, "avg_ip_start"),
+            "season_k9": _num(row, "season_k9"),
+            "l5_k9": _num(row, "l5_k9"),
+            "blended_k9": _num(row, "blended_k9"),
+            "opponent_k_factor": opponent_factor if opponent_factor is not None else row_factor,
+            "starts": _num(row, "starts"),
         }
 
         predictions.append({
@@ -69,17 +105,18 @@ def archive_strikeout_projections(
             "game_date": game_date,
             "market": "pitcher_strikeouts",
             "player": str(name),
-            "line": float(line) if line is not None and not pd.isna(line) else None,
-            "projection": float(proj),
-            "model_over_prob": float(row["model_over_prob"]) if "model_over_prob" in row and not pd.isna(row["model_over_prob"]) else None,
-            "model_under_prob": float(row["model_under_prob"]) if "model_under_prob" in row and not pd.isna(row["model_under_prob"]) else None,
-            "book_over_prob": float(row["book_over_prob"]) if "book_over_prob" in row and not pd.isna(row["book_over_prob"]) else None,
-            "edge": float(edge) if edge is not None and not pd.isna(edge) else None,
-            "model_error": 0.45,  # Backtested league error constant
+            "line": _num(row, _K_FIELDS["line"]),
+            "projection": _num(row, _K_FIELDS["projection"]) or 0.0,
+            "model_over_prob": over_prob,
+            # The models report the over side only; the complement is the under.
+            "model_under_prob": (1.0 - over_prob) if over_prob is not None else None,
+            "book_over_prob": _num(row, "book_over_prob"),
+            "edge": _num(row, _K_FIELDS["edge"]),
+            "model_error": MODEL_ERROR_K,
             "recommendation": str(row.get("recommendation", "NO CALL ⚖️")),
             "model_version": model_version,
             "opponent_name": opponent_name,
-            "opponent_factor": opponent_factor,
+            "opponent_factor": opponent_factor if opponent_factor is not None else row_factor,
             "details_json": json.dumps(details),
         })
 
@@ -102,15 +139,16 @@ def archive_total_bases_projections(
     predictions = []
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for _, row in tb_df.iterrows():
-        name = row.get("player_name") or row.get("name") or "Unknown"
-        proj = row.get("proj_tb") or row.get("projection") or 0.0
-        line = row.get("book_line") or row.get("line")
-        edge_prob = row.get("edge_prob") or row.get("edge")
+        name = row.get("player_name") or "Unknown"
+        over_prob = _num(row, "model_over_prob")
 
         details = {
-            "proj_pa": row.get("proj_pa"),
-            "slg": row.get("slg"),
-            "iso": row.get("iso"),
+            "pa": _num(row, "pa"),
+            "starts": _num(row, "starts"),
+            "season_slg": _num(row, "season_slg"),
+            "season_avg": _num(row, "season_avg"),
+            "tb_per_start": _num(row, "tb_per_start"),
+            "l10_tb_start": _num(row, "l10_tb_start"),
         }
 
         predictions.append({
@@ -119,13 +157,13 @@ def archive_total_bases_projections(
             "game_date": game_date,
             "market": "batter_total_bases",
             "player": str(name),
-            "line": float(line) if line is not None and not pd.isna(line) else None,
-            "projection": float(proj),
-            "model_over_prob": float(row["model_over_prob"]) if "model_over_prob" in row and not pd.isna(row["model_over_prob"]) else None,
-            "model_under_prob": float(row["model_under_prob"]) if "model_under_prob" in row and not pd.isna(row["model_under_prob"]) else None,
-            "book_over_prob": float(row["book_over_prob"]) if "book_over_prob" in row and not pd.isna(row["book_over_prob"]) else None,
-            "edge": float(edge_prob) if edge_prob is not None and not pd.isna(edge_prob) else None,
-            "model_error": 0.049,  # ±4.9 percentage points error bar
+            "line": _num(row, _TB_FIELDS["line"]),
+            "projection": _num(row, _TB_FIELDS["projection"]) or 0.0,
+            "model_over_prob": over_prob,
+            "model_under_prob": (1.0 - over_prob) if over_prob is not None else None,
+            "book_over_prob": _num(row, "book_over_prob"),
+            "edge": _num(row, _TB_FIELDS["edge"]),
+            "model_error": MODEL_ERROR_TB_PROB,
             "recommendation": str(row.get("recommendation", "NO CALL ⚖️")),
             "model_version": model_version,
             "opponent_name": "",
