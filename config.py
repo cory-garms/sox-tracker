@@ -101,6 +101,20 @@ REQUEST_TIMEOUT = 30       # seconds
 REQUEST_DELAY   = 0.25     # seconds between API calls (be polite)
 
 # ---------------------------------------------------------------------------
+# Database & Backend Settings (dirtywater.corygarms.com)
+# ---------------------------------------------------------------------------
+# Defaults to SQLite in data/cache/ for local development and offline tests.
+# In production on Render, Render supplies DATABASE_URL (postgresql://...).
+_RAW_DB_URL = os.environ.get(
+    "DATABASE_URL", f"sqlite:///{CACHE_DIR / 'dirtywater.db'}"
+)
+# SQLAlchemy requires postgresql:// instead of legacy postgres://
+if _RAW_DB_URL.startswith("postgres://"):
+    _RAW_DB_URL = _RAW_DB_URL.replace("postgres://", "postgresql://", 1)
+
+DATABASE_URL: str = _RAW_DB_URL
+
+# ---------------------------------------------------------------------------
 # Sportsbook odds (optional)
 # ---------------------------------------------------------------------------
 # Live betting lines require a free key from https://the-odds-api.com/.
@@ -109,3 +123,4 @@ REQUEST_DELAY   = 0.25     # seconds between API calls (be polite)
 # and reports the line as unavailable instead of inventing one.
 ODDS_API_KEY: str = os.environ.get("ODDS_API_KEY", "")
 ODDS_BOOKMAKER: str = "draftkings"   # which book's prices to pull via the aggregator
+
