@@ -93,45 +93,46 @@ def _serve_page(filename: str) -> Response:
 
 
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root_page():
     """Default landing page -> Tonight's Board."""
     return _serve_page(f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/board", include_in_schema=False)
+@app.api_route("/board", methods=["GET", "HEAD"], include_in_schema=False)
 def board_page():
     return _serve_page(f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/models", include_in_schema=False)
+@app.api_route("/models", methods=["GET", "HEAD"], include_in_schema=False)
 def models_page():
     return _serve_page(f"models_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/method", include_in_schema=False)
+@app.api_route("/method", methods=["GET", "HEAD"], include_in_schema=False)
 def method_page():
     return _serve_page(f"method_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/matchup", include_in_schema=False)
+@app.api_route("/matchup", methods=["GET", "HEAD"], include_in_schema=False)
 def matchup_page():
     return _serve_page(f"matchup_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/dashboard", include_in_schema=False)
+@app.api_route("/dashboard", methods=["GET", "HEAD"], include_in_schema=False)
 def dashboard_page():
     return _serve_page(f"dashboard_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/leaders", include_in_schema=False)
+@app.api_route("/leaders", methods=["GET", "HEAD"], include_in_schema=False)
 def leaders_page():
     return _serve_page(f"leaders_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.get("/streaks", include_in_schema=False)
+@app.api_route("/streaks", methods=["GET", "HEAD"], include_in_schema=False)
 def streaks_page():
     return _serve_page(f"streak_records_{config.TEAM_ABBR}_{config.SEASON}.html")
+
 
 
 # Mount static assets if docs directory exists

@@ -101,10 +101,11 @@ class PredictionResponse(BaseModel):
 # Health & Status
 # ---------------------------------------------------------------------------
 
-@router.get("/healthz", tags=["System"])
+@router.api_route("/healthz", methods=["GET", "HEAD"], tags=["System"])
 def health_check():
-    """Health check endpoint for Render and Cloudflare."""
+    """Health check endpoint for Render, Vercel, and Cloudflare."""
     return {"status": "ok", "app": "dirtywater", "version": "2026.1"}
+
 
 
 # ---------------------------------------------------------------------------
