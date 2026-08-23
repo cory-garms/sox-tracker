@@ -26,4 +26,5 @@ databases:
   - name: dirtywater-db
     databaseName: dirtywater
     user: dirtywater_user
-    plan: starter
+    plan: basic-256mb
+
