@@ -2,15 +2,14 @@ services:
   - type: web
     name: dirtywater-app
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt && python scripts/migrate_parquet_to_db.py
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: dirtywater-db
-          property: connectionString
+        sync: false
       - key: ODDS_API_KEY
         sync: false
       - key: TEAM_ID
@@ -22,9 +21,4 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.8"
 
-databases:
-  - name: dirtywater-db
-    databaseName: dirtywater
-    user: dirtywater_user
-    plan: basic-256mb
 
