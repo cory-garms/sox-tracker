@@ -125,6 +125,13 @@ def page_method():
     return _serve_page(f"method_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
+@app.api_route(f"/track_record_{config.TEAM_ABBR}_{config.SEASON}.html", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/track_record", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/record", methods=["GET", "HEAD"], include_in_schema=False)
+def page_track_record():
+    return _serve_page(f"track_record_{config.TEAM_ABBR}_{config.SEASON}.html")
+
+
 @app.api_route(f"/dashboard_{config.TEAM_ABBR}_{config.SEASON}.html", methods=["GET", "HEAD"], include_in_schema=False)
 @app.api_route("/dashboard", methods=["GET", "HEAD"], include_in_schema=False)
 def page_dashboard():

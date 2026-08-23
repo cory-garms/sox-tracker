@@ -537,6 +537,7 @@ PAGES: dict[str, tuple[str, str, str]] = {
     # Odds & Models (Secondary analytical & betting models)
     "board":     ("tonights_board_BOS_2026.html", "Tonight's Board",    MODE_BETTING),
     "models":    ("models_BOS_2026.html",         "Models &amp; Method", MODE_BETTING),
+    "record":    ("track_record_BOS_2026.html",   "Track Record",       MODE_BETTING),
     "method":    ("method_BOS_2026.html",         "How This Works",     MODE_BETTING),
 }
 
