@@ -83,6 +83,18 @@ jobs:
           python matchup_report.py --team "$TEAM" --season "$SEASON"
           python streak_report.py
 
+      # The game that just finished is the outcome for whatever the models
+      # projected about it this morning. Both steps are pure joins over data
+      # already on disk — no MLB call, no odds credit.
+      - name: Settle the projections it just resolved
+        if: steps.gate.outputs.rebuild == 'true'
+        env:
+          TEAM: ${{ vars.TEAM_ABBR || 'BOS' }}
+          SEASON: ${{ vars.SEASON || '2026' }}
+        run: |
+          python scripts/grade_predictions.py --team "$TEAM" --season "$SEASON"
+          python track_record_report.py       --team "$TEAM" --season "$SEASON"
+
       - name: Mark the games as built
         if: steps.gate.outputs.rebuild == 'true'
         run: python scripts/postgame_check.py --lookback "${{ inputs.lookback || '1' }}" --mark
@@ -93,7 +105,10 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/ data/cache/postgame_state.json
-          # The season tables changed too — that is the point of the rebuild.
+          # The season tables changed too — that is the point of the rebuild —
+          # and predictions_history.parquet now carries the outcomes just
+          # settled. Like odds_history it is an append-only record that cannot
+          # be rebuilt from anything else, so it has to be committed.
           git add data/cache/*.parquet || true
           if git diff --cached --quiet; then
             echo "Nothing changed."

@@ -17,7 +17,7 @@ from client.odds_math import american_to_implied_prob
 from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
-from data import bet_log, league_pitching, odds_history, opponent
+from data import bet_log, league_pitching, odds_history, opponent, predictions_history
 from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
 from analysis.streaks import played_in_order
 from analysis.betting import (
@@ -735,6 +735,49 @@ def _betting_css() -> str:
 """
 
 
+_ID_TO_NAME = {info["id"]: info["name"] for info in config.TEAMS.values()}
+
+
+def _log_predictions(
+    k_df,
+    tb_df,
+    event: dict | None,
+    game_date: str,
+    opponent_id: int | None,
+) -> int:
+    """
+    Append this build's projections to the predictions log.
+
+    Never raises: a page build must not fail because a log could not be
+    written, which is the same contract odds_history.append_snapshot holds.
+
+    The opponent factor is left to be read off the model frame's own
+    `opp_k_factor` column rather than passed in, so the value logged is the one
+    the projection was actually computed with.
+    """
+    event = event or {}
+    event_id = str(event.get("id", ""))
+    commence = event.get("commence_time")
+    opponent_name = _ID_TO_NAME.get(opponent_id, "") if opponent_id else ""
+
+    rows = []
+    rows.extend(predictions_history.snapshot_rows(
+        k_df, MARKET_K, game_date,
+        model_version="v1.2-regressed-opponent",
+        model_error=MODEL_ERROR_K,
+        line_col="prop_line", projection_col="proj_k", edge_col="edge",
+        event_id=event_id, commence_time=commence, opponent_name=opponent_name,
+    ))
+    rows.extend(predictions_history.snapshot_rows(
+        tb_df, MARKET_TB, game_date,
+        model_version="v1.1-convolved-pa",
+        model_error=MODEL_ERROR_TB_PROB,
+        line_col="prop_line", projection_col="proj_tb", edge_col="prob_edge",
+        event_id=event_id, commence_time=commence,
+    ))
+    return predictions_history.append_snapshot(rows)
+
+
 def _shell(title: str, slug: str, heading: str, subtitle: str, sections: str) -> str:
     """
     The common document around either betting page.
@@ -882,6 +925,13 @@ def generate_betting_html(
     nrfi_res = nrfi_yrfi_tracker(games, pitching, client, team_id, season)
     tb_df = batter_total_bases_model(batting, book.get(MARKET_TB, {}), season)
     hr_df = batter_hr_rbi_props(batting, season)
+
+    # Log what the models just said, for the same reason the odds snapshot above
+    # is logged: a static page shows only its last build, and the record of what
+    # was projected — beside the line it was projected against — is what lets
+    # scripts/grade_predictions.py score it once the game finishes. Without this
+    # the track record can only ever contain replays.
+    _log_predictions(k_df, tb_df, event, date_str, opp_id)
 
     # The market priced against itself. This covers both teams — the opposing
     # starter and the opposing lineup arrive in the same payload at the same

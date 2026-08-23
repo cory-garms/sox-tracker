@@ -99,6 +99,16 @@ class ModelPrediction(Base):
     opponent_factor = Column(Float, nullable=True)
     details_json = Column(Text, nullable=True)
 
+    # What happened. Without these the table records only what was *said*, and
+    # a prediction nobody scored cannot tell you whether the model is any good.
+    # `outcome` is over / under / push / no_line / void — see
+    # data/predictions_history.py for why no_line is its own state.
+    player_id = Column(Integer, nullable=True, index=True)
+    game_pk = Column(Integer, nullable=True, index=True)
+    actual = Column(Float, nullable=True)
+    outcome = Column(String(16), nullable=True, default="")
+    settled_at = Column(String(32), nullable=True)
+
     __table_args__ = (
         Index("idx_pred_lookup", "game_date", "market", "player"),
     )
@@ -123,6 +133,11 @@ class ModelPrediction(Base):
             "opponent_name": self.opponent_name,
             "opponent_factor": self.opponent_factor,
             "details_json": self.details_json,
+            "player_id": self.player_id,
+            "game_pk": self.game_pk,
+            "actual": self.actual,
+            "outcome": self.outcome,
+            "settled_at": self.settled_at,
         }
 
 

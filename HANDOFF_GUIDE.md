@@ -18,7 +18,7 @@
 | Mode | Pages | Character |
 | :--- | :--- | :--- |
 | 📊 **Season & Matchup** (Default) | Today's Matchup, Season Dashboard, Stat Leaders, Win Streaks | Clean, analytical team record, player leaderboards, rotation/bullpen load, and pre-game advantages |
-| 🎲 **Odds & Models** (Secondary) | Tonight's Board, Models & Method, How This Works | Live line comparison against model projections, CLV tracking, and methodology notes |
+| 🎲 **Odds & Models** (Secondary) | Tonight's Board, Models & Method, Track Record, How This Works | Live line comparison against model projections, CLV tracking, the models' scored history, and methodology notes |
 
 - **Live URL**: [`https://dirtywater.corygarms.com`](https://dirtywater.corygarms.com) / [`https://dirtywater-app.onrender.com`](https://dirtywater-app.onrender.com)
 - **Static GitHub Pages Mirror**: [`https://cory-garms.github.io/sox-tracker/`](https://cory-garms.github.io/sox-tracker/)
@@ -243,7 +243,52 @@ deleted by the next person who finds it inconvenient.
 
 ---
 
-## 🔌 8. REST API surface
+## 📈 8. The model feedback loop
+
+`data/cache/predictions_history.parquet` is an append-only log of every
+projection the models publish, with the line it was quoted against and — once
+the game finishes — what actually happened. Like `odds_history.parquet` it is
+written by GitHub Actions, committed, and mirrored into Postgres on deploy.
+
+```
+betting_report.py  ──►  predictions_history.parquet  ──►  grade_predictions.py
+   (logs each build)         (append-only)                (joins actuals)
+                                    │
+                                    ├──►  track_record_report.py  → the page
+                                    └──►  migrate_parquet_to_db.py → Postgres
+```
+
+**Scoring must go through `predictions_history.latest_per_game()`.** Every build
+logs a snapshot, so the raw log counts the same player-game once per build: the
+882 directional rows in the 2026 backfill are only **164 distinct player-games**,
+and one pitcher-game had been captured 23 times. Scoring the raw rows claims a
+sample five times larger than it is and weights each game by how often it
+happened to be captured.
+
+`scripts/backfill_predictions.py` reconstructs historical projections from stored
+odds. Both models are pure functions, so this is exact — **provided the replay is
+given only what was known then**. Three guards, all tested: stats truncated to
+`game_date < D`, `league_k9` recomputed as of D, and `as_of_date=D` bounding the
+opponent factor. Replayed rows carry a `-replay` version suffix. Lookahead here
+would produce a model that looks brilliant and is worthless, and it fails
+silently, so **do not weaken those guards**.
+
+### What the record currently says
+
+Neither model beats the market. Across 164 graded player-games (2026-07-25 to
+08-22): strikeouts AUC 0.415 with a −0.319 recalibration slope, total bases AUC
+0.495 and slope −0.014. Both Brier gaps against the de-vigged market contain
+zero. The negative slopes mean the ordering is backwards — the predictions the
+models are most confident about are the ones they get wrong.
+
+That is the point of the page, not a bug to hide. When re-deriving
+`MODEL_ERROR_K` / `MODEL_ERROR_TB_PROB` from this record, note the measured
+total-bases error is in **bases** while the constant is in **probability
+points** — they are different quantities and must not be compared.
+
+---
+
+## 🔌 9. REST API surface
 
 Everything below is live in [`backend/api/routes.py`](backend/api/routes.py) and
 covered by `tests/test_api.py`. The season tables are read from the **parquet
@@ -285,7 +330,7 @@ because the per-game log tables are built by walking the games table.
 
 ---
 
-## 📋 9. Known Gaps & Observations
+## 📋 10. Known Gaps & Observations
 
 1. **`docs/index.html` sync**: `docs/index.html` is the primary stats-first landing page. `scripts/refresh_nav.py` updates the navigation bar across all HTML pages.
 2. **CDN vs Local JS**: Pages embed Plotly bundle (`include_plotlyjs=True` on first div) to avoid CDN version drift on standalone offline files.
@@ -294,7 +339,7 @@ because the per-game log tables are built by walking the games table.
 
 ---
 
-## 🔍 10. Site audit — 2026-08-23
+## 🔍 11. Site audit — 2026-08-23
 
 All eight pages, the chart layer and the backend were audited. Pages, roster
 filtering, doubleheader ordering, the model error bars and the NO CALL

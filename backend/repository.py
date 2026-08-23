@@ -177,6 +177,16 @@ def get_line_movement(
 # Model Predictions Archival
 # ---------------------------------------------------------------------------
 
+def _opt_int(value: Any) -> int | None:
+    """Nullable integer column from a value that may be NA, NaN or a string."""
+    try:
+        if value is None or pd.isna(value):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def insert_model_predictions(session: Session, predictions: list[dict[str, Any]]) -> int:
     """
     Archive a batch of model predictions (e.g. pitcher K, batter TB, F5, ML win%).
@@ -204,6 +214,11 @@ def insert_model_predictions(session: Session, predictions: list[dict[str, Any]]
             opponent_name=p.get("opponent_name"),
             opponent_factor=float(p["opponent_factor"]) if p.get("opponent_factor") is not None and not pd.isna(p["opponent_factor"]) else None,
             details_json=p.get("details_json"),
+            player_id=_opt_int(p.get("player_id")),
+            game_pk=_opt_int(p.get("game_pk")),
+            actual=float(p["actual"]) if p.get("actual") is not None and not pd.isna(p["actual"]) else None,
+            outcome=p.get("outcome") or "",
+            settled_at=p.get("settled_at") or None,
         )
         session.add(obj)
         count += 1
