@@ -123,7 +123,10 @@ def list_bets(db: Session = Depends(get_db)):
 def create_bet(bet: BetCreateRequest, db: Session = Depends(get_db)):
     """Record a new bet in the bet log."""
     new_bet = insert_bet(db, bet.dict())
+    db.commit()
+    db.refresh(new_bet)
     return new_bet
+
 
 
 @router.get("/api/v1/bets/clv", response_model=CLVSummaryResponse, tags=["Bets"])

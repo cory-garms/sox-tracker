@@ -18,6 +18,8 @@ notebooks/.ipynb_checkpoints/
 docs/img/
 output/
 
-# OS
+# OS & Local DBs
 .DS_Store
 Thumbs.db
+*.db
+data/cache/*.db

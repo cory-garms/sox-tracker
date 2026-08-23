@@ -772,41 +772,57 @@ def rolling_synergy_chart(
     """
     Dual-axis rolling time-series: Rolling 7-Game Team OPS (Primary Y)
     vs Rolling 7-Game Team ERA (Secondary Y, inverted).
+    Guarantees strict chronological ordering using played_in_order.
     """
     f = played_in_order(games)
     if f.empty or batting.empty or pitching.empty:
         return go.Figure()
 
-    # Per-game batting OPS (grouped by game_pk to handle doubleheaders)
+    # Per-game batting sums
     b_grp = batting.groupby(["game_date", "game_pk"]).agg(
         ab=("ab", "sum"), h=("h", "sum"), bb=("bb", "sum"),
         hbp=("hbp", "sum"), sf=("sac_fly", "sum"),
         doubles=("doubles", "sum"), triples=("triples", "sum"), hr=("hr", "sum")
-    ).reset_index().sort_values("game_pk")
-    b_grp["tb"] = b_grp["h"] + b_grp["doubles"] + 2 * b_grp["triples"] + 3 * b_grp["hr"]
+    ).reset_index()
 
-    # Rolling batting over last N games
-    b_grp["roll_ab"] = b_grp["ab"].rolling(window).sum()
-    b_grp["roll_h"]  = b_grp["h"].rolling(window).sum()
-    b_grp["roll_bb"] = b_grp["bb"].rolling(window).sum()
-    b_grp["roll_hbp"]= b_grp["hbp"].rolling(window).sum()
-    b_grp["roll_sf"] = b_grp["sf"].rolling(window).sum()
-    b_grp["roll_tb"] = b_grp["tb"].rolling(window).sum()
-
-    obp_d = b_grp["roll_ab"] + b_grp["roll_bb"] + b_grp["roll_hbp"] + b_grp["roll_sf"]
-    roll_obp = (b_grp["roll_h"] + b_grp["roll_bb"] + b_grp["roll_hbp"]) / obp_d
-    roll_slg = b_grp["roll_tb"] / b_grp["roll_ab"]
-    b_grp["roll_ops"] = (roll_obp + roll_slg).round(3)
-
-    # Per-game pitching ERA (grouped by game_pk)
+    # Per-game pitching sums
     p_grp = pitching.groupby(["game_date", "game_pk"]).agg(
         ip=("ip", "sum"), er=("er", "sum")
-    ).reset_index().sort_values("game_pk")
-    p_grp["roll_ip"]  = p_grp["ip"].rolling(window).sum()
-    p_grp["roll_er"]  = p_grp["er"].rolling(window).sum()
-    p_grp["roll_era"] = (p_grp["roll_er"] * 9 / p_grp["roll_ip"]).round(2)
+    ).reset_index()
 
-    merged = pd.merge(b_grp[["game_date", "game_pk", "roll_ops"]], p_grp[["game_date", "game_pk", "roll_era"]], on=["game_date", "game_pk"]).dropna()
+    # Order strictly by chronological played_in_order
+    f_order = f[["game_pk", "game_date", "game_number"]].drop_duplicates()
+    merged = (
+        f_order.merge(b_grp, on=["game_date", "game_pk"], how="inner")
+        .merge(p_grp, on=["game_date", "game_pk"], how="inner")
+        .sort_values(["game_date", "game_number"])
+        .reset_index(drop=True)
+    )
+
+    if merged.empty:
+        return go.Figure()
+
+    merged["tb"] = merged["h"] + merged["doubles"] + 2 * merged["triples"] + 3 * merged["hr"]
+
+    # Rolling batting over last N games in true chronological order
+    merged["roll_ab"] = merged["ab"].rolling(window).sum()
+    merged["roll_h"]  = merged["h"].rolling(window).sum()
+    merged["roll_bb"] = merged["bb"].rolling(window).sum()
+    merged["roll_hbp"]= merged["hbp"].rolling(window).sum()
+    merged["roll_sf"] = merged["sf"].rolling(window).sum()
+    merged["roll_tb"] = merged["tb"].rolling(window).sum()
+
+    obp_d = merged["roll_ab"] + merged["roll_bb"] + merged["roll_hbp"] + merged["roll_sf"]
+    roll_obp = (merged["roll_h"] + merged["roll_bb"] + merged["roll_hbp"]) / obp_d
+    roll_slg = merged["roll_tb"] / merged["roll_ab"]
+    merged["roll_ops"] = (roll_obp + roll_slg).round(3)
+
+    # Rolling pitching over last N games in true chronological order
+    merged["roll_ip"]  = merged["ip"].rolling(window).sum()
+    merged["roll_er"]  = merged["er"].rolling(window).sum()
+    merged["roll_era"] = (merged["roll_er"] * 9 / merged["roll_ip"]).round(2)
+
+    merged = merged.dropna(subset=["roll_ops", "roll_era"]).reset_index(drop=True)
     if merged.empty:
         return go.Figure()
 
@@ -816,7 +832,7 @@ def rolling_synergy_chart(
     labels = []
     seen: dict[str, int] = {}
     for _, r in merged.iterrows():
-        d = r["game_date"]
+        d = str(r["game_date"])
         if d in dup_dates:
             seen[d] = seen.get(d, 0) + 1
             labels.append(f"{d} G{seen[d]}")

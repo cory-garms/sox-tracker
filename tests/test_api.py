@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from sqlalchemy.pool import StaticPool
+
 from backend.database import Base, get_db
 from backend.main import app
 from backend.repository import insert_odds_snapshots
@@ -18,7 +20,11 @@ from backend.repository import insert_odds_snapshots
 @pytest.fixture
 def client_with_db():
     """Create a TestClient with an isolated in-memory SQLite database."""
-    test_engine = create_engine("sqlite:///:memory:")
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(test_engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
