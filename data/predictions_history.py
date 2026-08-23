@@ -216,6 +216,30 @@ def graded(frame: pd.DataFrame) -> pd.DataFrame:
     return frame[outcome.isin(DIRECTIONAL)]
 
 
+def latest_per_game(frame: pd.DataFrame) -> pd.DataFrame:
+    """
+    One row per player per game — the last projection made before first pitch.
+
+    **Scoring must go through this.** Every build logs a snapshot, so the same
+    player-game appears once per build: in the real log 882 directional rows
+    collapse to 164 distinct player-games, and one pitcher-game was captured 23
+    times. Scoring the raw rows would claim a sample five times larger than it
+    is, and would weight each game by how many times it happened to be captured
+    — a rained-on afternoon with many builds outvoting a clean night with one.
+
+    The last pre-game capture is the one kept: it is the most informed version
+    of the projection and the one comparable against a closing line.
+    """
+    if frame is None or frame.empty:
+        return frame
+    ordered = frame.sort_values("captured_at")
+    # idxmax on the ordering, not groupby().last(): the latter takes the last
+    # non-null value of each column independently and can stitch together a row
+    # that never existed.
+    keep = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)
+    return keep
+
+
 def with_actuals(frame: pd.DataFrame) -> pd.DataFrame:
     """
     Rows whose actual result is known, line or not.

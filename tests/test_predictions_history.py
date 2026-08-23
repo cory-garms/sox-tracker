@@ -147,6 +147,56 @@ class TestSettle:
         assert ph.settle(6.0, None) == ""
 
 
+class TestLatestPerGame:
+    """
+    The regression this guards: every build logs a snapshot, so scoring the raw
+    log counts the same player-game once per build. In the real backfill 882
+    directional rows were only 164 distinct player-games, and one pitcher-game
+    had been captured 23 times — a sample five times overstated, weighted by how
+    often each game happened to be captured.
+    """
+
+    def _log(self):
+        return pd.DataFrame([
+            {"game_date": "2026-08-20", "market": "pitcher_strikeouts", "player": "SP",
+             "captured_at": "2026-08-20T11:00:00+00:00", "line": 4.5, "projection": 5.0},
+            {"game_date": "2026-08-20", "market": "pitcher_strikeouts", "player": "SP",
+             "captured_at": "2026-08-20T19:00:00+00:00", "line": 5.5, "projection": 5.0},
+            {"game_date": "2026-08-20", "market": "pitcher_strikeouts", "player": "SP",
+             "captured_at": "2026-08-20T15:00:00+00:00", "line": 5.0, "projection": 5.0},
+            {"game_date": "2026-08-21", "market": "pitcher_strikeouts", "player": "SP",
+             "captured_at": "2026-08-21T15:00:00+00:00", "line": 4.5, "projection": 5.2},
+        ])
+
+    def test_collapses_repeat_captures_to_one_row(self):
+        assert len(ph.latest_per_game(self._log())) == 2
+
+    def test_keeps_the_last_capture_before_first_pitch(self):
+        """The most informed projection, and the one comparable to a close."""
+        out = ph.latest_per_game(self._log())
+        row = out[out["game_date"] == "2026-08-20"].iloc[0]
+        assert row["captured_at"] == "2026-08-20T19:00:00+00:00"
+        assert row["line"] == 5.5
+
+    def test_keeps_separate_games_separate(self):
+        assert set(ph.latest_per_game(self._log())["game_date"]) == {"2026-08-20", "2026-08-21"}
+
+    def test_does_not_stitch_columns_from_different_rows(self):
+        """
+        groupby().last() takes the last non-null of each column independently
+        and can produce a row that never existed.
+        """
+        log = self._log()
+        log.loc[1, "line"] = None            # latest capture has a null line
+        row = ph.latest_per_game(log)
+        row = row[row["game_date"] == "2026-08-20"].iloc[0]
+        assert row["captured_at"] == "2026-08-20T19:00:00+00:00"
+        assert pd.isna(row["line"]), "line was back-filled from an earlier capture"
+
+    def test_an_empty_log_is_handled(self):
+        assert ph.latest_per_game(pd.DataFrame(columns=ph.COLUMNS)).empty
+
+
 class TestGradedAndUngraded:
     def _log(self):
         return pd.DataFrame([
