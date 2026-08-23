@@ -15,6 +15,7 @@ from viz import theme
 from client.mlb_client import MLBClient
 from data.fetcher import Fetcher
 from analysis.matchup import (
+    MIN_IP_FOR_RATES,
     fetch_doubleheader_previews,
     format_first_pitch,
     starter_season_summary,
@@ -22,6 +23,25 @@ from analysis.matchup import (
     bullpen_availability,
     head_to_head_summary,
 )
+
+
+def _thin_sample_note(*starters) -> str:
+    """
+    Say why a starter's rate cells are blank.
+
+    Blanking them without explanation reads as a data failure. Naming the
+    pitcher and his innings turns it into the finding it actually is: there is
+    not enough of a season to rate him yet.
+    """
+    thin = [s for s in starters if s and s.get("thin_sample") and s.get("name") not in (None, "TBD")]
+    if not thin:
+        return ""
+    who = "; ".join(f"{s['name']} ({s.get('ip', 0)} IP)" for s in thin)
+    return (
+        '<p class="scroll-hint">Rates withheld for '
+        f"{who} — under {int(MIN_IP_FOR_RATES)} innings, an ERA is a coincidence "
+        "rather than a description.</p>"
+    )
 
 
 def generate_matchup_html(
@@ -107,6 +127,7 @@ def generate_matchup_html(
           </tbody>
         </table>
     </div>
+    {_thin_sample_note(s1_our, s1_opp, s2_our, s2_opp)}
         """
     else:
         our_prob = p1.get("our_probable", {})
@@ -136,6 +157,7 @@ def generate_matchup_html(
           </tbody>
         </table>
     </div>
+    {_thin_sample_note(s_our, s_opp)}
         """
 
     # 2. Platoon Lineup Advantage HTML (Active Hitters)

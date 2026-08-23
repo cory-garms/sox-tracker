@@ -141,12 +141,46 @@ def fetch_game_preview(
 # Probable Starter Stats Summary
 # ---------------------------------------------------------------------------
 
+# Below this, a rate is a coincidence rather than a description. Two innings of
+# shutout relief is an ERA of 0.00 and says nothing about the pitcher.
+MIN_IP_FOR_RATES = 10.0
+
+
+def innings_to_decimal(ip: float | str | None) -> float:
+    """
+    Convert MLB's innings notation to real innings.
+
+    "80.2" means eighty and two *thirds*, not eighty point two. Treating it as a
+    decimal understated Jake Bennett's K/9 as 6.85 on the matchup page while the
+    strikeout model — which aggregates ip_outs — published 6.81 for the same
+    pitcher on the models page.
+    """
+    if ip in (None, "", "-"):
+        return 0.0
+    try:
+        value = float(ip)
+    except (TypeError, ValueError):
+        return 0.0
+    whole = int(value)
+    outs = round((value - whole) * 10)
+    # Guard against a malformed ".4" or worse rather than inventing an inning.
+    if outs not in (0, 1, 2):
+        return float(value)
+    return whole + outs / 3.0
+
+
 def starter_season_summary(
     client: MLBClient,
     pitcher_id: int | None,
     season: int = 2026,
 ) -> dict[str, Any]:
-    """Fetch starter season stats (ERA, WHIP, K/9, BB/9, IP, W-L)."""
+    """
+    Fetch starter season stats (ERA, WHIP, K/9, BB/9, IP, W-L).
+
+    Rates are withheld below MIN_IP_FOR_RATES and the sample is reported
+    instead: the page previously showed an opposing starter at "ERA 0.00,
+    WHIP 0.50" off 2.0 innings, which reads as the best pitcher in baseball.
+    """
     if not pitcher_id:
         return {"name": "TBD", "era": "-", "whip": "-", "k9": "-", "bb9": "-", "ip": 0, "w": 0, "l": 0}
 
@@ -158,12 +192,12 @@ def starter_season_summary(
     if not stat:
         return {"name": name, "hand": hand, "era": "-", "whip": "-", "k9": "-", "bb9": "-", "ip": 0, "w": 0, "l": 0}
 
-    ip = float(stat.get("inningsPitched", 0) or 0)
+    raw_ip = stat.get("inningsPitched", 0) or 0
+    ip = innings_to_decimal(raw_ip)
     so = int(stat.get("strikeOuts", 0) or 0)
     bb = int(stat.get("baseOnBalls", 0) or 0)
 
-    era = str(stat.get("era", "-"))
-    whip = str(stat.get("whip", "-"))
+    thin = ip < MIN_IP_FOR_RATES
     k9 = round((so * 9.0 / ip), 2) if ip > 0 else 0.0
     bb9 = round((bb * 9.0 / ip), 2) if ip > 0 else 0.0
 
@@ -172,11 +206,16 @@ def starter_season_summary(
         "hand": hand,
         "w": int(stat.get("wins", 0) or 0),
         "l": int(stat.get("losses", 0) or 0),
-        "era": era,
-        "whip": whip,
-        "k9": f"{k9:.2f}" if ip > 0 else "-",
-        "bb9": f"{bb9:.2f}" if ip > 0 else "-",
-        "ip": ip,
+        # A rate off a handful of innings is noise wearing a decimal point.
+        "era": "-" if thin else str(stat.get("era", "-")),
+        "whip": "-" if thin else str(stat.get("whip", "-")),
+        "k9": "-" if thin or ip <= 0 else f"{k9:.2f}",
+        "bb9": "-" if thin or ip <= 0 else f"{bb9:.2f}",
+        # Displayed as written by MLB (80.2 = 80 2/3), which is what a reader
+        # expects to see; the decimal form is only for the arithmetic above.
+        "ip": raw_ip,
+        "ip_decimal": ip,
+        "thin_sample": thin,
     }
 
 

@@ -536,6 +536,33 @@
     said it less often than it happened.</p><p class="note">Weighted RMS gap 0.129 against a sampling-noise floor of 0.100. The gap is larger than the noise, so it is a real miscalibration.</p>
   </section>
   <section class="card">
+    <h2>Why "no edge" is not the same as "no skill"</h2>
+    <p>The total-bases model looks inert above — AUC 0.495, a recalibration
+    slope of about zero. Run the same model over <em>every</em> hitter-start in
+    the cache rather than only the ones a book priced, and it is not inert at
+    all:</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Population</th><th>n</th><th>AUC</th><th>Slope</th><th>Base rate</th><th>Hitters</th></tr></thead>
+      <tbody>
+        <tr><td>All hitter-starts</td><td>935</td><td>0.564</td><td>+0.710</td><td>0.353</td><td>54</td></tr>
+        <tr><td>Only those a book priced</td><td>140</td><td>0.495</td><td>&minus;0.014</td><td>0.436</td><td>12</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Every line in both rows is 1.5 bases, so this is the same question asked
+    of two different populations. The model can tell a good hitter-game from a
+    bad one across the roster. It cannot do so among the twelve regulars a book
+    bothers to post a line on — and the higher base rate in that row shows why:
+    the book is already selecting the hitters likely to clear the number.</p>
+    <p>That is a <strong>selection effect</strong>, and it is the honest reason
+    the board says NO CALL. The skill is real; the market has already priced out
+    the part of it you could act on. It also means adding a third prop market
+    would not help — the same selection applies wherever a book chooses what to
+    quote.</p>
+  </section>
+
+  <section class="card">
     <h2>How to read this</h2>
     <p><strong>Brier score</strong> is the mean squared error of a probability
     forecast — lower is better. The only comparison that matters is against the
