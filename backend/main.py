@@ -93,48 +93,58 @@ def _serve_page(filename: str) -> Response:
 
 
 
+ALIASES: dict[str, str] = {
+    "board": f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "models": f"models_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "matchup": f"matchup_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "method": f"method_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "dashboard": f"dashboard_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "leaders": f"leaders_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "streaks": f"streak_records_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "betting": f"betting_{config.TEAM_ABBR}_{config.SEASON}.html",
+    "index": "index.html",
+}
+
+
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root_page():
     """Default landing page -> Tonight's Board."""
     return _serve_page(f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
-@app.api_route("/board", methods=["GET", "HEAD"], include_in_schema=False)
-def board_page():
-    return _serve_page(f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html")
+@app.api_route("/{page_name:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def serve_dashboard_page(page_name: str):
+    """
+    Catch-all router to serve any dashboard HTML page, whether requested via
+    exact filename (e.g. models_BOS_2026.html), clean slug (e.g. /models), or static asset.
+    """
+    # 1. Check if exact file exists in docs/
+    target = DOCS_DIR / page_name
+    if target.is_file():
+        media_type = "text/html" if page_name.endswith(".html") else None
+        headers = {
+            "Cache-Control": "public, max-age=30, s-maxage=120, stale-while-revalidate=300",
+        }
+        return FileResponse(target, media_type=media_type, headers=headers)
 
+    # 2. Check if appending .html matches a file
+    if not page_name.endswith(".html"):
+        target_html = DOCS_DIR / f"{page_name}.html"
+        if target_html.is_file():
+            return _serve_page(f"{page_name}.html")
 
-@app.api_route("/models", methods=["GET", "HEAD"], include_in_schema=False)
-def models_page():
-    return _serve_page(f"models_{config.TEAM_ABBR}_{config.SEASON}.html")
+    # 3. Check clean aliases (e.g. /board, /models, /dashboard)
+    slug = page_name.lower().strip("/")
+    if slug in ALIASES:
+        return _serve_page(ALIASES[slug])
 
-
-@app.api_route("/method", methods=["GET", "HEAD"], include_in_schema=False)
-def method_page():
-    return _serve_page(f"method_{config.TEAM_ABBR}_{config.SEASON}.html")
-
-
-@app.api_route("/matchup", methods=["GET", "HEAD"], include_in_schema=False)
-def matchup_page():
-    return _serve_page(f"matchup_{config.TEAM_ABBR}_{config.SEASON}.html")
-
-
-@app.api_route("/dashboard", methods=["GET", "HEAD"], include_in_schema=False)
-def dashboard_page():
-    return _serve_page(f"dashboard_{config.TEAM_ABBR}_{config.SEASON}.html")
-
-
-@app.api_route("/leaders", methods=["GET", "HEAD"], include_in_schema=False)
-def leaders_page():
-    return _serve_page(f"leaders_{config.TEAM_ABBR}_{config.SEASON}.html")
-
-
-@app.api_route("/streaks", methods=["GET", "HEAD"], include_in_schema=False)
-def streaks_page():
-    return _serve_page(f"streak_records_{config.TEAM_ABBR}_{config.SEASON}.html")
-
+    return HTMLResponse(
+        f"<h1>Page '{page_name}' Not Found</h1><p><a href='/'>Return to Tonight's Board</a></p>",
+        status_code=404,
+    )
 
 
 # Mount static assets if docs directory exists
 if DOCS_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(DOCS_DIR)), name="static")
+
