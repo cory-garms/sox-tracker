@@ -465,6 +465,12 @@ def page_css() -> str:
       background: transparent; color: {FENWAY_CRIMSON};
       border: 1px dashed {FENWAY_CRIMSON};
     }}
+    /* A propped hitter who is not in tonight's posted lineup. Solid, where
+       `review` is dashed: that one is a model defect to weigh up, this is a
+       settled fact about the game. */
+    .rec-badge.scratched {{
+      background: {FENWAY_CRIMSON}; color: #fff5f5;
+    }}
     .delta-pos {{ color: {OUTFIELD_GREEN}; }}
     .delta-neg {{ color: {FENWAY_CRIMSON}; }}
     .delta-neu {{ color: {INK_MUTED}; }}

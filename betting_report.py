@@ -18,7 +18,13 @@ from client.mlb_client import MLBClient
 from client.odds_api_client import OddsAPIClient
 from data.fetcher import Fetcher
 from data import bet_log, league_pitching, odds_history, opponent, predictions_history
-from analysis.matchup import fetch_doubleheader_previews, format_first_pitch
+from analysis.matchup import (
+    LINEUP_OUT,
+    LINEUP_UNPOSTED,
+    fetch_doubleheader_previews,
+    format_first_pitch,
+    lineup_status,
+)
 from analysis.streaks import played_in_order
 from analysis.betting import (
     EARLY_WIN_LIFT_2RUN,
@@ -134,6 +140,62 @@ def _method_page_sections() -> str:
   </section>
 """
     return out
+
+
+def _lineup_badge(row) -> str:
+    """
+    Mark a *propped* hitter who is not in tonight's posted lineup.
+
+    Two filters, and both earn their place by keeping the badge rare enough to
+    mean something.
+
+    LINEUP_UNPOSTED stays silent: it is the normal state for three of the four
+    daily builds and says nothing either way.
+
+    A hitter with no line stays silent too. These tables rank the top ten by
+    projection across the whole roster, so on any night four or five of them are
+    bench bats who were never going to start -- badging those is half the table
+    lit up every evening, which is how a reader learns to skip the badge by the
+    time it carries information. The defect this exists for is narrower: a live
+    price on someone who will not bat.
+    """
+    if row.get("lineup_state", LINEUP_UNPOSTED) != LINEUP_OUT:
+        return ""
+    if not row.get("has_line", False):
+        return ""
+    return ' <span class="rec-badge scratched">NOT IN LINEUP</span>'
+
+
+def _lineup_note(tb_df, previews) -> str:
+    """
+    Say where the lineup cross-check stands, in the page's own words.
+
+    Three outcomes, and silence is wrong for all of them: someone propped is not
+    starting, everyone propped is, or MLB has not posted an order yet. The last
+    is the common case before ~4pm ET and the reader needs to know the check ran
+    and had nothing to go on, rather than assuming it passed.
+    """
+    if tb_df.empty or "lineup_state" not in tb_df.columns:
+        return ""
+    rows = tb_df[tb_df["has_line"]]
+    if rows.empty:
+        return ""
+
+    if not any((p or {}).get("lineup_posted") for p in previews):
+        return (
+            " <strong>Lineup not posted yet</strong> &mdash; propped hitters have "
+            "not been checked against tonight's batting order."
+        )
+
+    out = sorted(set(rows.loc[rows["lineup_state"] == LINEUP_OUT, "player_name"]))
+    if not out:
+        return " Every propped hitter is in tonight's posted lineup."
+    names = ", ".join(out)
+    return (
+        f" <strong>Not in tonight's lineup:</strong> {names}. A prop on a hitter "
+        "who does not bat is voided by the book, not lost &mdash; but it is not a "
+        "position either, and the projection beside it describes nobody."
+    )
 
 
 def _price(odds) -> str:
@@ -927,6 +989,20 @@ def generate_betting_html(
     tb_df = batter_total_bases_model(batting, book.get(MARKET_TB, {}), season)
     hr_df = batter_hr_rbi_props(batting, season)
 
+    # Cross-check every propped hitter against the posted batting order. A prop
+    # on someone who never bats is void rather than bad, and on 2026-07-27 the
+    # page carried a live +117 total-bases line on a hitter who was not starting
+    # and said nothing. The lineup rides along on the preview fetch that already
+    # happened above, so this costs no request of any kind.
+    #
+    # Total bases only: it is the table carrying real prop lines.
+    # batter_hr_rbi_props is season and last-ten rate stats with no line and no
+    # call, so there is no position there to be voided.
+    if not tb_df.empty:
+        tb_df["lineup_state"] = [
+            lineup_status(previews, pid) for pid in tb_df["player_id"]
+        ]
+
     # Log what the models just said, for the same reason the odds snapshot above
     # is logged: a static page shows only its last build, and the record of what
     # was projected — beside the line it was projected against — is what lets
@@ -1165,7 +1241,7 @@ def generate_betting_html(
 
             tb_rows += f"""
             <tr>
-              <td><strong>{r['player_name']}</strong></td>
+              <td><strong>{r['player_name']}</strong>{_lineup_badge(r)}</td>
               <td>{r['starts']}</td>
               <td>{r['season_avg']:.3f}</td>
               <td>{r['season_slg']:.3f}</td>
@@ -1190,6 +1266,7 @@ def generate_betting_html(
             "<strong>No sides called.</strong> The edge here is a difference in "
             "probability, not in bases &mdash; nearly every hitter is posted at "
             "1.5 and only the price separates them."
+            + _lineup_note(tb_df, previews)
             + _method(
                 "Why the total-bases model calls nothing",
                 "Lines are DraftKings' own, fetched with the strikeout market. "
@@ -1211,6 +1288,7 @@ def generate_betting_html(
         tb_note = (
             "<strong>No total-bases lines connected.</strong> Projections only "
             "&mdash; the table waits for a real line rather than assuming one."
+            + _lineup_note(tb_df, previews)
         )
 
     tb_movement_html = _movement_notes(history, event, tb_quoted, MARKET_TB)

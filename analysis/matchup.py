@@ -69,6 +69,15 @@ def _parse_single_preview(
 
     status = raw_game.get("status", {}) or {}
 
+    # The posted batting order, hydrated by get_game_previews(). Carried through
+    # so a prop can be checked against who is actually starting -- see
+    # lineup_status(). MLB publishes these roughly 2-4 hours before first pitch,
+    # so an empty list means "not announced yet" far more often than it means
+    # "nobody is playing", and the two must not be conflated.
+    lineups = raw_game.get("lineups", {}) or {}
+    our_players = lineups.get("homePlayers" if is_home else "awayPlayers") or []
+    opp_players = lineups.get("awayPlayers" if is_home else "homePlayers") or []
+
     return {
         "game_pk": raw_game.get("gamePk"),
         "game_date": raw_game.get("officialDate", date_str),
@@ -86,6 +95,11 @@ def _parse_single_preview(
         "opponent_abbr": opp_abbr,
         "our_probable": our_prob,
         "opp_probable": opp_prob,
+        # Empty set + posted False is "not announced"; posted True with a player
+        # absent is "benched tonight". Only the second is worth flagging.
+        "lineup_posted": bool(our_players),
+        "our_lineup_ids": {p["id"] for p in our_players if p.get("id") is not None},
+        "opp_lineup_ids": {p["id"] for p in opp_players if p.get("id") is not None},
     }
 
 
@@ -125,6 +139,48 @@ def fetch_doubleheader_previews(
     """Fetch all game previews for a given date (handles split doubleheaders)."""
     raw_games = client.get_game_previews(team_id, date_str)
     return [_parse_single_preview(g, team_id, date_str, i + 1) for i, g in enumerate(raw_games)]
+
+
+# Three states, and the distinction is the whole point of this check.
+LINEUP_IN = "in"              # lineup posted, player is starting
+LINEUP_OUT = "out"            # lineup posted, player is not in it
+LINEUP_UNPOSTED = "unposted"  # no lineup yet -- says nothing either way
+
+
+def lineup_status(previews: list[dict[str, Any]], player_id: Any) -> str:
+    """
+    Is this player in tonight's posted batting order?
+
+    A hitter carried a live +117 total-bases prop on 2026-07-27 while not in the
+    posted lineup, and nothing on the page flagged it. A prop on someone who
+    never bats is not a bad bet, it is a void one, and the page should say so.
+
+    Returns LINEUP_UNPOSTED unless a lineup is actually published. Three of the
+    four daily builds run before MLB posts one, so treating "no lineup yet" as
+    "not starting" would flag the entire board every morning -- louder than the
+    bug it is meant to catch, and it would train the reader to ignore the badge
+    by the time it means something.
+
+    A doubleheader is checked across both games: a player rested in game one and
+    starting the nightcap is starting, and the prop does not say which game it
+    is for.
+    """
+    if player_id is None or not previews:
+        return LINEUP_UNPOSTED
+
+    try:
+        pid = int(player_id)
+    except (TypeError, ValueError):
+        return LINEUP_UNPOSTED
+
+    posted = [p for p in previews if p and p.get("lineup_posted")]
+    if not posted:
+        return LINEUP_UNPOSTED
+
+    for p in posted:
+        if pid in (p.get("our_lineup_ids") or set()):
+            return LINEUP_IN
+    return LINEUP_OUT
 
 
 def fetch_game_preview(
