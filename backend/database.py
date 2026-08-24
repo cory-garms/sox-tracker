@@ -92,11 +92,52 @@ def sync_schema(target_engine=None) -> list[str]:
     return applied
 
 
+def _reconcile_odds_unique_key(target_engine=None) -> bool:
+    """
+    Retire the odds unique key that did not include `book`.
+
+    odds_snapshots was created with UNIQUE(captured_at, event_id, market,
+    player). Every US book prices the same player in the same snapshot, so
+    under that key the second book of any capture is a constraint violation
+    rather than a row -- and the build inserts before the page renders, so it
+    would fail the deploy exactly the way the missing prediction columns did.
+
+    create_all() will happily add the new constraint to a table it is creating
+    and will not touch one that already exists, so the old key has to be
+    dropped explicitly. Postgres can do that; SQLite cannot drop an inline
+    table constraint without rebuilding the table, and does not need to -- test
+    and dev databases are created fresh from the current model.
+    """
+    eng = target_engine or engine
+    if eng.dialect.name != "postgresql":
+        return False
+    try:
+        with eng.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE odds_snapshots "
+                "DROP CONSTRAINT IF EXISTS uq_odds_snapshot_key"
+            ))
+            conn.execute(text(
+                "ALTER TABLE odds_snapshots "
+                "ADD CONSTRAINT uq_odds_snapshot_key_book "
+                "UNIQUE (captured_at, event_id, market, player, book)"
+            ))
+        log.info("Odds unique key now includes book.")
+        return True
+    except Exception as e:
+        # Already reconciled: the ADD raises DuplicateObject on a second run.
+        # Not fatal either way -- insert_odds_snapshots dedupes in Python, so
+        # the constraint is a guard rather than the mechanism.
+        log.info("Odds unique key not changed (%s)", type(e).__name__)
+        return False
+
+
 def init_db(target_engine=None) -> None:
     """Create all tables in the database, and bring existing ones up to date."""
     eng = target_engine or engine
     Base.metadata.create_all(bind=eng)
     sync_schema(eng)
+    _reconcile_odds_unique_key(eng)
     log.info("Database initialized at %s", config.DATABASE_URL)
 
 

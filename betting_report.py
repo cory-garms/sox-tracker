@@ -919,10 +919,24 @@ def generate_betting_html(
     # Write that snapshot down before rendering anything. A static page can only
     # ever show the market as of its last build; the log is what turns four
     # builds a day from a weakness into a record of how the line moved.
+    #
+    # Every US book, not just the one we price against. The provider bills per
+    # market x region and never per bookmaker -- a one-book and a six-book
+    # request for the same market each cost exactly one credit -- so the whole
+    # market already arrives in the response this build has paid for, and
+    # fetch_book_lines has already parsed it into `by_book`. Keeping only
+    # DraftKings discarded the rest at no saving, and a price nobody wrote down
+    # is the one thing in this repo that cannot be reconstructed later.
+    #
+    # Falls back to the single-book view for any market the by-book parse could
+    # not produce, so a parser change can degrade the breadth of the log but
+    # never empty it.
+    by_book = book.get("by_book", {}) or {}
     for market in (MARKET_K, MARKET_TB, MARKET_H2H):
-        odds_history.append_snapshot(
-            odds_history.snapshot_rows(event, market, book.get(market, {}))
-        )
+        rows = odds_history.snapshot_rows_by_book(
+            event, market, by_book.get(market, {})
+        ) or odds_history.snapshot_rows(event, market, book.get(market, {}))
+        odds_history.append_snapshot(rows)
     # Read it back afterwards so this build's own prices are the "now" end of
     # any movement the page reports.
     history = odds_history.load_history()

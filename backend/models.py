@@ -48,9 +48,15 @@ class OddsSnapshot(Base):
     last_update = Column(String(32), nullable=True)
 
     __table_args__ = (
+        # `book` belongs in the identity: the same player is priced by several
+        # books at the same instant, and often differently. Without it the
+        # second book of any snapshot is a constraint violation rather than a
+        # row. Renamed rather than altered in place so a database still holding
+        # the old four-column key is repaired by _reconcile_odds_unique_key()
+        # instead of silently keeping it.
         UniqueConstraint(
-            "captured_at", "event_id", "market", "player",
-            name="uq_odds_snapshot_key",
+            "captured_at", "event_id", "market", "player", "book",
+            name="uq_odds_snapshot_key_book",
         ),
         Index("idx_odds_lookup", "event_id", "market", "player"),
     )

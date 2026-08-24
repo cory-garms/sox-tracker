@@ -48,7 +48,13 @@ COLUMNS = [
     "market", "player", "line", "over_odds", "under_odds", "book", "last_update",
 ]
 
-KEY = ["captured_at", "event_id", "market", "player"]
+# `book` is part of the identity of a row, not a detail of one. Several books
+# price the same player at the same moment and often at different numbers, so
+# without it the dedupe keeps whichever book was written first and silently
+# discards the rest of the market -- which is exactly what this file did until
+# 2026-08-24, storing DraftKings and dropping the other US books the request
+# had already paid for and returned.
+KEY = ["captured_at", "event_id", "market", "player", "book"]
 
 
 # Markets whose outcomes carry no number. A moneyline has two team names and a
@@ -96,6 +102,40 @@ def snapshot_rows(
             "book": entry.get("book"),
             "last_update": entry.get("last_update"),
         })
+    return rows
+
+
+def snapshot_rows_by_book(
+    event: dict[str, Any] | None,
+    market: str,
+    by_book: dict[str, dict[str, dict[str, Any]]],
+    captured_at: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Flatten a whole market -- every book, every player -- into history rows.
+
+    `by_book` is the {player: {book_title: entry}} shape the parsers already
+    produce. The provider bills per market x region and never per bookmaker, so
+    the prices of every US book arrive in the same one-credit response that a
+    single book's would. Writing only one of them threw away the rest at no
+    saving whatsoever, and unlike a projection an unrecorded price cannot be
+    reconstructed afterwards.
+
+    One timestamp for the whole call, so every book in a snapshot is directly
+    comparable rather than differing by however long the loop took.
+    """
+    if not event or not by_book:
+        return []
+
+    stamp = captured_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    rows: list[dict[str, Any]] = []
+    for player, books in by_book.items():
+        for book_title, entry in (books or {}).items():
+            rows.extend(snapshot_rows(
+                event, market,
+                {player: {**entry, "book": entry.get("book") or book_title}},
+                captured_at=stamp,
+            ))
     return rows
 
 

@@ -41,13 +41,23 @@ def insert_odds_snapshots(session: Session, rows: list[dict[str, Any]]) -> int:
         if not event_id or not market or not player:
             continue
 
-        # Check existing to ensure idempotency across SQLite & Postgres
+        # Check existing to ensure idempotency across SQLite & Postgres.
+        # `book` is part of the key: several books price the same player in the
+        # same snapshot, so without it the second one looks like a duplicate of
+        # the first and is dropped -- and scalar_one_or_none() would raise
+        # MultipleResultsFound the moment two ever did get stored.
+        # Resolved once and reused below, so the value looked up is exactly the
+        # value written. Reading r.get("book") here and defaulting separately at
+        # the insert is how a row gets stored under one key and searched for
+        # under another, and re-inserted on every deploy forever.
+        book = r.get("book") or "DraftKings"
         existing = session.execute(
             select(OddsSnapshot).where(
                 OddsSnapshot.captured_at == captured_at,
                 OddsSnapshot.event_id == event_id,
                 OddsSnapshot.market == market,
                 OddsSnapshot.player == player,
+                OddsSnapshot.book == book,
             )
         ).scalar_one_or_none()
 
@@ -63,7 +73,7 @@ def insert_odds_snapshots(session: Session, rows: list[dict[str, Any]]) -> int:
                 line=float(r["line"]) if r.get("line") is not None and not pd.isna(r["line"]) else None,
                 over_odds=int(r["over_odds"]) if r.get("over_odds") is not None and not pd.isna(r["over_odds"]) else None,
                 under_odds=int(r["under_odds"]) if r.get("under_odds") is not None and not pd.isna(r["under_odds"]) else None,
-                book=r.get("book", "DraftKings"),
+                book=book,
                 last_update=r.get("last_update"),
             )
             session.add(obj)
