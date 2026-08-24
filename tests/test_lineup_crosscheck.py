@@ -21,6 +21,7 @@ from analysis.matchup import (
     LINEUP_OUT,
     LINEUP_UNPOSTED,
     _parse_single_preview,
+    lineup_slot,
     lineup_status,
 )
 
@@ -200,3 +201,57 @@ class TestWhatThePageSays:
         import pandas as pd
         from betting_report import _lineup_note
         assert _lineup_note(pd.DataFrame(), []) == ""
+
+
+class TestBattingOrderIsCaptured:
+    """
+    MLB returns the lineup array in slot sequence and carries no explicit slot
+    field, so position in the list is the batting order. Where a hitter bats
+    decides most of how many plate appearances he gets, and a 1.5 total-bases
+    line turns on exactly that -- leadoff to ninth is roughly half a PA.
+    """
+
+    def test_slot_is_position_in_the_array(self):
+        p = _parse_single_preview(_raw_game(home_ids=[11, 22, 33]), BOS, "2026-08-24")
+        assert p["our_lineup_order"] == {11: 1, 22: 2, 33: 3}
+
+    def test_lineup_slot_reads_it_back(self):
+        previews = [_parse_single_preview(_raw_game(home_ids=[11, 22, 33]), BOS, "2026-08-24")]
+        assert lineup_slot(previews, 11) == 1
+        assert lineup_slot(previews, 33) == 3
+
+    def test_unknown_and_unposted_are_both_none(self):
+        posted = [_parse_single_preview(_raw_game(home_ids=[11]), BOS, "2026-08-24")]
+        assert lineup_slot(posted, 99) is None
+        unposted = [_parse_single_preview(_raw_game(), BOS, "2026-08-24")]
+        assert lineup_slot(unposted, 11) is None
+        assert lineup_slot([], 11) is None
+
+    def test_the_opposing_order_is_not_ours(self):
+        previews = [_parse_single_preview(
+            _raw_game(home_ids=[11], away_ids=[77]), BOS, "2026-08-24")]
+        assert lineup_slot(previews, 77) is None
+
+    def test_slot_reaches_the_logged_row(self):
+        import pandas as pd
+        from data import predictions_history as ph
+        rows = ph.snapshot_rows(
+            pd.DataFrame([{"player_id": 11, "player_name": "A", "prop_line": 1.5,
+                           "proj_tb": 1.7, "prob_edge": 0.01, "lineup_slot": 3}]),
+            "batter_total_bases", "2026-08-24",
+            model_version="v1", model_error=0.05,
+            line_col="prop_line", projection_col="proj_tb", edge_col="prob_edge",
+        )
+        assert rows[0]["lineup_slot"] == 3
+
+    def test_a_row_with_no_slot_still_logs(self):
+        import pandas as pd
+        from data import predictions_history as ph
+        rows = ph.snapshot_rows(
+            pd.DataFrame([{"player_id": 11, "player_name": "A", "prop_line": 1.5,
+                           "proj_tb": 1.7, "prob_edge": 0.01}]),
+            "batter_total_bases", "2026-08-24",
+            model_version="v1", model_error=0.05,
+            line_col="prop_line", projection_col="proj_tb", edge_col="prob_edge",
+        )
+        assert len(rows) == 1

@@ -23,6 +23,7 @@ from analysis.matchup import (
     LINEUP_UNPOSTED,
     fetch_doubleheader_previews,
     format_first_pitch,
+    lineup_slot,
     lineup_status,
 )
 from analysis.streaks import played_in_order
@@ -44,6 +45,7 @@ from analysis.betting import (
     consensus_edge_table,
     fetch_book_lines,
     first_5_innings_analysis,
+    opposing_starter_k_model,
     nrfi_yrfi_tracker,
     pitcher_strikeout_model,
     probable_starters,
@@ -806,6 +808,7 @@ def _log_predictions(
     event: dict | None,
     game_date: str,
     opponent_id: int | None,
+    opp_k_df=None,
 ) -> int:
     """
     Append this build's projections to the predictions log.
@@ -830,6 +833,19 @@ def _log_predictions(
         line_col="prop_line", projection_col="proj_k", edge_col="edge",
         event_id=event_id, commence_time=commence, opponent_name=opponent_name,
     ))
+    # The opposing starter, same model, same market. His line arrives in the
+    # request that bought ours, so projecting only our own halved the priced
+    # strikeout sample for nothing. His `opponent_name` is us, which is what
+    # separates the two afterwards.
+    if opp_k_df is not None and not opp_k_df.empty:
+        rows.extend(predictions_history.snapshot_rows(
+            opp_k_df, MARKET_K, game_date,
+            model_version="v1.2-regressed-opponent",
+            model_error=MODEL_ERROR_K,
+            line_col="prop_line", projection_col="proj_k", edge_col="edge",
+            event_id=event_id, commence_time=commence,
+            opponent_name=config.TEAM_NAME,
+        ))
     rows.extend(predictions_history.snapshot_rows(
         tb_df, MARKET_TB, game_date,
         model_version="v1.1-convolved-pa",
@@ -985,9 +1001,10 @@ def generate_betting_html(
     # The league rate the projection regresses toward. None when the league logs
     # are unavailable, which drops the model back to each pitcher's own season
     # rate rather than to a hardcoded prior.
-    league_k9 = league_pitching.league_k_per_9(
-        league_pitching.load_league_logs(season, client=client)
-    )
+    # Bound to a name because the opposing-starter projection reads the same
+    # frame; loading it twice would be two passes over 4,500 rows for nothing.
+    league_logs = league_pitching.load_league_logs(season, client=client)
+    league_k9 = league_pitching.league_k_per_9(league_logs)
 
     k_df = pitcher_strikeout_model(
         pitching, batting, games, client, book.get(MARKET_K, {}), team_id, season,
@@ -1016,13 +1033,35 @@ def generate_betting_html(
         tb_df["lineup_state"] = [
             lineup_status(previews, pid) for pid in tb_df["player_id"]
         ]
+        # Slot rides along onto the logged row. Most of what decides a hitter's
+        # plate appearances is where he bats, and a 1.5 total-bases line turns
+        # on exactly that.
+        tb_df["lineup_slot"] = [
+            lineup_slot(previews, pid) for pid in tb_df["player_id"]
+        ]
 
     # Log what the models just said, for the same reason the odds snapshot above
     # is logged: a static page shows only its last build, and the record of what
     # was projected — beside the line it was projected against — is what lets
     # scripts/grade_predictions.py score it once the game finishes. Without this
     # the track record can only ever contain replays.
-    _log_predictions(k_df, tb_df, event, date_str, opp_id)
+    # The other team's starter is priced in the same response as ours and was
+    # being discarded. Reads league_pitching_logs, which already covers every
+    # starter, so this fetches nothing and spends nothing.
+    opp_k_df = pd.DataFrame()
+    try:
+        opp_sp = (previews[0] or {}).get("opp_probable", {}) if previews else {}
+        if opp_sp.get("id"):
+            opp_k_df = opposing_starter_k_model(
+                league_logs, opp_logs, opp_sp["id"], opp_sp.get("name", ""),
+                facing_team_id=team_id, book_lines=book.get(MARKET_K, {}),
+                as_of_date=date_str, league_k9=league_k9,
+            )
+    except Exception as e:
+        # Never fatal: this is an extra row in a log, not the page.
+        print(f"Could not project the opposing starter: {e}")
+
+    _log_predictions(k_df, tb_df, event, date_str, opp_id, opp_k_df=opp_k_df)
 
     # The market priced against itself. This covers both teams — the opposing
     # starter and the opposing lineup arrive in the same payload at the same

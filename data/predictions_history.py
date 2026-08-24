@@ -43,7 +43,7 @@ HISTORY_PATH: Path = config.CACHE_DIR / "predictions_history.parquet"
 COLUMNS = [
     # identity
     "captured_at", "game_date", "commence_time", "event_id", "game_pk",
-    "market", "player_id", "player",
+    "market", "player_id", "player", "lineup_slot",
     # what the model said
     "line", "projection", "model_over_prob", "book_over_prob", "edge",
     "model_error", "recommendation", "model_version",
@@ -124,6 +124,10 @@ def snapshot_rows(
             "market": market,
             "player_id": _int_or_na(row.get("player_id")),
             "player": str(row.get("player_name") or "Unknown"),
+            # Pre-game expected batting slot. Recoverable from the boxscore
+            # afterwards, but joined here it is usable directly and costs a
+            # lookup against a lineup the build has already fetched.
+            "lineup_slot": _int_or_na(row.get("lineup_slot")),
             "line": _float_or_nan(row.get(line_col)),
             "projection": _float_or_nan(row.get(projection_col)),
             "model_over_prob": _float_or_nan(row.get("model_over_prob")),

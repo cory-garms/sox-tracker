@@ -226,6 +226,7 @@ def insert_model_predictions(session: Session, predictions: list[dict[str, Any]]
             details_json=p.get("details_json"),
             player_id=_opt_int(p.get("player_id")),
             game_pk=_opt_int(p.get("game_pk")),
+            lineup_slot=_opt_int(p.get("lineup_slot")),
             actual=float(p["actual"]) if p.get("actual") is not None and not pd.isna(p["actual"]) else None,
             outcome=p.get("outcome") or "",
             settled_at=p.get("settled_at") or None,

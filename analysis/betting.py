@@ -30,7 +30,7 @@ from client.odds_api_client import (
     parse_player_lines_by_book,
     parse_two_way_by_book,
 )
-from data import odds_history
+from data import league_pitching, odds_history
 from data.opponent import opponent_k_factor
 from client.odds_math import (
     american_to_decimal,
@@ -1033,6 +1033,136 @@ def project_batter_tb(
         "pa": pa,
         "starts": len(player_starts),
     }
+
+
+def opposing_starter_k_model(
+    league_logs: pd.DataFrame,
+    hitting_logs: pd.DataFrame,
+    starter_id: int | None,
+    starter_name: str,
+    facing_team_id: int = config.TEAM_ID,
+    book_lines: dict[str, dict] | None = None,
+    as_of_date: str | None = None,
+    league_k9: float | None = None,
+) -> pd.DataFrame:
+    """
+    The *other* team's starter, projected by the same model as ours.
+
+    The board already buys his line -- the strikeout market comes back with both
+    starters priced in the one request -- and then projected only our own, so
+    half of every night's priced strikeout sample was bought and discarded. This
+    doubles the gradeable strikeout rows per game at no additional credit.
+
+    Same estimator as pitcher_strikeout_model uses for our own starter:
+    k_projections.project_marcel, the shipped marcel+opp measured at 0.366 K
+    over 3,001 held-out league starts. It reads league_pitching_logs, which
+    already covers all 216 starters, so nothing new is fetched.
+
+    `facing_team_id` is the team he is pitching against -- us -- so the opponent
+    K-rate factor is our lineup's, not his team's.
+
+    Anti-lookahead is the whole risk here, as it is in the backfill: his prior
+    starts are truncated to before `as_of_date`, the league rate is recomputed
+    as of that date, and the opponent factor is bounded the same way. A replay
+    that can see the game it is projecting looks brilliant and is worthless.
+    """
+    # Imported here rather than at module scope: k_projections reads
+    # L5_REGRESSION_INNINGS from this module, so a top-level import is a cycle.
+    from analysis.k_projections import project_marcel
+
+    empty = pd.DataFrame()
+    if league_logs is None or league_logs.empty or starter_id is None:
+        return empty
+
+    logs = league_logs[league_logs["player_id"] == int(starter_id)]
+    if "is_start" in logs.columns:
+        logs = logs[logs["is_start"]]
+    if as_of_date:
+        logs = logs[logs["game_date"].astype(str) < str(as_of_date)]
+    logs = logs.sort_values("game_date")
+    if logs.empty:
+        return empty
+
+    lk9 = league_k9
+    if lk9 is None:
+        lk9 = league_pitching.league_k_per_9(league_logs, before=as_of_date)
+    if not lk9:
+        return empty
+
+    factor = 1.0
+    if hitting_logs is not None and not hitting_logs.empty:
+        factor = opponent_k_factor(
+            hitting_logs, int(facing_team_id), before=as_of_date
+        ) or 1.0
+
+    proj_k, proj_ip = project_marcel(logs, lk9, k_factor=factor)
+    if proj_k != proj_k:                     # NaN: no innings behind it
+        return empty
+
+    tot_ip = float(logs["ip_outs"].sum()) / 3.0
+    row: dict[str, Any] = {
+        "player_id": int(starter_id),
+        "player_name": starter_name,
+        "starts": len(logs),
+        "tot_ip": round(tot_ip, 1),
+        "season_k9": round(float(logs["so"].sum()) * 9.0 / tot_ip, 2) if tot_ip > 0 else None,
+        "proj_ip": round(proj_ip, 2),
+        "proj_k": round(proj_k, 2),
+        "opp_k_factor": round(factor, 4),
+        "prop_line": None,
+        "line_source": "No line available",
+        "line_last_update": None,
+        "american_odds": None,
+        "model_over_prob": None,
+        "book_over_prob": None,
+        "edge": None,
+        "ev_pct": None,
+        "recommendation": "NO LINE ⏳",
+        "has_line": False,
+        "flagged": False,
+        # Marks the row as the opposing starter rather than ours. The two are
+        # the same computation on different pitchers, and scoring them together
+        # is the point -- but being unable to separate them afterwards is not.
+        "is_opposing_starter": True,
+    }
+
+    entry = _match_prop_line(starter_name, book_lines or {})
+    if entry:
+        line = float(entry["line"])
+        over_odds, under_odds = entry.get("over_odds"), entry.get("under_odds")
+        p_over, p_push = _poisson_over_push(proj_k, line)
+        p_under = max(0.0, 1.0 - p_over - p_push)
+        fair_over = (no_vig_probability(over_odds, under_odds)[0]
+                     if over_odds is not None and under_odds is not None else None)
+        edge_diff = proj_k - line
+
+        if abs(edge_diff) > MAX_PLAUSIBLE_EDGE_K:
+            ev_pct, odds_used, flagged = None, over_odds, True
+            rec = f"REVIEW ⚠️ ({edge_diff:+.1f} K vs market)"
+        elif edge_diff >= MIN_EDGE_K and over_odds is not None:
+            rec, ev_pct = _side_call("OVER", p_over, p_push, over_odds)
+            odds_used, flagged = over_odds, False
+        elif edge_diff <= -MIN_EDGE_K and under_odds is not None:
+            rec, ev_pct = _side_call("UNDER", p_under, p_push, under_odds)
+            odds_used, flagged = under_odds, False
+        else:
+            ev_pct, rec, odds_used, flagged = None, "NO CALL ⚖️", over_odds, False
+
+        row.update({
+            "prop_line": line,
+            "line_source": f"{entry.get('book', 'Book')} 🟢",
+            "line_last_update": entry.get("last_update"),
+            "american_odds": f"{odds_used:+d}" if odds_used is not None else None,
+            "model_over_prob": round(p_over, 4),
+            "book_over_prob": round(fair_over, 4) if fair_over is not None else None,
+            "edge": round(edge_diff, 4),
+            "ev_pct": ev_pct,
+            "recommendation": rec,
+            "has_line": True,
+            "flagged": flagged,
+        })
+
+    return pd.DataFrame([row])
 
 
 def batter_total_bases_model(

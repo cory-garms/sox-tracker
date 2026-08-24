@@ -100,6 +100,15 @@ def _parse_single_preview(
         "lineup_posted": bool(our_players),
         "our_lineup_ids": {p["id"] for p in our_players if p.get("id") is not None},
         "opp_lineup_ids": {p["id"] for p in opp_players if p.get("id") is not None},
+        # The array *is* the batting order -- MLB returns it in slot sequence
+        # and carries no explicit slot field. Position in the order is most of
+        # what decides how many plate appearances a hitter gets, and a 1.5
+        # total-bases line lives or dies on that: leadoff to ninth is roughly
+        # half a PA, against a market where the whole edge is a few points.
+        "our_lineup_order": {
+            p["id"]: i for i, p in enumerate(our_players, start=1)
+            if p.get("id") is not None
+        },
     }
 
 
@@ -181,6 +190,26 @@ def lineup_status(previews: list[dict[str, Any]], player_id: Any) -> str:
         if pid in (p.get("our_lineup_ids") or set()):
             return LINEUP_IN
     return LINEUP_OUT
+
+
+def lineup_slot(previews: list[dict[str, Any]], player_id: Any) -> int | None:
+    """
+    Where in the batting order, or None if unknown.
+
+    None covers both "no lineup posted yet" and "posted, and not in it" --
+    neither is a slot. Callers wanting to tell those apart ask lineup_status().
+    """
+    if player_id is None or not previews:
+        return None
+    try:
+        pid = int(player_id)
+    except (TypeError, ValueError):
+        return None
+    for p in previews:
+        slot = ((p or {}).get("our_lineup_order") or {}).get(pid)
+        if slot:
+            return int(slot)
+    return None
 
 
 def fetch_game_preview(
