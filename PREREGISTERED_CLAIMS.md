@@ -21,7 +21,7 @@ priced Boston hitters were confirmed in the posted lineup.
 
 | Market | Player | Line | Projection | Model over% | Book over% (de-vigged) | Page says |
 |---|---|---|---|---|---|---|
-| K | Ranger Suárez | 4.5 | 4.99 | 55.71% | 55.88% | `OVER (-5.9% EV) 🔥` |
+| K | Ranger Suárez | 4.5 | 4.99 | 55.71% | 55.88% | `PRICED OUT (-5.9% EV) 🏷️` ¹ |
 | TB | Wilyer Abreu | 1.5 | 1.75 | 42.24% | 41.01% | `NO CALL` |
 | TB | Ceddanne Rafaela | 1.5 | 1.83 | 46.54% | 38.49% | `REVIEW ⚠️ (+8.1 pts)` |
 | TB | Willson Contreras | 1.5 | 1.86 | 43.34% | 40.85% | `NO CALL` |
@@ -29,6 +29,14 @@ priced Boston hitters were confirmed in the posted lineup.
 
 Lines are the 15:30 ET capture already in `odds_history.parquet`. No odds
 credits were spent producing any of this.
+
+¹ **Amended 21:44 UTC, still 57 minutes before first pitch.** This row first
+logged as `OVER (-5.9% EV) 🔥` — the defect described in Claim 4. It was fixed
+in `9a5e30d` and tonight was re-logged before the game, so the capture that
+gets scored carries the corrected label. The original 21:35 UTC capture stays
+in the append-only archive as the record of what the buggy code said;
+`latest_per_game()` keeps the later one, which is the rule scoring already
+followed before any of this.
 
 ### Claim 1 — the REVIEW flag is the model being wrong, not the model finding value
 
@@ -87,15 +95,29 @@ So the page is about to publish a recommendation, with a flame on it, that is
 negative expected value at the offered price and that its own probability layer
 contradicts.
 
-**Predicted:** applying the total-bases standard — gate on probability against
-the de-vigged market, not on projection against the line — removes most
-strikeout OVER/UNDER calls, and the ones it removes are not profitable. The
-24 graded strikeout predictions already show AUC 0.415 and a recalibration
-slope of −0.319, so the probability layer is the weak part and the K-unit gate
-is bypassing the check that would catch it.
+**Fixed before first pitch, in `9a5e30d`.** `_side_call` now computes the EV
+first and refuses to name a side unless it is positive, returning `PRICED OUT`
+with the number attached. Negative EV is not a weaker OVER; it is the book
+having already taken that side and charged for it.
 
-**Falsified if:** the K-unit gate's calls show positive CLV or beat the market
-on Brier once there are enough of them to tell.
+This is a labelling fix — no projection moved. But it has a substantive
+consequence worth recording: **a model probability below the book's de-vigged
+price cannot produce positive EV, so it can no longer produce a call either.**
+The EV sign now enforces on the strikeout side the same probability discipline
+the total-bases model was already held to, without rewriting the gate.
+
+**Still open, and deliberately not touched tonight:** the K gate continues to
+*screen* on projection minus line in K units, where total bases screens in
+probability space. The EV check catches the bad calls at the exit; it does not
+make the two models agree on what an edge is.
+
+**Predicted:** re-screening strikeouts in probability space removes further
+calls beyond the ones the EV gate now catches, and the removed ones are not
+profitable. The 24 graded strikeout predictions already show AUC 0.415 and a
+recalibration slope of −0.319, so the probability layer is the weak part.
+
+**Falsified if:** calls that clear the K-unit gate but fail a probability gate
+show positive CLV once there are enough of them to tell.
 
 ---
 
