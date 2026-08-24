@@ -97,8 +97,13 @@ def opening_and_closing(odds: pd.DataFrame) -> dict[tuple, tuple]:
     if df.empty:
         return pairs
 
+    # Keyed by book as well, and that is not a detail. Two books price the same
+    # player at different numbers, so differencing one book's open against
+    # another's close measures the gap between the books and reports it as
+    # market movement. Until 2026-08-24 the log held one book and the question
+    # could not arise; it stores the whole market now, so it can.
     df = df.sort_values("captured_at")
-    for key, g in df.groupby(["event_id", "market", "player"]):
+    for key, g in df.groupby(["event_id", "market", "player", "book"]):
         if len(g) < 2:
             continue                       # nothing moved because nothing was watched
         pairs[tuple(str(k) for k in key)] = (g.iloc[0], g.iloc[-1])
@@ -134,34 +139,45 @@ def attach_clv(predictions: pd.DataFrame, odds: pd.DataFrame) -> pd.DataFrame:
     if not ends:
         return pd.DataFrame()
 
+    # A projection carries no book of its own: the model priced a line, and
+    # several books may have offered it. Each book that did is one observation,
+    # which is the honest reading -- the model either anticipated that book's
+    # revision or it did not, and they can disagree.
+    by_player: dict[tuple, list[tuple]] = {}
+    for (event_id, market, player, _book), pair in ends.items():
+        by_player.setdefault((event_id, market, player), []).append(pair)
+
     out: list[dict[str, Any]] = []
     for r in priced.to_dict(orient="records"):
         key = (str(r.get("event_id")), str(r.get("market")), str(r.get("player")))
-        pair = ends.get(key)
-        if pair is None:
-            continue
-        open_row, close_row = pair
-        open_fair, close_fair = _fair_over(open_row), _fair_over(close_row)
-        if open_fair is None or close_fair is None:
-            continue
-
-        # A line that moved is a different market. 4.5 K and 5.5 K are not two
-        # prices for one question, and differencing their probabilities would
-        # report the line move as though the model had predicted a price.
         line = r.get("line")
-        for end in (open_row, close_row):
-            if end.get("line") is None or pd.isna(end.get("line")):
-                break
-            if float(end["line"]) != float(line):
-                break
-        else:
+        for open_row, close_row in by_player.get(key, []):
+            open_fair, close_fair = _fair_over(open_row), _fair_over(close_row)
+            if open_fair is None or close_fair is None:
+                continue
+
+            # A line that moved is a different market. 4.5 K and 5.5 K are not
+            # two prices for one question, and differencing their probabilities
+            # would report the line move as though the model had predicted a
+            # price.
+            ends_agree = True
+            for end in (open_row, close_row):
+                end_line = end.get("line")
+                if end_line is None or pd.isna(end_line) or float(end_line) != float(line):
+                    ends_agree = False
+                    break
+            if not ends_agree:
+                continue
+
             side = model_side(r.get("model_over_prob"), open_fair)
             if side is None:
                 continue
+
             out.append({
                 "game_date": r.get("game_date"),
                 "market": r.get("market"),
                 "player": r.get("player"),
+                "book": str(open_row.get("book") or ""),
                 "line": line,
                 "model_over_prob": r.get("model_over_prob"),
                 "side": side,

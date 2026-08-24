@@ -29,13 +29,14 @@ from analysis import clv
 
 
 def odds_rows(*captures, event="e1", market="batter_total_bases",
-              player="Wilyer Abreu", line=1.5, commence="2026-08-24T22:41:00Z"):
+              player="Wilyer Abreu", line=1.5, commence="2026-08-24T22:41:00Z",
+              book="DraftKings"):
     """captures: (captured_at, over_odds, under_odds)"""
     return pd.DataFrame([
         {"captured_at": c, "event_id": event, "commence_time": commence,
          "home_team": "H", "away_team": "A", "market": market, "player": player,
          "line": line, "over_odds": o, "under_odds": u,
-         "book": "DraftKings", "last_update": c}
+         "book": book, "last_update": c}
         for c, o, u in captures
     ])
 
@@ -141,3 +142,48 @@ class TestSummary:
     def test_beat_close_counts_strict_wins(self):
         f = pd.DataFrame({"clv_points": [1.0, 0.0, -1.0, 2.0]})
         assert clv.summarise(f)["beat_close_pct"] == 50.0
+
+
+class TestBooksAreNotMixed:
+    """
+    The log stored one book until 2026-08-24 and now stores the whole market,
+    so a new way to be wrong appeared: differencing one book's opening price
+    against another's close measures the gap *between the books* and reports it
+    as the market moving toward the model.
+    """
+
+    def test_each_book_is_its_own_observation(self):
+        odds = pd.concat([
+            odds_rows(("2026-08-24T11:00:00+00:00", 100, -120),
+                      ("2026-08-24T19:00:00+00:00", 120, -150), book="DraftKings"),
+            odds_rows(("2026-08-24T11:00:00+00:00", 105, -125),
+                      ("2026-08-24T19:00:00+00:00", 130, -165), book="FanDuel"),
+        ])
+        f = clv.attach_clv(prediction(), odds)
+        assert len(f) == 2
+        assert set(f["book"]) == {"DraftKings", "FanDuel"}
+
+    def test_an_open_is_never_differenced_against_another_books_close(self):
+        """
+        DraftKings opens and never prices again; FanDuel only prices at the
+        close. Neither book moved, so there is nothing to measure, and the
+        cross-book pairing must not invent a movement out of their spread.
+        """
+        odds = pd.concat([
+            odds_rows(("2026-08-24T11:00:00+00:00", 100, -120), book="DraftKings"),
+            odds_rows(("2026-08-24T19:00:00+00:00", 180, -240), book="FanDuel"),
+        ])
+        assert clv.attach_clv(prediction(), odds).empty
+
+    def test_a_books_movement_is_its_own(self):
+        """One book moves toward the model, the other away. Both are recorded."""
+        odds = pd.concat([
+            odds_rows(("2026-08-24T11:00:00+00:00", 108, -108),
+                      ("2026-08-24T19:00:00+00:00", -200, 170), book="DraftKings"),
+            odds_rows(("2026-08-24T11:00:00+00:00", 108, -108),
+                      ("2026-08-24T19:00:00+00:00", 170, -200), book="FanDuel"),
+        ])
+        f = clv.attach_clv(prediction(model_over_prob=0.95), odds)
+        pts = dict(zip(f["book"], f["clv_points"]))
+        assert pts["DraftKings"] > 0
+        assert pts["FanDuel"] < 0

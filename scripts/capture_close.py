@@ -128,11 +128,18 @@ def main() -> int:
         return 0
 
     book = fetch_book_lines(client, team_id)
+    # Every book, not just the one we price against. This is the capture that
+    # matters most -- it is the benchmark every closing-line number is measured
+    # against -- and it was storing one book's price out of a response that had
+    # already been paid for in full. The provider bills per market x region and
+    # never per bookmaker.
+    by_book = book.get("by_book", {}) or {}
     total = 0
     for market in (MARKET_PITCHER_KS, MARKET_BATTER_TB, MARKET_H2H):
-        total += odds_history.append_snapshot(
-            odds_history.snapshot_rows(event, market, book.get(market, {}))
-        )
+        rows = odds_history.snapshot_rows_by_book(
+            event, market, by_book.get(market, {})
+        ) or odds_history.snapshot_rows(event, market, book.get(market, {}))
+        total += odds_history.append_snapshot(rows)
 
     # Markets the page does not model but that get bet anyway. Captured only at
     # the close, not on every page build: a bet nobody can grade is a bet that
@@ -145,14 +152,20 @@ def main() -> int:
     for market in EXTRA_CLOSING_MARKETS:
         try:
             payload = client.get_event_props(event["id"], markets=market)
-            lines = _parse_player_lines(payload, market, book=client.bookmaker)
-            if not lines:
-                # Fall back to any book quoting it - a soft reference beats none.
-                by_book = parse_player_lines_by_book(payload, market)
-                lines = {p: next(iter(b.values())) for p, b in by_book.items() if b}
-            total += odds_history.append_snapshot(
-                odds_history.snapshot_rows(event, market, lines)
-            )
+            # All books, keyed by book. This previously took
+            # next(iter(b.values())) whenever our own book did not quote the
+            # market -- an arbitrary book, whichever the provider happened to
+            # list first, recorded as *the* closing price. Which book that was
+            # could differ from night to night, so a close was not reliably
+            # comparable to the open it is differenced against.
+            extra_by_book = parse_player_lines_by_book(payload, market)
+            rows = odds_history.snapshot_rows_by_book(event, market, extra_by_book)
+            if not rows:
+                rows = odds_history.snapshot_rows(
+                    event, market,
+                    _parse_player_lines(payload, market, book=client.bookmaker),
+                )
+            total += odds_history.append_snapshot(rows)
         except Exception as e:
             log.warning("Could not capture %s: %s", market, e)
 
