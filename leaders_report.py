@@ -215,7 +215,7 @@ def generate_leaders_html(
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>{team_name} — 2026 Team Stat Leaders</title>
 {theme.social_meta('leaders', f'{team_name} — 2026 Team Stat Leaders')}
-  <script data-goatcounter="https://cory-garms.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+{theme.analytics_tag()}
   {theme.FONTS_LINK}
   <style>
     {theme.page_css()}

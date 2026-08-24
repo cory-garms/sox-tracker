@@ -136,8 +136,33 @@ class PredictionResponse(BaseModel):
 
 @router.api_route("/healthz", methods=["GET", "HEAD"], tags=["System"])
 def health_check():
-    """Health check endpoint for Render, Vercel, and Cloudflare."""
-    return {"status": "ok", "app": "dirtywater", "version": "2026.1"}
+    """
+    Health check for Render, and the only place that can answer "is the site
+    actually current?".
+
+    Reports the commit this process was built from and the newest game the
+    cache on *this instance* knows about. Both matter and they fail
+    differently: a failed deploy leaves an old commit serving fresh-looking
+    pages, and a failed refresh leaves the right commit serving old data.
+    scripts/check_deploy.py reads exactly this.
+
+    Never raises. A health check that 500s because it could not read a parquet
+    file takes the service down to report that the service is up.
+    """
+    payload = {
+        "status": "ok",
+        "app": "dirtywater",
+        "version": "2026.1",
+        "commit": config.DEPLOY_COMMIT or "unknown",
+        "data_through": None,
+    }
+    try:
+        games = _load("games")
+        if not games.empty and "game_date" in games.columns:
+            payload["data_through"] = str(games["game_date"].max())[:10]
+    except Exception:
+        pass
+    return payload
 
 
 

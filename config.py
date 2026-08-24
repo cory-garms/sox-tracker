@@ -135,3 +135,41 @@ ODDS_BOOKMAKER: str = "draftkings"   # which book's prices to pull via the aggre
 # from outside. The route returns 503 until a token is configured.
 REFRESH_TOKEN: str = os.environ.get("REFRESH_TOKEN", "")
 
+
+# ---------------------------------------------------------------------------
+# Which build is actually serving (deploy staleness)
+# ---------------------------------------------------------------------------
+# On 2026-08-23 a build failed and Render kept serving the previous one. The
+# site returned 200s the whole time and simply stopped updating; it was found
+# by accident a day later. Nothing in the repo could have detected it, because
+# every check ran against the repo rather than against the running site.
+#
+# Render injects RENDER_GIT_COMMIT into the service environment. Empty locally,
+# which is why /healthz reports it as unknown rather than pretending.
+DEPLOY_COMMIT: str = (
+    os.environ.get("RENDER_GIT_COMMIT")
+    or os.environ.get("GIT_COMMIT")
+    or ""
+)
+
+# ---------------------------------------------------------------------------
+# Analytics (optional)
+# ---------------------------------------------------------------------------
+# Unset means no tag is emitted and the pages make no external request at all,
+# which is the default and keeps the standalone-offline convention intact for
+# local files and the Pages mirror.
+#
+# Deliberately provider-agnostic and cookieless. GoatCounter and Plausible both
+# fit a single script tag with a data attribute; neither needs a consent banner
+# because neither sets a cookie or tracks across sites.
+#
+#   ANALYTICS_SRC="https://gc.zgo.at/count.js"
+#   ANALYTICS_SITE="https://dirtywater.goatcounter.com/count"
+# Defaults are the account already in use. This was hardcoded into five report
+# files, which is the five-way duplication viz/theme.py exists to prevent -- and
+# betting_BOS_2026.html was the page that got missed. Set ANALYTICS_SRC="" to
+# emit no tag at all and make the pages fully offline again.
+ANALYTICS_SRC: str = os.environ.get("ANALYTICS_SRC", "https://gc.zgo.at/count.js")
+ANALYTICS_SITE: str = os.environ.get(
+    "ANALYTICS_SITE", "https://cory-garms.goatcounter.com/count"
+)

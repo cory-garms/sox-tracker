@@ -1,0 +1,79 @@
+# Is the live site serving what is in this repository?
+#
+# The failure this exists for: on 2026-08-23 a build broke on a schema change
+# and Render kept serving the previous deploy. Every page returned 200, the
+# tests were green, the data was committed on schedule, and the site silently
+# stopped updating for a day. Every check in this repo ran against the repo,
+# and the repo was fine.
+#
+# This is the only workflow that looks at the running service. It spends no
+# odds credits and makes one HTTP request.
+
+name: Deploy check
+
+on:
+  schedule:
+    # Hourly, offset from the refresh builds (:00 / :30) so a check never
+    # lands mid-deploy and reports a mismatch that is just a build in flight.
+    - cron: "15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # HEAD's timestamp is the grace window: a commit pushed two minutes
+          # ago is allowed not to be live yet. Needs real history, not a
+          # shallow clone.
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check the live site against this commit
+        run: |
+          COMMIT="$(git rev-parse HEAD)"
+          AGE_MIN=$(( ( $(date -u +%s) - $(git log -1 --format=%ct HEAD) ) / 60 ))
+          echo "HEAD $COMMIT, pushed ${AGE_MIN}m ago"
+          python scripts/check_deploy.py \
+            --url "https://dirtywater.corygarms.com" \
+            --expect-commit "$COMMIT" \
+            --commit-age-minutes "$AGE_MIN"
+
+      # A failed scheduled run is easy to miss in the Actions tab, which is how
+      # a silent failure stays silent. Open an issue the first time, and reuse
+      # it rather than filing one an hour forever.
+      - name: Raise an issue if the site is stale
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Live site is stale";
+            const { owner, repo } = context.repo;
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: "open", labels: "deploy-stale",
+            });
+            const body = [
+              "`scripts/check_deploy.py` reports the live site is not serving this repository's HEAD,",
+              "or is serving data more than two days old.",
+              "",
+              `Run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+              "",
+              "Render keeps the last successful deploy when a build fails, so the site stays up and",
+              "silently stops updating. Check the Render build log first.",
+            ].join("\n");
+            if (open.data.length) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: open.data[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner, repo, title, body, labels: ["deploy-stale"],
+              });
+            }

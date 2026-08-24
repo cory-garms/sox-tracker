@@ -153,7 +153,20 @@ def page_streaks():
 @app.api_route(f"/betting_{config.TEAM_ABBR}_{config.SEASON}.html", methods=["GET", "HEAD"], include_in_schema=False)
 @app.api_route("/betting", methods=["GET", "HEAD"], include_in_schema=False)
 def page_betting():
-    return _serve_page(f"betting_{config.TEAM_ABBR}_{config.SEASON}.html")
+    """
+    The old combined betting page, retired on 2026-07-27.
+
+    328d6f9 split it into Tonight's Board and Models & Method, and the file it
+    served was never rebuilt afterwards -- but the route kept serving it. It sat
+    there for a month: no nav bar, no analytics tag, and model output from July
+    presented as current. Anyone who had the link, or found it, got that.
+
+    Permanent redirect to the half that inherited its content, rather than a
+    404: the URL was published and may be linked from outside.
+    """
+    return RedirectResponse(
+        url=f"/models_{config.TEAM_ABBR}_{config.SEASON}.html", status_code=301
+    )
 
 
 @app.api_route("/index.html", methods=["GET", "HEAD"], include_in_schema=False)

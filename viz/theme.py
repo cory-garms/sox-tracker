@@ -30,6 +30,8 @@ Rules that keep it valid:
 
 from __future__ import annotations
 
+import config
+
 # ---------------------------------------------------------------------------
 # Surfaces & ink — the ballpark at night
 # ---------------------------------------------------------------------------
@@ -604,6 +606,30 @@ def social_meta(slug: str, title: str, description: str | None = None) -> str:
   <meta name="twitter:title" content="{clean_title}">
   <meta name="twitter:description" content="{clean}">
   <meta name="twitter:image" content="{SOCIAL_IMAGE}">"""
+
+
+def analytics_tag() -> str:
+    """
+    One cookieless analytics tag, or nothing at all.
+
+    Nothing is the default, and it matters: with ANALYTICS_SRC unset these
+    pages make no external request whatsoever, which is what lets them work as
+    standalone files and keeps the Pages mirror honest.
+
+    The reason to turn it on: before 2026-08-24 the site had no measurement of
+    its own traffic, so a successful outreach push and a failed one looked
+    identical. That is a strange gap in a project whose entire premise is that
+    a thing you have not measured is a thing you do not know.
+
+    Cookieless by choice rather than by luck -- no cookie, no cross-site
+    identifier, so no consent banner is required and nothing about a reader is
+    retained.
+    """
+    src, site = config.ANALYTICS_SRC, config.ANALYTICS_SITE
+    if not src:
+        return ""
+    data = f' data-goatcounter="{_attr(site)}"' if site else ""
+    return f'  <script async src="{_attr(src)}"{data}></script>'
 
 
 def _attr(text: str) -> str:
