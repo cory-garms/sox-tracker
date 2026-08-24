@@ -273,6 +273,78 @@ def _market_section(market: str, spec: dict, scored: pd.DataFrame, actuals: pd.D
   </section>"""
 
 
+def _market_move_section(history: pd.DataFrame) -> str:
+    """
+    Did the market come toward the model between its first price and its last?
+
+    The other scoreboard, and the one that does not wait on a result. Outcomes
+    take a season to accumulate; a line closes every night. If the model knows
+    something the book has not priced yet, the book should on average revise
+    toward it -- and if it does not, that is informative long before the Brier
+    scores are.
+    """
+    from analysis import clv
+    from data import odds_history
+
+    frame = clv.attach_clv(history, odds_history.load_history())
+    s = clv.summarise(frame)
+    if not s.get("n"):
+        return ""
+
+    rows = ""
+    for market, label in (("pitcher_strikeouts", "Strikeouts"),
+                          ("batter_total_bases", "Total bases")):
+        g = frame[frame["market"] == market]
+        m = clv.summarise(g)
+        if not m.get("n"):
+            continue
+        rows += (f"<tr><td>{label}</td><td>{m['n']}</td>"
+                 f"<td>{m['mean_points']:+.2f}</td>"
+                 f"<td>[{m['ci_low']:+.2f}, {m['ci_high']:+.2f}]</td>"
+                 f"<td>{m['beat_close_pct']:.0f}%</td></tr>")
+
+    contains_zero = s["ci_low"] <= 0 <= s["ci_high"]
+    verdict = ("The interval contains zero: the market does not move toward "
+               "these projections any more than it moves away from them."
+               if contains_zero else
+               "The interval clears zero, which would be the first evidence "
+               "here of the model seeing a revision before the book made it.")
+
+    return f"""
+  <section class="card">
+    <h2>Does the market move toward the model?</h2>
+    <p>Every projection is logged against the price it was quoted at, and the
+    same market is captured again nearer first pitch. The gap between those two
+    prices is the book revising its own opinion. If the model knows something
+    the book has not priced yet, the revision should on average come
+    <em>toward</em> the side the model took.</p>
+    <p>Measured over <strong>{s['n']}</strong> priced player-games — the side
+    fixed against the opening price, the movement measured to the last capture
+    before first pitch:</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Market</th><th>n</th><th>Mean move (pts)</th><th>95% CI</th><th>Beat the close</th></tr></thead>
+      <tbody>{rows}
+        <tr><td><strong>All</strong></td><td><strong>{s['n']}</strong></td>
+            <td><strong>{s['mean_points']:+.2f}</strong></td>
+            <td><strong>[{s['ci_low']:+.2f}, {s['ci_high']:+.2f}]</strong></td>
+            <td><strong>{s['beat_close_pct']:.0f}%</strong></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>{verdict}</p>
+    <p class="note">This is not closing line value in the betting sense and is
+    not reported as such: nothing was staked, so no vig was paid and nothing had
+    to be executed at the quoted number. It measures only whether the model's
+    disagreement with the book anticipated the book's own revision. Both prices
+    come from the odds log rather than one from each log — taking the quote from
+    the projection archive would compare a price against itself, since the
+    archive keeps the last pre-game capture and that is the close. Games whose
+    line moved are excluded rather than differenced, because 4.5 strikeouts and
+    5.5 strikeouts are not two prices for one question.</p>
+  </section>"""
+
+
 def generate_track_record_html(
     team_abbr: str = config.TEAM_ABBR,
     season: int = config.SEASON,
@@ -342,6 +414,7 @@ def generate_track_record_html(
     quote.</p>
   </section>
 
+  """ + _market_move_section(history) + """
   <section class="card">
     <h2>How to read this</h2>
     <p><strong>Brier score</strong> is the mean squared error of a probability
