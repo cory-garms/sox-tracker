@@ -237,7 +237,32 @@ def latest_per_game(frame: pd.DataFrame) -> pd.DataFrame:
     if frame is None or frame.empty:
         return frame
     ordered = frame.sort_values("captured_at")
-    # idxmax on the ordering, not groupby().last(): the latter takes the last
+
+    # "Before first pitch" was the stated contract and was never enforced: this
+    # took the last capture full stop. A build that runs while a game is on
+    # therefore replaced that game's pre-game projection with an in-play one,
+    # scored afterwards as though it had been made in advance.
+    #
+    # It had already happened. The only 22 live rows in the archive -- every
+    # other row is a replay -- were captured at 21:28Z on 2026-08-23 against a
+    # 19:16Z first pitch, two hours into the game, and were being scored as
+    # predictions. All 22 also have a pre-game capture, so enforcing this
+    # corrects them and loses nothing.
+    #
+    # Parsed rather than string-compared: captured_at ends "+00:00" and
+    # commence_time ends "Z", and "+" sorts before "Z", so a capture at exactly
+    # first pitch would compare as earlier than it.
+    if "commence_time" in ordered.columns:
+        captured = pd.to_datetime(ordered["captured_at"], utc=True, errors="coerce")
+        commence = pd.to_datetime(ordered["commence_time"], utc=True, errors="coerce")
+        # An unparseable or absent first pitch cannot convict a row, so those
+        # are kept: losing a real projection is worse than keeping a doubtful one.
+        in_play = commence.notna() & captured.notna() & (captured >= commence)
+        ordered = ordered[~in_play]
+        if ordered.empty:
+            return ordered
+
+    # tail(1) on the ordering, not groupby().last(): the latter takes the last
     # non-null value of each column independently and can stitch together a row
     # that never existed.
     keep = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)

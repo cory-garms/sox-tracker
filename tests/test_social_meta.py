@@ -110,3 +110,52 @@ class TestGeneratedPagesCarryTheCard:
         html = index.read_text(encoding="utf-8")
         assert 'property="og:title"' in html
         assert 'content="https://dirtywater.corygarms.com/images/sox_retro_logo.png"' in html
+
+
+class TestOneCanonicalURL:
+    """
+    docs/ was served from two hostnames -- the Render app and the GitHub Pages
+    mirror -- which is identical HTML on two URLs. Search engines pick a winner
+    themselves when nothing says which is real, and the single analytics tag
+    counted both as one site. Pages was retired on 2026-08-24; the canonical
+    tag is what makes the choice explicit either way, and what stops it
+    recurring if docs/ is ever mirrored again.
+    """
+
+    def test_every_page_declares_a_canonical(self):
+        for slug in theme.PAGES:
+            html = theme.social_meta(slug, "T")
+            assert 'rel="canonical"' in html, f"{slug} has no canonical URL"
+
+    def test_the_canonical_is_the_real_domain(self):
+        html = theme.social_meta("matchup", "T")
+        url = re.search(r'rel="canonical" href="([^"]+)"', html).group(1)
+        assert url.startswith("https://dirtywater.corygarms.com/")
+        assert "github.io" not in url
+
+    def test_canonical_and_og_url_agree(self):
+        """Two tags naming the authoritative URL must not disagree."""
+        html = theme.social_meta("record", "T")
+        canon = re.search(r'rel="canonical" href="([^"]+)"', html).group(1)
+        og = re.search(r'property="og:url" content="([^"]+)"', html).group(1)
+        assert canon == og
+
+    def test_each_page_declares_it_exactly_once(self):
+        assert theme.social_meta("board", "T").count('rel="canonical"') == 1
+
+    @pytest.mark.parametrize("slug", list(theme.PAGES))
+    def test_each_built_page_carries_it(self, slug):
+        path = DOCS / theme.PAGES[slug][0]
+        if not path.exists():
+            pytest.skip(f"{path.name} not built in this environment")
+        html = path.read_text(encoding="utf-8")
+        assert html.count('rel="canonical"') == 1, f"{path.name}"
+
+    def test_the_landing_page_carries_it(self):
+        """Hand-maintained, and the URL most likely to be linked."""
+        index = DOCS / "index.html"
+        if not index.exists():
+            pytest.skip("index.html not present")
+        html = index.read_text(encoding="utf-8")
+        assert html.count('rel="canonical"') == 1
+        assert 'rel="canonical" href="https://dirtywater.corygarms.com/"' in html

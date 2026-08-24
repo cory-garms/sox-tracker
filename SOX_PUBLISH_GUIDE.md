@@ -1,5 +1,12 @@
 # Sox Tracker — Publishing Guide for Agent
 
+> ⚠️ **Superseded 2026-08-24.** This describes publishing to GitHub Pages,
+> which has been retired in favour of a single canonical domain
+> (`dirtywater.corygarms.com`, served by the FastAPI app on Render).
+> Kept because the `docs/` layout and the build commands below are still
+> accurate — only the hosting section is out of date. Do not re-enable
+> Pages from these instructions without reading §11 of HANDOFF_GUIDE.md.
+
 This document captures the exact steps and known pitfalls for publishing the
 sox-tracker HTML dashboard to GitHub Pages with automatic daily updates,
 mirroring what was done for spurs-tracker.

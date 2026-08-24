@@ -38,6 +38,13 @@ in the append-only archive as the record of what the buggy code said;
 `latest_per_game()` keeps the later one, which is the rule scoring already
 followed before any of this.
 
+¹ **Second amendment, 21:56 UTC.** The 17:30 ET production build ran after the
+fix landed and fetched fresher odds, so the capture that `latest_per_game()`
+scores is that one, not mine. Projections are identical; only the market side
+moved — Suárez reads `PRICED OUT (-3.0% EV)` rather than −5.9%, and Rafaela
+`REVIEW (+7.4 pts)` rather than +8.1. Neither claim changes in substance, and
+the scored row is now a genuine production capture rather than a hand-run one.
+
 ### Claim 1 — the REVIEW flag is the model being wrong, not the model finding value
 
 Rafaela's gap of **+8.1 points** exceeds `MAX_PLAUSIBLE_EDGE_TB_PROB` (4.8),

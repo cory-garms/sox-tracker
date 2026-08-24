@@ -582,10 +582,22 @@ PAGE_DESCRIPTIONS: dict[str, str] = {
 
 def social_meta(slug: str, title: str, description: str | None = None) -> str:
     """
-    Open Graph and Twitter Card tags for one page.
+    Open Graph, Twitter Card and canonical tags for one page.
 
     `description` falls back to PAGE_DESCRIPTIONS, then to the index blurb, so
     an unregistered page still produces a usable card rather than none.
+
+    The canonical link rides along here rather than in a function of its own,
+    and deliberately. It is the same URL og:url already computes, and every
+    page head calls this exactly once -- so a page cannot be built with a
+    social card and without a canonical. The alternative was a sixth call site
+    per page, which is how betting_BOS_2026.html came to be the one page with
+    no analytics tag.
+
+    It matters because the same docs/ directory is served from two places: the
+    app on Render and, until it is retired, the GitHub Pages mirror. Identical
+    HTML on two hostnames is duplicate content, and without a canonical a
+    search engine picks the winner itself. This tells it which one is real.
     """
     entry = PAGES.get(slug)
     filename = entry[0] if entry else "index.html"
@@ -595,6 +607,7 @@ def social_meta(slug: str, title: str, description: str | None = None) -> str:
     clean_title = _attr(title)
 
     return f"""  <meta name="description" content="{clean}">
+  <link rel="canonical" href="{url}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{_attr(SITE_NAME)}">
   <meta property="og:title" content="{clean_title}">

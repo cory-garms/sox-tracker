@@ -58,7 +58,6 @@ several of them weren't:
 **614 tests**, fully offline — no network, no API key, no cached data required.
 Each test class names the bug it exists to prevent.
 
-- **GitHub Pages mirror**: [cory-garms.github.io/sox-tracker](https://cory-garms.github.io/sox-tracker/)
 - **Backend**: FastAPI on Render + Neon Postgres · **Automation**: GitHub Actions
 - **Odds budget**: ~484 of 500 credits/month, measured against what the provider
   actually charged rather than estimated

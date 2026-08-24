@@ -21,7 +21,11 @@
 | 🎲 **Odds & Models** (Secondary) | Tonight's Board, Models & Method, Track Record, How This Works | Live line comparison against model projections, CLV tracking, the models' scored history, and methodology notes |
 
 - **Live URL**: [`https://dirtywater.corygarms.com`](https://dirtywater.corygarms.com) / [`https://dirtywater-app.onrender.com`](https://dirtywater-app.onrender.com)
-- **Static GitHub Pages Mirror**: [`https://cory-garms.github.io/sox-tracker/`](https://cory-garms.github.io/sox-tracker/)
+- **Retired 2026-08-24 — the GitHub Pages mirror.** The same `docs/`
+  directory was served from two hostnames, which is duplicate content, and
+  the one analytics tag counted both as if they were one site. There is now
+  a single canonical URL. `docs/` stays exactly where it is — the Render app
+  serves it; only the Pages setting was turned off.
 - **Repository path**: `/home/cgarms/Projects/sox-tracker`
 - **Virtual environment**: Python 3.11+, `pip install -r requirements.txt`
 - **Refresh**: `.github/workflows/refresh.yml` rebuilds every page four times a
