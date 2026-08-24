@@ -202,6 +202,29 @@ def _prop_ev(p_win: float, p_push: float, american_odds: int) -> float:
     return round((p_win * profit - p_lose) * 100.0, 2)
 
 
+def _side_call(direction: str, p_win: float, p_push: float, odds: int) -> tuple[str, float]:
+    """
+    Name a side the model likes -- but only as a bet if the price pays for it.
+
+    Clearing the model's own error bar means it has an opinion. It does not mean
+    the opinion is worth money at the number actually quoted, and those are
+    different claims. Ranger Suarez projected 4.99 K against a 4.5 line on
+    2026-08-24, cleared MIN_EDGE_K, and the board printed
+    "OVER (-5.9% EV) 🔥" -- a flame on a bet the same line of code had just
+    computed to lose 5.9 cents on the dollar. The model's own over-probability
+    was 55.71% against the book's de-vigged 55.88%, so there was no edge to
+    have; the K-unit gate simply never looked at the price.
+
+    Negative EV is not a weaker OVER, it is not an OVER. The book has already
+    taken that side of the disagreement and charged for it, which is worth
+    saying plainly rather than dressing as a pick.
+    """
+    ev = _prop_ev(p_win, p_push, odds)
+    if ev <= 0:
+        return f"PRICED OUT ({ev:+.1f}% EV) 🏷️", ev
+    return f"{direction} ({ev:+.1f}% EV) {'🔥' if direction == 'OVER' else '🧊'}", ev
+
+
 def probable_starters(
     client: MLBClient | None,
     team_id: int = config.TEAM_ID,
@@ -502,11 +525,11 @@ def pitcher_strikeout_model(
                 ev_pct, odds_used, flagged = None, over_odds, True
                 rec = f"REVIEW ⚠️ ({edge_diff:+.1f} K vs market)"
             elif edge_diff >= MIN_EDGE_K and over_odds is not None:
-                ev_pct = _prop_ev(p_over, p_push, over_odds)
-                rec, odds_used, flagged = f"OVER ({ev_pct:+.1f}% EV) 🔥", over_odds, False
+                rec, ev_pct = _side_call("OVER", p_over, p_push, over_odds)
+                odds_used, flagged = over_odds, False
             elif edge_diff <= -MIN_EDGE_K and under_odds is not None:
-                ev_pct = _prop_ev(p_under, p_push, under_odds)
-                rec, odds_used, flagged = f"UNDER ({ev_pct:+.1f}% EV) 🧊", under_odds, False
+                rec, ev_pct = _side_call("UNDER", p_under, p_push, under_odds)
+                odds_used, flagged = under_odds, False
             else:
                 # Not "neutral" — the model has an opinion, it just cannot show
                 # that opinion is worth more than its own error bar. Say that
@@ -1121,11 +1144,11 @@ def batter_total_bases_model(
                 ev_pct, odds_used, flagged = None, over_odds, True
                 rec = f"REVIEW ⚠️ ({edge * 100:+.1f} pts vs market)"
             elif edge >= MIN_EDGE_TB_PROB and over_odds is not None:
-                ev_pct = _prop_ev(p_over, p_push, over_odds)
-                rec, odds_used, flagged = f"OVER ({ev_pct:+.1f}% EV) 🔥", over_odds, False
+                rec, ev_pct = _side_call("OVER", p_over, p_push, over_odds)
+                odds_used, flagged = over_odds, False
             elif edge <= -MIN_EDGE_TB_PROB and under_odds is not None:
-                ev_pct = _prop_ev(p_under, p_push, under_odds)
-                rec, odds_used, flagged = f"UNDER ({ev_pct:+.1f}% EV) 🧊", under_odds, False
+                rec, ev_pct = _side_call("UNDER", p_under, p_push, under_odds)
+                odds_used, flagged = under_odds, False
             else:
                 ev_pct, rec, odds_used, flagged = None, "NO CALL ⚖️", over_odds, False
 
