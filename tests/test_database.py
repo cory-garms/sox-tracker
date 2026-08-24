@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, Table, create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
-from backend.database import Base, init_db
+from backend.database import Base, init_db, sync_schema
 from backend.models import BetLog, ModelPrediction, OddsSnapshot
 from backend.repository import (
     clv_summary,
@@ -190,3 +190,83 @@ def test_bet_logging_and_clv_grading(db_session):
     assert summary["n_graded"] == 1
     assert summary["positive_clv_count"] == 1
     assert summary["avg_clv_points"] > 0
+
+
+class TestSchemaDriftBreaksTheDeploy:
+    """
+    Render's build step ran migrate_parquet_to_db.py against a database whose
+    model_predictions table had been created by an earlier deploy. When
+    ModelPrediction gained player_id / game_pk / actual / outcome / settled_at,
+    create_all() left that existing table alone -- it only creates missing
+    *tables* -- and every insert died with "column ... does not exist". The
+    build failed on every push, Render kept serving the last build that
+    worked, and the site silently went stale for a day.
+    """
+
+    def _engine_missing(self, tmp_path, drop: set[str]):
+        """A database whose model_predictions predates the new columns."""
+        engine = create_engine(f"sqlite:///{tmp_path / 'drift.db'}")
+        meta = MetaData()
+        for table in Base.metadata.tables.values():
+            cols = [
+                c._copy() for c in table.columns
+                if not (table.name == "model_predictions" and c.name in drop)
+            ]
+            Table(table.name, meta, *cols)
+        meta.create_all(engine)
+        return engine
+
+    def test_missing_columns_are_added(self, tmp_path):
+        drop = {"player_id", "game_pk", "actual", "outcome", "settled_at"}
+        engine = self._engine_missing(tmp_path, drop)
+
+        assert drop.isdisjoint(
+            {c["name"] for c in inspect(engine).get_columns("model_predictions")}
+        )
+
+        init_db(engine)
+
+        present = {c["name"] for c in inspect(engine).get_columns("model_predictions")}
+        assert drop <= present
+
+    def test_insert_succeeds_after_sync(self, tmp_path):
+        """The actual failure: the build inserts, and the insert must not raise."""
+        engine = self._engine_missing(
+            tmp_path, {"player_id", "game_pk", "actual", "outcome", "settled_at"}
+        )
+        init_db(engine)
+
+        session = sessionmaker(bind=engine)()
+        try:
+            insert_model_predictions(session, [{
+                "created_at": "2026-08-23T12:00:00Z",
+                "game_date": "2026-08-23",
+                "market": "batter_total_bases",
+                "player": "Wilyer Abreu",
+                "line": 1.5,
+                "projection": 1.68,
+                "player_id": 677800,
+                "game_pk": 824734,
+                "actual": 0.0,
+                "outcome": "under",
+                "settled_at": "2026-08-23T20:30:18+00:00",
+            }])
+            session.commit()
+            row = session.query(ModelPrediction).one()
+            assert row.player_id == 677800
+            assert row.outcome == "under"
+        finally:
+            session.close()
+
+    def test_sync_is_idempotent(self, tmp_path):
+        """Deploys run this on every build; the second one must be a no-op."""
+        engine = self._engine_missing(tmp_path, {"actual", "outcome"})
+        assert set(sync_schema(engine)) == {
+            "model_predictions.actual", "model_predictions.outcome",
+        }
+        assert sync_schema(engine) == []
+
+    def test_up_to_date_database_is_untouched(self, tmp_path):
+        engine = create_engine(f"sqlite:///{tmp_path / 'current.db'}")
+        Base.metadata.create_all(engine)
+        assert sync_schema(engine) == []
