@@ -76,5 +76,14 @@ jobs:
           # price nobody wrote down at 12:00 ET is gone for good. It has to be
           # committed or the runner throws away the snapshot it just took.
           git add data/cache/odds_history.parquet || true
+          # Same argument, same file pattern, and it was missing: betting_report.py
+          # logs every projection it just made beside the line it was quoted
+          # against, and without this line the runner wrote that log and then
+          # threw it away. Only 22 live predictions survived a month of builds,
+          # and those solely because an unrelated manual commit swept the file
+          # in. The post-game run grades what is already committed and skips
+          # betting_report.py to save odds credits, so a projection not written
+          # down here is never gradeable at all.
+          git add data/cache/predictions_history.parquet || true
           git diff --cached --quiet || git commit -m "chore: auto-refresh data $(date -u +%Y-%m-%d)"
           git push
