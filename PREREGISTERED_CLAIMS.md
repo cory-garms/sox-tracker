@@ -150,6 +150,28 @@ not depend on which capture wins**; only the table does.
 
 Nine books priced this board, against one on 2026-08-24. Same credit cost.
 
+**Amended 21:57 UTC, 43 minutes before first pitch.** The 17:30 ET build landed
+at 21:56 — 26 minutes late, the same lateness as yesterday — and is now the
+capture `latest_per_game()` will score. Three prices moved and no claim did:
+
+| Player | Book over% at 19:34 | at 21:56 | Board says now |
+|---|---|---|---|
+| Payton Tolle | 47.11% | **46.49%** | `UNDER (+4.4% EV) 🧊` |
+| Tyler Phillips | 56.31% | **54.20%** | `NO CALL` |
+| Willson Contreras | 39.44% | **40.18%** | `NO CALL` |
+
+Sogard, Rafaela and Abreu are unchanged. Tolle is still the only side called,
+still under, still positive EV at a smaller number; Rafaela is still REVIEW at
++5.1 points.
+
+Worth recording before the fact rather than noticing it after: **the market
+moved toward Tolle's under** between those two captures, 47.11% over down to
+46.49%, which is why the EV fell from +5.4% to +4.4% — a shorter price for the
+same side. That is the direction Claim 5 gets measured in. It is two intraday
+captures and not a close, so it is not evidence of anything yet; it is written
+down now so that if the close continues that way it cannot be told as a story
+about foresight.
+
 ### Claim 5 — the first side the EV gate has allowed through
 
 `UNDER (+5.4% EV)` on Tolle is the first call the board has published since
