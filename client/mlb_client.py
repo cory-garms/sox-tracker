@@ -16,7 +16,7 @@ from typing import Any
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from config import MLB_API_BASE, REQUEST_TIMEOUT, REQUEST_DELAY
+from config import MLB_API_BASE, REQUEST_TIMEOUT, REQUEST_DELAY, SEASON
 
 log = logging.getLogger(__name__)
 
@@ -59,21 +59,31 @@ class MLBClient:
 
     def get_schedule(
         self,
-        team_id: int,
-        season: int,
+        team_id: int | None = None,
+        season: int = SEASON,
         game_type: str = "R",       # R=regular season, P=postseason, S=spring
         start_date: str | None = None,
         end_date: str | None = None,
         hydrate: str = "decisions,linescore",
     ) -> list[dict]:
-        """Return a list of game records for the given team and season."""
+        """
+        Game records for one team, or for the whole league when `team_id` is
+        None.
+
+        The league-wide form exists so a win-probability backtest can compute
+        every team's runs scored and allowed *as of* a past date. Reading them
+        off today's standings instead would leak the future into every game
+        before today, which is the failure the projection backfill already
+        guards against by truncating its inputs.
+        """
         params: dict[str, Any] = {
             "sportId": 1,
-            "teamId": team_id,
             "season": season,
             "gameType": game_type,
             "hydrate": hydrate,
         }
+        if team_id is not None:
+            params["teamId"] = team_id
         if start_date:
             params["startDate"] = start_date
         if end_date:
