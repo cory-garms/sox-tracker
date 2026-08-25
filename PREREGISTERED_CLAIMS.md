@@ -128,6 +128,88 @@ show positive CLV once there are enough of them to tell.
 
 ---
 
+## 2026-08-25 · Boston at Miami (gamePk 823826)
+
+First pitch 22:40 UTC. Written at **21:40 UTC — 60 minutes before**. Tolle vs
+Phillips. Lineup posted; all four priced Boston hitters confirmed in it.
+
+Scored capture as of writing is **19:34 UTC** (the 15:00 ET build). The 17:30 ET
+build had not landed at time of writing — GitHub's scheduler runs it late, and
+yesterday's arrived at 21:56. If it lands before first pitch it becomes the
+capture `latest_per_game()` scores and the prices below move. **The claims do
+not depend on which capture wins**; only the table does.
+
+| Market | Player | Line | Proj | Model over% | Book over% | Board says | Slot |
+|---|---|---|---|---|---|---|---|
+| K | Payton Tolle | 6.5 | 6.09 | 40.81% | 47.11% | `UNDER (+5.4% EV) 🧊` | — |
+| K | Tyler Phillips *(MIA)* | 3.5 | 3.46 | 45.38% | 56.31% | `NO CALL` | — |
+| TB | Nick Sogard | 1.5 | 1.61 | 42.84% | 39.29% | `NO CALL` | 1 |
+| TB | Ceddanne Rafaela | 1.5 | 1.83 | 46.41% | 41.32% | `REVIEW ⚠️ (+5.1 pts)` | 2 |
+| TB | Wilyer Abreu | 1.5 | 1.75 | 42.43% | 42.95% | `NO CALL` | 3 |
+| TB | Willson Contreras | 1.5 | 1.85 | 42.99% | 39.44% | `NO CALL` | 4 |
+
+Nine books priced this board, against one on 2026-08-24. Same credit cost.
+
+### Claim 5 — the first side the EV gate has allowed through
+
+`UNDER (+5.4% EV)` on Tolle is the first call the board has published since
+`_side_call` began requiring positive EV. Yesterday's Suárez was the same shape
+and was refused; this one clears, so the gate is not simply silencing
+everything.
+
+**Predicted:** it is not an edge. The project's own measured position, over 175
+graded player-games and 160 market-movement observations, is that these models
+do not beat the market — so a call clearing an EV threshold should still show
+closing-line movement indistinguishable from zero, and should win at roughly
+the model's stated 59.2% under rather than better.
+
+**Scored by:** `analysis.clv` over the accumulating set of gate-allowed calls,
+and their Brier against the de-vigged market. **n=1 tonight.**
+
+**Falsified if:** gate-allowed calls accumulate positive movement with a CI
+clear of zero. That would be the first evidence in this project of a rule that
+selects profitable disagreements, and would deserve a much harder look than one
+night can give it.
+
+### Claim 6 — the opposing starter, and a gap recorded before it bites
+
+Tyler Phillips is the first opposing starter this project has ever projected in
+production. Yesterday's Alcántara row never existed: the wiring landed at 21:59
+UTC, three minutes after the build that would have used it.
+
+**Predicted:** the same estimator on the other team's starter is neither better
+nor worse than on ours. Projection error should sit in the same measured band —
+it is `project_marcel` reading the same league logs, with the opponent factor
+computed against our lineup rather than theirs.
+
+**Known limitation, stated now rather than discovered later:**
+`scripts/grade_predictions.py` is given only Boston's `pitching` and `batting`
+caches, so `resolve_appearance` will return "player did not appear" for Phillips
+and **this row will not settle**. The actual is not missing — league logs hold
+his 31 starts — it is simply not handed to the grader. Recording it here so the
+first opposing-starter prediction is on the record as ungradeable *by design as
+currently wired*, and not quietly counted as a miss later. Deliberately not
+fixed tonight: grading runs after the game and rewriting it an hour beforehand
+risks the run that grades everything else.
+
+### Claims 1–3 — what tonight adds
+
+**Claim 1** gets a second observation: Rafaela is REVIEW-flagged again, at
++5.1 points, the model again more bullish than the book (46.4% vs 41.3%).
+Yesterday's went the way the claim predicted, on n=1.
+
+**Claim 2** gets a supporting observation that is not part of its scoring rule
+but is worth recording: the four priced Boston hitters bat **1, 2, 3 and 4**.
+Yesterday's four batted 1, 2, 3 and 4. The book is pricing the top of the order
+both nights, which is the selection the claim describes, visible directly.
+
+**Claim 3** adds five projection errors. Every total-bases projection again
+sits above its 1.5 line (1.61–1.85), the same shape as yesterday, when three of
+four landed under and the projections averaged 1.77 against an actual mean of
+1.0. Two nights is not a bias measurement and is not offered as one.
+
+---
+
 ## How to read a claim here
 
 - **n is stated honestly.** Most of these are one observation. A claim that
