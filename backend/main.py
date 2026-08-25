@@ -156,16 +156,24 @@ def page_betting():
     """
     The old combined betting page, retired on 2026-07-27.
 
-    328d6f9 split it into Tonight's Board and Models & Method, and the file it
-    served was never rebuilt afterwards -- but the route kept serving it. It sat
-    there for a month: no nav bar, no analytics tag, and model output from July
-    presented as current. Anyone who had the link, or found it, got that.
+    328d6f9 split it into Tonight's Board and Models & Method and left a
+    meta-refresh stub at the old filename, which betting_report.py rewrites on
+    every build. A 301 does the same job better: it is a real redirect rather
+    than a rendered page that redirects itself, so it costs no round trip and
+    search engines treat it as a move instead of a soft duplicate.
 
-    Permanent redirect to the half that inherited its content, rather than a
-    404: the URL was published and may be linked from outside.
+    Correction: an earlier version of this docstring said the old page had sat
+    there for a month serving July's model output. That was wrong. The file was
+    the redirect stub the whole time -- it was never stale content, and the
+    generator still writes it. The 301 stands on its own merits; the reason
+    first given for it did not.
+
+    Target matches the stub's: Tonight's Board is where the old page's content
+    went.
     """
     return RedirectResponse(
-        url=f"/models_{config.TEAM_ABBR}_{config.SEASON}.html", status_code=301
+        url=f"/tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html",
+        status_code=301,
     )
 
 
