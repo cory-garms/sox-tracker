@@ -65,6 +65,9 @@ jobs:
           python matchup_report.py --team "$TEAM" --season "$SEASON"
           python betting_report.py --team "$TEAM" --season "$SEASON"
           python streak_report.py
+          # Every figure in a post is computed from the caches, so the notebook
+          # rebuilds with them or its numbers drift from the pages they came from.
+          python blog_report.py --team "$TEAM" --season "$SEASON"
 
       - name: Commit updated dashboard
         run: |

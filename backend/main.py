@@ -144,6 +144,13 @@ def page_leaders():
     return _serve_page(f"leaders_{config.TEAM_ABBR}_{config.SEASON}.html")
 
 
+@app.api_route(f"/notebook_{config.TEAM_ABBR}_{config.SEASON}.html", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/notebook", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/blog", methods=["GET", "HEAD"], include_in_schema=False)
+def page_notebook():
+    return _serve_page(f"notebook_{config.TEAM_ABBR}_{config.SEASON}.html")
+
+
 @app.api_route(f"/streak_records_{config.TEAM_ABBR}_{config.SEASON}.html", methods=["GET", "HEAD"], include_in_schema=False)
 @app.api_route("/streaks", methods=["GET", "HEAD"], include_in_schema=False)
 def page_streaks():

@@ -553,6 +553,11 @@ PAGE_DESCRIPTIONS: dict[str, str] = {
         "Top-five Red Sox leaderboards across hitting and pitching, filtered "
         "to the active 26-man roster so traded players do not linger."
     ),
+    "notebook": (
+        "Short, stats-backed notes on what this season's Red Sox have actually "
+        "done — every figure computed at build time, with the sample size it "
+        "rests on stated beside it."
+    ),
     "streaks": (
         "The 15-game win streak of July 2026, game by game, measured against "
         "the franchise, American League and MLB records."
@@ -687,6 +692,7 @@ PAGES: dict[str, tuple[str, str, str]] = {
     "matchup":   ("matchup_BOS_2026.html",        "Today's Matchup",    MODE_SEASON),
     "dashboard": ("dashboard_BOS_2026.html",     "Season Dashboard",   MODE_SEASON),
     "leaders":   ("leaders_BOS_2026.html",        "Stat Leaders",       MODE_SEASON),
+    "notebook":  ("notebook_BOS_2026.html",       "Notebook",           MODE_SEASON),
     "streaks":   ("streak_records_BOS_2026.html", "Win Streaks",        MODE_SEASON),
     # Odds & Models (Secondary analytical & betting models)
     "board":     ("tonights_board_BOS_2026.html", "Tonight's Board",    MODE_BETTING),
