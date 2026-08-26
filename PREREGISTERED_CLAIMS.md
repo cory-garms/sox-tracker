@@ -204,6 +204,15 @@ nor worse than on ours. Projection error should sit in the same measured band â€
 it is `project_marcel` reading the same league logs, with the opponent factor
 computed against our lineup rather than theirs.
 
+**Resolved 2026-08-26, in `c67be51`.** The limitation held exactly as written
+â€” Phillips logged `actual = NaN` and an empty outcome through the post-game run,
+because `resolve_appearance` looked only in Boston's caches. It is fixed now:
+the grader consults the box score of the game itself when the team caches come
+up empty, and he settled on the first attempt at **7 strikeouts against a 3.5
+line**, an over. The prediction that was pre-registered as ungradeable is
+graded, and the fix was made after the game rather than an hour before it, which
+was the point of recording it instead of rushing it.
+
 **Known limitation, stated now rather than discovered later:**
 `scripts/grade_predictions.py` is given only Boston's `pitching` and `batting`
 caches, so `resolve_appearance` will return "player did not appear" for Phillips
