@@ -69,6 +69,15 @@ OUTCOME_UNDER = "under"
 OUTCOME_PUSH = "push"
 OUTCOME_NO_LINE = "no_line"
 OUTCOME_VOID = "void"
+# The player was not in a game that was played -- benched, rested, or optioned.
+# Books void a prop on someone who never appears, and so does this.
+#
+# It needs its own terminal state rather than being left blank. These tables
+# rank the top ten hitters by projection across the roster, so four or five
+# every night are bench bats who never bat; left ungraded they returned to the
+# queue on every future run for the rest of the season, which is the same leak
+# no_line exists to prevent one market over.
+OUTCOME_DNP = "dnp"
 
 # Outcomes that carry a direction, and so can be scored against a probability.
 DIRECTIONAL = {OUTCOME_OVER, OUTCOME_UNDER, OUTCOME_PUSH}

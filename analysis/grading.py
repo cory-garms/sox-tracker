@@ -16,6 +16,7 @@ the tests can call it directly.
 from __future__ import annotations
 
 import logging
+from typing import Any
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -92,15 +93,29 @@ def grade_frame(
     pitching: pd.DataFrame,
     batting: pd.DataFrame,
     now: str | None = None,
+    boxscore_lookup: Any = None,
 ) -> tuple[pd.DataFrame, dict[str, int]]:
     """
     Settle every ungraded prediction that can be settled.
 
     Returns the whole frame with outcomes filled in, plus a tally of what
-    happened. Rows that cannot be settled are left exactly as they were, so a
-    prediction for tonight's game simply waits for tonight to finish.
+    happened. A prediction for tonight's game is left exactly as it was and
+    simply waits for tonight to finish.
+
+    `boxscore_lookup` is an optional callable
+    ``(game_date, player_id, player_name, market) -> (actual, game_pk) | None``
+    consulted only when the team caches cannot resolve a player. It exists for
+    the opposing starter: those caches hold Boston and nobody else, so Tyler
+    Phillips on 2026-08-25 -- the first opposing-starter projection ever logged
+    -- resolved as "player did not appear" and could never settle, while his
+    line sat in a box score the whole time. Injected rather than imported so
+    the tests never touch a network.
+
+    A player genuinely absent from a game that *was* played is settled as
+    OUTCOME_DNP rather than left blank. Blank means "ask again next run", and
+    for a bench bat that is every run until the season ends.
     """
-    stats = {"graded": 0, "skipped": 0, "already": 0}
+    stats = {"graded": 0, "skipped": 0, "already": 0, "dnp": 0, "boxscore": 0}
     if predictions is None or predictions.empty:
         return predictions, stats
 
@@ -127,13 +142,40 @@ def grade_frame(
         appearance, reason = resolve_appearance(
             logs, row.get("player_id"), row.get("player"), row.get("game_date"),
         )
-        if appearance is None:
-            log.debug("Not grading %s %s on %s: %s",
-                      market, row.get("player"), row.get("game_date"), reason)
-            stats["skipped"] += 1
-            continue
 
-        actual = measure(appearance)
+        actual = None
+        game_pk = None
+        if appearance is not None:
+            actual = measure(appearance)
+            game_pk = appearance.get("game_pk") if "game_pk" in appearance else None
+        elif reason == "player did not appear" and boxscore_lookup is not None:
+            # Not in our caches, which hold one team. He may still have played.
+            try:
+                found = boxscore_lookup(
+                    row.get("game_date"), row.get("player_id"),
+                    row.get("player"), market,
+                )
+            except Exception as e:                    # a box score is not worth a crash
+                log.warning("Box score lookup failed for %s on %s: %s",
+                            row.get("player"), row.get("game_date"), e)
+                found = None
+            if found is not None:
+                actual, game_pk = found
+                stats["boxscore"] += 1
+
+        if actual is None:
+            # "did not appear" is terminal only once we have also failed to find
+            # him anywhere else; every other reason -- no game yet, an
+            # unresolvable doubleheader -- means try again another day.
+            if reason == "player did not appear":
+                frame.loc[idx, "outcome"] = ph.OUTCOME_DNP
+                frame.loc[idx, "settled_at"] = stamp
+                stats["dnp"] += 1
+            else:
+                log.debug("Not grading %s %s on %s: %s",
+                          market, row.get("player"), row.get("game_date"), reason)
+                stats["skipped"] += 1
+            continue
         # settle() returns "" when there was no line to classify against. That
         # row is still settled — the actual is known and measures projection
         # error — so it gets an explicit no_line outcome rather than staying
@@ -143,8 +185,8 @@ def grade_frame(
         frame.loc[idx, "actual"] = float(actual)
         frame.loc[idx, "outcome"] = outcome
         frame.loc[idx, "settled_at"] = stamp
-        if "game_pk" in appearance:
-            frame.loc[idx, "game_pk"] = appearance["game_pk"]
+        if game_pk is not None and not pd.isna(game_pk):
+            frame.loc[idx, "game_pk"] = game_pk
         stats["graded"] += 1
 
     return frame, stats
