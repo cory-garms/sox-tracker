@@ -574,6 +574,11 @@ def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> 
             f"<strong>{best_ev['consensus_prob'] * 100:.1f}%</strong> across "
             f"{int(best_ev['n_books'])} other books, making it "
             f"<strong>{best_ev['ev_pct']:+.2f}%</strong>."
+            " Measured against the rest of the market, never against itself: a "
+            "book cannot be its own benchmark. The Models page prices the same "
+            "selection against this book's own de-vigged number instead, so the "
+            "two EVs will differ &mdash; they answer different questions, one "
+            "about the price and one about the projection."
         )
     else:
         lead = (
@@ -593,6 +598,12 @@ def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> 
         "profit rather than stake, so its value climbs as the price lengthens "
         "&mdash; which is why the boosted column does not rank the same way as the "
         "raw one."
+        " <strong>That column is conditional and most of it is not available.</strong> "
+        "It applies only to whoever holds the token, only to one bet, and the "
+        "numbers in it sit beside raw prices that are negative &mdash; a boost "
+        "worth more than the house edge does not make the underlying bet good, "
+        "it makes the promotion good. Read the EV column for the bet and the "
+        "boosted one only if you are actually holding a boost."
     )
 
     # Column order is a mobile decision, not a cosmetic one. The first column is
@@ -633,7 +644,7 @@ def _consensus_html(edges, boost_pct: float = 50.0, movement_html: str = "") -> 
           <th>Side</th>
           <th>{config.ODDS_BOOKMAKER.title()}</th>
           <th>EV</th>
-          <th>EV w/ {boost_pct:g}% boost</th>
+          <th>EV <em>if</em> boosted ({boost_pct:g}%)</th>
           <th>Consensus Fair %</th>
           <th>Books</th>
           <th>Market</th>
@@ -1224,7 +1235,14 @@ def generate_betting_html(
                 "whole league instead showed the projection was always better than "
                 "that, and that regressing a pitcher's rate toward the league mean "
                 "&mdash; rather than chasing his last five starts &mdash; is better "
-                "again. There is still no park or platoon context."
+                "again. There is still no park or platoon context. "
+                "<strong>The EV on a call here is measured against this book's "
+                "own de-vigged price</strong> &mdash; it asks whether the "
+                "projection beats the number quoted. Tonight's Board prices the "
+                "same selection against the consensus of the <em>other</em> "
+                "books instead, asking whether the number itself is off. Both "
+                "are EV and they will not agree; a selection can beat the book "
+                "it is posted at and still be behind the market, or the reverse."
             )
         )
     else:
