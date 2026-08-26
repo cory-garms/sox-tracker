@@ -113,10 +113,17 @@ def main() -> int:
     print(f"  mean projection          : {sum(preds)/len(preds):.4f}")
     print(f"  Brier                    : {scoring.brier(preds, actual):.4f}")
     print(f"  Brier of always-base-rate: {scoring.brier([sum(actual)/len(actual)]*len(actual), actual):.4f}")
+    # The slope comes from discrimination(), not calibration() -- this asked the
+    # latter for a key it has never returned and printed nan for it.
     disc = scoring.discrimination(preds, actual)
     print(f"  AUC                      : {disc.get('auc', float('nan')):.4f}")
+    print(f"  recalibration slope      : {disc.get('slope', float('nan')):+.3f}")
     cal = scoring.calibration(preds, actual, bins=4)
-    print(f"  recalibration slope      : {cal.get('slope', float('nan')):+.3f}")
+    gap, floor = cal.get("rms_gap", float("nan")), cal.get("noise_floor", float("nan"))
+    print(f"  calibration RMS gap      : {gap:.4f}  (noise floor {floor:.4f})")
+    # A gap under the floor is what a perfectly calibrated model looks like on a
+    # sample this size, so reporting the gap alone would over-read it.
+    print(f"  {'miscalibration is resolvable' if cal.get('resolvable') else 'gap is inside the noise floor -- not resolvable'}")
     print(f"  {scoring.sample_verdict(len(preds))}")
 
     # --- and only now, the market ---
