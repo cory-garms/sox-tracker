@@ -42,9 +42,11 @@ from client.odds_api_client import (  # noqa: E402
     MARKET_H2H,
     MARKET_BATTER_TB,
     MARKET_PITCHER_KS,
+    MARKET_TOTALS,
     OddsAPIClient,
     _parse_player_lines,
     parse_player_lines_by_book,
+    parse_two_way_by_book,
 )
 from data import odds_history  # noqa: E402
 
@@ -60,6 +62,23 @@ DEFAULT_FLOOR_MIN = 2
 # Priced at the close only, so bets placed in them can be graded. Each costs one
 # credit per capture (~1/day), against the 4 x 3 the page builds already spend.
 EXTRA_CLOSING_MARKETS = ("batter_home_runs",)
+
+# Game-level markets, captured at the close for the same reason and parsed
+# differently: their two outcomes are Over/Under or team names rather than a
+# player, so they go through parse_two_way_by_book.
+#
+# Totals are here rather than on every build because of the budget, and the
+# choice is a real one. Four builds a day would cost ~124 credits a cycle,
+# which does not fit against a 500 quota already spending ~454; the only way to
+# fund it would be dropping the moneyline, and the moneyline is the sole market
+# benchmark the win-probability model has. One capture per game at the close is
+# ~30 a cycle and fits inside the slack.
+#
+# What that trades away is intraday movement on totals. What it keeps is the
+# close -- the number that cannot be reconstructed once the game starts, and
+# the one every closing-line comparison is measured against. Of the two halves,
+# only one of them expires.
+EXTRA_CLOSING_TWO_WAY = (MARKET_TOTALS,)
 
 
 def minutes_to_first_pitch(event: dict, now: datetime | None = None) -> float | None:
@@ -166,6 +185,16 @@ def main() -> int:
                     _parse_player_lines(payload, market, book=client.bookmaker),
                 )
             total += odds_history.append_snapshot(rows)
+        except Exception as e:
+            log.warning("Could not capture %s: %s", market, e)
+
+    for market in EXTRA_CLOSING_TWO_WAY:
+        try:
+            payload = client.get_event_props(event["id"], markets=market)
+            by_book = parse_two_way_by_book(payload, market)
+            total += odds_history.append_snapshot(
+                odds_history.snapshot_rows_by_book(event, market, by_book)
+            )
         except Exception as e:
             log.warning("Could not capture %s: %s", market, e)
 
