@@ -150,6 +150,95 @@ def bello(ctx: dict[str, Any]) -> str:
     """
 
 
+def _slash(x: pd.DataFrame) -> dict[str, float]:
+    """AVG / OBP / SLG and the counting stats behind them."""
+    ab, h, bb = float(x["ab"].sum()), float(x["h"].sum()), float(x["bb"].sum())
+    hr, d, t = float(x["hr"].sum()), float(x["doubles"].sum()), float(x["triples"].sum())
+    pa = float(x["pa"].sum()) or (ab + bb)
+    if ab <= 0 or pa <= 0:
+        return {}
+    tb = (h - d - t - hr) + 2 * d + 3 * t + 4 * hr
+    return {
+        "g": len(x), "ab": ab, "hr": hr, "rbi": float(x["rbi"].sum()),
+        "so": float(x["so"].sum()), "pa": pa,
+        "avg": h / ab, "obp": (h + bb) / pa, "slg": tb / ab,
+        "ops": (h + bb) / pa + tb / ab, "k_rate": float(x["so"].sum()) / pa,
+    }
+
+
+def gasper(ctx: dict[str, Any]) -> str:
+    """A part-timer's hot streak, and what "last ten games" hides."""
+    bat = ctx["batting"]
+    g = bat[bat["player_name"].str.contains("Gasper", na=False)].sort_values("game_date")
+    if g.empty:
+        return "<p>No games on record.</p>"
+
+    # The break is the story, so find it rather than hardcoding a date: the
+    # longest gap between his appearances, which for a part-time catcher is a
+    # very different thing from a rest day.
+    dates = pd.to_datetime(g["game_date"])
+    gaps = dates.diff().dt.days.fillna(0)
+    if gaps.max() < 14:
+        return "<p>No absence long enough to split his season around.</p>"
+    at = int(gaps.idxmax())
+    split_date = str(g.loc[at, "game_date"])
+    away_days = int(gaps.max())
+
+    before, after = _slash(g[g["game_date"] < split_date]), _slash(g[g["game_date"] >= split_date])
+    if not before or not after:
+        return "<p>Not enough either side of the break to compare.</p>"
+
+    hr_dates = [d for d, h in zip(g["game_date"], g["hr"]) if h > 0]
+    league_hr = 0.035
+    from math import comb
+    ab_i, hr_i = int(after["ab"]), int(after["hr"])
+    p_luck = sum(comb(ab_i, k) * league_hr ** k * (1 - league_hr) ** (ab_i - k)
+                 for k in range(hr_i, ab_i + 1))
+
+    return f"""
+    <p class="lede">Mickey Gasper hit no home runs in his first
+    {int(before['g'])} games this season. He has hit <strong>{int(after['hr'])} in the
+    {int(after['g'])} since he came back</strong> &mdash; in {int(after['ab'])} at-bats.</p>
+
+    <div class="stat-row">
+      {_stat("OPS before", f"{before['ops']:.3f}", f"{int(before['g'])} games, {int(before['ab'])} AB")}
+      {_stat("OPS since", f"{after['ops']:.3f}", f"{int(after['g'])} games, {int(after['ab'])} AB")}
+      {_stat("Home runs", f"{int(before['hr'])} &rarr; {int(after['hr'])}", "before &rarr; since")}
+    </div>
+
+    {_bar_pair("On-base plus slugging", before['ops'], after['ops'], "Before", "Since",
+               fmt="{:.3f}", lower_is_better=False)}
+    {_bar_pair("Slugging", before['slg'], after['slg'], "Before", "Since",
+               fmt="{:.3f}", lower_is_better=False)}
+    {_bar_pair("Strikeout rate", before['k_rate'], after['k_rate'], "Before", "Since",
+               fmt="{:.1%}")}
+
+    <p><strong>The window is not what it looks like.</strong> A "last ten games"
+    split on a part-time catcher is not a fortnight &mdash; his was
+    <strong>{away_days} days</strong> wide, because he did not appear at all
+    between then and {split_date}. Read as recent form it looks like a hot
+    fortnight. It is really a player who went away and came back different, and
+    the two are not the same claim.</p>
+
+    <p>The strikeout rate is the part that argues for something real. He struck
+    out in <strong>{before['k_rate']:.0%}</strong> of plate appearances before the
+    break and <strong>{after['k_rate']:.0%}</strong> since &mdash; power surges
+    are common, power surges accompanied by a collapsing strikeout rate are less
+    so. His home runs came on {", ".join(str(d) for d in hr_dates)}.</p>
+
+    <p class="caveat"><strong>And {int(after['ab'])} at-bats is {int(after['ab'])}
+    at-bats.</strong> Put a number on it: if he were a league-average power hitter
+    &mdash; about {league_hr:.1%} of at-bats ending in a home run &mdash; the chance
+    of {int(after['hr'])} or more in {int(after['ab'])} is
+    <strong>{p_luck:.4f}</strong>, roughly one in {1 / p_luck:,.0f}. That is small
+    enough to say the rate has genuinely changed and far too small a sample to say
+    what it changed <em>to</em>. A .476 average will not survive contact with
+    September. The question worth watching is not whether he keeps slugging
+    {after['slg']:.3f} &mdash; he will not &mdash; but whether the strikeout rate
+    stays down when the batted-ball luck stops.</p>
+    """
+
+
 POSTS: tuple[Post, ...] = (
     Post(
         slug="bello-two-pitchers",
@@ -158,5 +247,14 @@ POSTS: tuple[Post, ...] = (
             "The strikeout rate is the same. Everything else is not.",
         dateline="2026-08-26",
         build=bello,
+    ),
+    Post(
+        slug="gasper-came-back-different",
+        title="Mickey Gasper went away and came back different",
+        dek="No home runs in his first 34 games. Five in the eight since he "
+            "returned, on 21 at-bats — with the strikeout rate falling through "
+            "the floor at the same time.",
+        dateline="2026-08-26",
+        build=gasper,
     ),
 )
