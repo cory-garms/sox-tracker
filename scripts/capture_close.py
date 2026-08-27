@@ -56,7 +56,17 @@ log = logging.getLogger(__name__)
 # snapshot still counts as a "close"; the lower bound keeps the job from firing
 # so late that a delayed runner captures in-play prices, which are a different
 # market and would silently corrupt the record.
-DEFAULT_WINDOW_MIN = 35
+# Widened from 35 after 2026-08-26, when the capture was missed entirely.
+#
+# The two bounds do different jobs and only one of them is a correctness
+# constraint. The floor keeps a delayed runner from recording in-play prices,
+# which are a different market and would silently corrupt the record -- that one
+# is load-bearing and stays at two minutes. The ceiling is a quality preference:
+# how early a price still counts as a close. Missing the capture altogether is
+# strictly worse than taking one at 45 minutes, and every row carries its own
+# captured_at, so an analysis that wants only the last twenty minutes can still
+# filter for them. A row not taken cannot be filtered into existence.
+DEFAULT_WINDOW_MIN = 45
 DEFAULT_FLOOR_MIN = 2
 
 # Priced at the close only, so bets placed in them can be graded. Each costs one

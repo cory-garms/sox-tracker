@@ -21,8 +21,18 @@ on:
     # Every 20 minutes across the hours MLB games actually start (17:00-02:00
     # UTC covers 13:00 ET through 22:00 ET). Outside these hours there is
     # nothing to close, so the runner is not woken at all.
-    - cron: "*/20 17-23 * * *"
-    - cron: "*/20 0-2 * * *"
+    # Every ten minutes, not twenty. The gate is free -- get_events() costs no
+    # quota -- so the only thing a denser poll spends is Action minutes, and the
+    # sparse one lost a closing capture on 2026-08-26.
+    #
+    # The arithmetic: for a 22:40 first pitch the window is 21:55-22:38, and at
+    # */20 exactly one tick (22:20) could ever land inside it. GitHub delays
+    # scheduled runs routinely -- the close landed 4 minutes late on 08-24, 14
+    # late on 08-25, and on 08-26 it evidently passed 22:38 and the gate
+    # correctly refused. One tick is not a schedule, it is a coin flip against
+    # the scheduler.
+    - cron: "*/10 17-23 * * *"
+    - cron: "*/10 0-2 * * *"
   workflow_dispatch:
     inputs:
       force:
