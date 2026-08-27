@@ -82,6 +82,13 @@ jobs:
           python leaders_report.py --team "$TEAM" --season "$SEASON"
           python matchup_report.py --team "$TEAM" --season "$SEASON"
           python streak_report.py
+          # The notebook reads the same batting and pitching caches these pages
+          # do, and its posts cite figures that move every game -- a home run
+          # total, a strikeout rate, an ERA split. Rebuilt here as well as on the
+          # daily refresh, or a post sits quoting last night's numbers beside
+          # pages that have already moved on, which is exactly the staleness the
+          # format was designed to prevent.
+          python blog_report.py    --team "$TEAM" --season "$SEASON"
 
       # The game that just finished is the outcome for whatever the models
       # projected about it this morning. Both steps are pure joins over data
