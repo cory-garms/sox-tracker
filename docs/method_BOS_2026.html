@@ -348,6 +348,57 @@
     }
 
 
+    /* ---- Doubleheader chrome ------------------------------------------
+       Two boards on one page need a hard visual break between them, or a
+       reader scrolling on a phone carries game 1's prices into game 2's
+       section without noticing. Sized for a 390px viewport first: the strip
+       rows stack, and the game heading stays one line at that width. */
+    .dh-strip { list-style: none; margin: 0; padding: 0; }
+    .dh-strip-row {
+      display: grid;
+      grid-template-columns: minmax(64px, auto) 1fr auto;
+      gap: 6px 10px;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(197,160,89,0.22);
+    }
+    .dh-strip-row:last-child { border-bottom: 0; }
+    .dh-strip-game {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #C5A059;
+    }
+    .dh-strip-time { color: #F6F1E3; font-size: 0.94rem; }
+    .dh-strip-detail { color: #9DB0A5; font-size: 0.82rem; text-align: right; }
+    .dh-strip-row.done .dh-strip-time { color: #9DB0A5; }
+
+    .dh-game {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
+      margin: 26px 0 12px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #00483A 0%, #0b2b21 100%);
+      border-left: 4px solid #C5A059;
+      border-radius: 4px;
+    }
+    .dh-game-label {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: #C5A059;
+    }
+    .dh-game-sub { color: #9DB0A5; font-size: 0.86rem; }
+    .dh-state {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.64rem; letter-spacing: 0.1em;
+      padding: 3px 8px; border-radius: 3px;
+      background: #BD3039; color: #fff5f5;
+    }
+    @media (max-width: 420px) {
+      .dh-strip-row { grid-template-columns: minmax(58px, auto) 1fr; }
+      .dh-strip-detail { grid-column: 1 / -1; text-align: left; }
+      .dh-game { margin-top: 20px; }
+    }
+
     .matchup-banner {
       background:
         repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0 2px, rgba(0,0,0,0) 2px 46px),
@@ -442,7 +493,7 @@
 
   <section class="card" id="how-movement-is-ranked">
     <h2>How movement is ranked</h2>
-    <p class="table-note">Across 4 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
+    <p class="table-note">Across 5 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
   </section>
 
   <section class="card" id="what-clv-measures">
@@ -458,11 +509,6 @@
   <section class="card" id="how-the-strikeout-model-decides">
     <h2>How the strikeout model decides</h2>
     <p class="table-note"><strong>Market %</strong> is the book's price with the vig stripped out; <strong>Model %</strong> is this page's Poisson probability around its projection. Reading them side by side is the point of the table, and edge is projection minus line. The model's own error is &plusmn;0.37 K per start &mdash; a walk-forward backtest over 2,347 held-out starts by every starter in the league, after removing the irreducible scatter a perfect projection would still show &mdash; so a smaller edge cannot be told apart from zero. An edge larger than 1.5 K against a liquid market means the model is reporting its own bug, and is marked REVIEW. <strong>Until 2026-08-04 this page called nothing at all:</strong> the error was measured on 73 starts of one rotation, which put it at 1.39 K and left no room between those two limits. Measuring the whole league instead showed the projection was always better than that, and that regressing a pitcher's rate toward the league mean &mdash; rather than chasing his last five starts &mdash; is better again. There is still no park or platoon context. <strong>The EV on a call here is measured against this book's own de-vigged price</strong> &mdash; it asks whether the projection beats the number quoted. Tonight's Board prices the same selection against the consensus of the <em>other</em> books instead, asking whether the number itself is off. Both are EV and they will not agree; a selection can beat the book it is posted at and still be behind the market, or the reverse.</p>
-  </section>
-
-  <section class="card" id="why-the-total-bases-model-calls-nothing">
-    <h2>Why the total-bases model calls nothing</h2>
-    <p class="table-note">Lines are DraftKings' own, fetched with the strikeout market. Comparing a projection to the line would rank hitters by quality the book already charges for, so the model prices a probability instead. That over-probability moves by &plusmn;4.8 points when its inputs are resampled, while the entire spread of opinion it has been shown to hold out of sample is 4.8 points &mdash; walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 for a coin flip. An edge must be larger than the first and smaller than the second to mean anything, and almost nothing is. The honest reading is the two probability columns side by side, not the last one.</p>
   </section>
 
 
