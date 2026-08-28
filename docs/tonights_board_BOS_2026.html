@@ -348,57 +348,6 @@
     }
 
 
-    /* ---- Doubleheader chrome ------------------------------------------
-       Two boards on one page need a hard visual break between them, or a
-       reader scrolling on a phone carries game 1's prices into game 2's
-       section without noticing. Sized for a 390px viewport first: the strip
-       rows stack, and the game heading stays one line at that width. */
-    .dh-strip { list-style: none; margin: 0; padding: 0; }
-    .dh-strip-row {
-      display: grid;
-      grid-template-columns: minmax(64px, auto) 1fr auto;
-      gap: 6px 10px;
-      align-items: baseline;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(197,160,89,0.22);
-    }
-    .dh-strip-row:last-child { border-bottom: 0; }
-    .dh-strip-game {
-      font-family: 'Graduate', Georgia, serif;
-      font-size: 0.82rem; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #C5A059;
-    }
-    .dh-strip-time { color: #F6F1E3; font-size: 0.94rem; }
-    .dh-strip-detail { color: #9DB0A5; font-size: 0.82rem; text-align: right; }
-    .dh-strip-row.done .dh-strip-time { color: #9DB0A5; }
-
-    .dh-game {
-      display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
-      margin: 26px 0 12px;
-      padding: 10px 14px;
-      background: linear-gradient(135deg, #00483A 0%, #0b2b21 100%);
-      border-left: 4px solid #C5A059;
-      border-radius: 4px;
-    }
-    .dh-game-label {
-      font-family: 'Graduate', Georgia, serif;
-      font-size: clamp(0.9rem, 2.6vw, 1.05rem);
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: #C5A059;
-    }
-    .dh-game-sub { color: #9DB0A5; font-size: 0.86rem; }
-    .dh-state {
-      font-family: 'Graduate', Georgia, serif;
-      font-size: 0.64rem; letter-spacing: 0.1em;
-      padding: 3px 8px; border-radius: 3px;
-      background: #BD3039; color: #fff5f5;
-    }
-    @media (max-width: 420px) {
-      .dh-strip-row { grid-template-columns: minmax(58px, auto) 1fr; }
-      .dh-strip-detail { grid-column: 1 / -1; text-align: left; }
-      .dh-game { margin-top: 20px; }
-    }
-
     .matchup-banner {
       background:
         repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0 2px, rgba(0,0,0,0) 2px 46px),
@@ -488,7 +437,7 @@
   <section class="card">
     <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
     
-    <p class="market-read"><strong>Trent Grisham</strong> has had the line itself moved &mdash; 1.5 to 0.5 &mdash; which is a different bet rather than the same bet repriced, and the clearest signal on this page that someone has changed their mind.</p>
+    <p class="market-read">Biggest move: <strong>Patrick Sandoval</strong> -122 &rarr; +115, <strong>8.2 points</strong> away from the over since 02:27 UTC.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -501,33 +450,27 @@
       </thead>
       <tbody>
         <tr>
-          <td>Trent Grisham</td>
-          <td>1.5 &rarr; 0.5 <span class="rec-badge review">LINE MOVED</span></td>
-          <td class="delta-pos">&#9650; 18.3 pts</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Ali Sanchez</td>
-          <td>+100 &rarr; -120</td>
-          <td class="delta-pos">&#9650; 4.1 pts</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
           <td>Patrick Sandoval</td>
-          <td>-122 &rarr; -109</td>
-          <td class="delta-neg">&#9660; 3.2 pts</td>
+          <td>-122 &rarr; +115</td>
+          <td class="delta-neg">&#9660; 8.2 pts</td>
           <td>Strikeouts</td>
         </tr>
         <tr>
+          <td>Austin Wells</td>
+          <td>+112 &rarr; +130</td>
+          <td class="delta-neg">&#9660; 3.8 pts</td>
+          <td>Total bases</td>
+        </tr>
+        <tr>
           <td>Boston Red Sox</td>
-          <td>+144 &rarr; +133</td>
-          <td class="delta-pos">&#9650; 2.5 pts</td>
+          <td>+144 &rarr; +131</td>
+          <td class="delta-pos">&#9650; 2.9 pts</td>
           <td>Moneyline</td>
         </tr>
         <tr>
           <td>New York Yankees</td>
-          <td>-172 &rarr; -148</td>
-          <td class="delta-neg">&#9660; 2.5 pts</td>
+          <td>-172 &rarr; -146</td>
+          <td class="delta-neg">&#9660; 2.9 pts</td>
           <td>Moneyline</td>
         </tr></tbody>
     </table>
@@ -539,7 +482,7 @@
     <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
     
     <p class="market-read">No bets logged on tonight's game.</p>
-    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>16:59 UTC</strong>, 376 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
+    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>21:21 UTC</strong>, 114 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -556,9 +499,9 @@
   <section class="card">
     <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
     
-    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>Patrick Sandoval</strong> over 5.5 at +105, -0.49%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
-    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Boston Red Sox</strong> moneyline at +137 becomes <strong>+27.48%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
-    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> +144 at 20:56 UTC &rarr; +133 &nbsp;·&nbsp; <strong>New York Yankees</strong> -172 at 20:56 UTC &rarr; -148 — every build's prices are logged, so this is measured drift rather than an impression.</p>
+    <p class="market-read">Best raw price: <strong>Boston Red Sox</strong> moneyline at +142 &mdash; the market's own fair number is <strong>42.1%</strong> across 8 other books, making it <strong>+1.81%</strong>. Measured against the rest of the market, never against itself: a book cannot be its own benchmark. The Models page prices the same selection against this book's own de-vigged number instead, so the two EVs will differ &mdash; they answer different questions, one about the price and one about the projection.</p>
+    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Boston Red Sox</strong> moneyline at +142 becomes <strong>+31.68%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
+    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> +144 at 20:56 UTC &rarr; +131 &nbsp;·&nbsp; <strong>New York Yankees</strong> -172 at 20:56 UTC &rarr; -146 — every build's prices are logged, so this is measured drift rather than an impression.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -576,44 +519,64 @@
       </thead>
       <tbody>
         <tr>
-          <td>Patrick Sandoval</td>
-          <td>Over 5.5</td>
-          <td>+105</td>
-          <td class="delta-neg">-0.49%</td>
-          <td>+25.00%</td>
-          <td>48.5%</td>
-          <td>5</td>
-          <td>Strikeouts</td>
-        </tr>
-        <tr>
           <td>Boston Red Sox</td>
           <td>Moneyline</td>
-          <td>+137</td>
-          <td class="delta-neg">-1.10%</td>
-          <td>+27.48%</td>
-          <td>41.7%</td>
+          <td>+142</td>
+          <td class="delta-pos">+1.81%</td>
+          <td>+31.68%</td>
+          <td>42.1%</td>
           <td>8</td>
           <td>Moneyline</td>
         </tr>
         <tr>
+          <td>Patrick Sandoval</td>
+          <td>Under 5.5</td>
+          <td>-130</td>
+          <td class="delta-neg">-0.35%</td>
+          <td>+21.31%</td>
+          <td>56.3%</td>
+          <td>4</td>
+          <td>Strikeouts</td>
+        </tr>
+        <tr>
           <td>New York Yankees</td>
           <td>Moneyline</td>
-          <td>-147</td>
-          <td class="delta-neg">-2.09%</td>
-          <td>+17.73%</td>
-          <td>58.3%</td>
+          <td>-152</td>
+          <td class="delta-neg">-3.96%</td>
+          <td>+15.09%</td>
+          <td>57.9%</td>
           <td>8</td>
           <td>Moneyline</td>
         </tr>
         <tr>
           <td>Cody Bellinger</td>
           <td>Under 1.5</td>
-          <td>-173</td>
-          <td class="delta-neg">-5.59%</td>
-          <td>+11.70%</td>
+          <td>-167</td>
+          <td class="delta-neg">-4.35%</td>
+          <td>+13.56%</td>
           <td>59.8%</td>
           <td>3</td>
           <td>Total bases</td>
+        </tr>
+        <tr>
+          <td>Cam Schlittler</td>
+          <td>Under 6.5</td>
+          <td>+100</td>
+          <td class="delta-neg">-5.79%</td>
+          <td>+17.77%</td>
+          <td>47.1%</td>
+          <td>5</td>
+          <td>Strikeouts</td>
+        </tr>
+        <tr>
+          <td>Cam Schlittler</td>
+          <td>Over 6.5</td>
+          <td>-128</td>
+          <td class="delta-neg">-5.79%</td>
+          <td>+14.88%</td>
+          <td>52.9%</td>
+          <td>5</td>
+          <td>Strikeouts</td>
         </tr>
         <tr>
           <td>Paul Goldschmidt</td>
@@ -638,21 +601,21 @@
         <tr>
           <td>Cody Bellinger</td>
           <td>Over 1.5</td>
-          <td>+130</td>
-          <td class="delta-neg">-7.60%</td>
-          <td>+18.52%</td>
+          <td>+125</td>
+          <td class="delta-neg">-9.61%</td>
+          <td>+15.50%</td>
           <td>40.2%</td>
           <td>3</td>
           <td>Total bases</td>
         </tr>
         <tr>
           <td>Patrick Sandoval</td>
-          <td>Under 5.5</td>
-          <td>-133</td>
-          <td class="delta-neg">-9.85%</td>
-          <td>+9.49%</td>
-          <td>51.5%</td>
-          <td>5</td>
+          <td>Over 5.5</td>
+          <td>+102</td>
+          <td class="delta-neg">-11.77%</td>
+          <td>+10.50%</td>
+          <td>43.7%</td>
+          <td>4</td>
           <td>Strikeouts</td>
         </tr></tbody>
     </table>
@@ -684,18 +647,18 @@
         <tr>
           <td>Boston Red Sox</td>
           <td>Moneyline</td>
-          <td>+137</td>
-          <td>-1.10%</td>
-          <td>+27.48%</td>
-          <td>+23.26%</td>
+          <td>+142</td>
+          <td>+1.81%</td>
+          <td>+31.68%</td>
+          <td>+26.69%</td>
           <td><strong>Boost</strong></td>
         </tr>
         <tr>
           <td>Patrick Sandoval</td>
-          <td>Over 5.5</td>
-          <td>+105</td>
-          <td>-0.49%</td>
-          <td>+25.00%</td>
+          <td>Under 5.5</td>
+          <td>-130</td>
+          <td>-0.35%</td>
+          <td>+21.31%</td>
           <td><span class="no-line">&mdash; n/a</span></td>
           <td><strong>Boost only</strong></td>
         </tr>
@@ -709,47 +672,47 @@
           <td><strong>Boost only</strong></td>
         </tr>
         <tr>
+          <td>Cam Schlittler</td>
+          <td>Under 6.5</td>
+          <td>+100</td>
+          <td>-5.79%</td>
+          <td>+17.77%</td>
+          <td><span class="no-line">&mdash; n/a</span></td>
+          <td><strong>Boost only</strong></td>
+        </tr>
+        <tr>
           <td>Cody Bellinger</td>
           <td>Over 1.5</td>
-          <td>+130</td>
-          <td>-7.60%</td>
-          <td>+18.52%</td>
+          <td>+125</td>
+          <td>-9.61%</td>
+          <td>+15.50%</td>
           <td><span class="no-line">&mdash; n/a</span></td>
           <td><strong>Boost only</strong></td>
         </tr>
         <tr>
           <td>New York Yankees</td>
           <td>Moneyline</td>
-          <td>-147</td>
-          <td>-2.09%</td>
-          <td>+17.73%</td>
-          <td>+15.19%</td>
+          <td>-152</td>
+          <td>-3.96%</td>
+          <td>+15.09%</td>
+          <td>+13.08%</td>
           <td><strong>Boost</strong></td>
+        </tr>
+        <tr>
+          <td>Cam Schlittler</td>
+          <td>Over 6.5</td>
+          <td>-128</td>
+          <td>-5.79%</td>
+          <td>+14.88%</td>
+          <td><span class="no-line">&mdash; n/a</span></td>
+          <td><strong>Boost only</strong></td>
         </tr>
         <tr>
           <td>Cody Bellinger</td>
           <td>Under 1.5</td>
-          <td>-173</td>
-          <td>-5.59%</td>
-          <td>+11.70%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Paul Goldschmidt</td>
-          <td>Under 1.5</td>
-          <td>-169</td>
-          <td>-5.85%</td>
-          <td>+11.66%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Patrick Sandoval</td>
-          <td>Under 5.5</td>
-          <td>-133</td>
-          <td>-9.85%</td>
-          <td>+9.49%</td>
+          <td>-167</td>
+          <td>-4.35%</td>
+          <td>+13.56%</td>
           <td><span class="no-line">&mdash; n/a</span></td>
           <td><strong>Boost only</strong></td>
         </tr></tbody>
@@ -761,7 +724,7 @@
   <section class="card">
     <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
     <p class="table-note">Probable starter for 2026-08-28: <strong>Patrick Sandoval</strong>. First pitch <strong>7:15 PM ET (23:15 UTC)</strong>.</p>
-    <ul class="market-read"><li><strong>Patrick Sandoval</strong> &nbsp;<span class="prop-line">5.5 (+105)</span><br>market <strong>46.1%</strong> over &nbsp;·&nbsp; model <strong>46.4%</strong> &nbsp;·&nbsp; gap <strong>-0.04 K</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li></ul>
+    <ul class="market-read"><li><strong>Patrick Sandoval</strong> &nbsp;<span class="prop-line">5.5 (+102)</span><br>market <strong>46.7%</strong> over &nbsp;·&nbsp; model <strong>46.2%</strong> &nbsp;·&nbsp; gap <strong>-0.05 K</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li></ul>
     <p class="table-note">No total-bases lines quoted for tonight.</p>
     <p class="table-note">Every one of these reads <code>NO CALL</code> because
     both models measured their own error and found it as large as the entire
