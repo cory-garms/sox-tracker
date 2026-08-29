@@ -1416,6 +1416,13 @@ def generate_betting_html(
     # legitimately has two probables, so this is a list.
     probables = probable_starters(client, team_id, date_str)
 
+
+    # First pitch is what makes the "lines as of" timestamp legible: a reader
+    # needs both to judge how stale the odds on this page really are.
+    try:
+        previews = fetch_doubleheader_previews(client, team_id, date_str)
+    except Exception:
+        previews = []
     # Scoped to the game this board is primarily about, not to the date.
     #
     # probable_starters answers for the *date*, which on a doubleheader is both
@@ -1432,12 +1439,6 @@ def generate_betting_html(
         mine = (primary_preview or {}).get("our_probable") or {}
         probables = [mine] if mine.get("id") else []
 
-    # First pitch is what makes the "lines as of" timestamp legible: a reader
-    # needs both to judge how stale the odds on this page really are.
-    try:
-        previews = fetch_doubleheader_previews(client, team_id, date_str)
-    except Exception:
-        previews = []
     if len(previews) > 1:
         first_pitch = " · ".join(
             f"G{i}: {format_first_pitch(p)}" for i, p in enumerate(previews, start=1)
