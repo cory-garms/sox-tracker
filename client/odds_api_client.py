@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -141,19 +142,47 @@ class OddsAPIClient:
             params["bookmakers"] = self.bookmaker
         return self._get(f"/sports/{SPORT_KEY}/odds", params) or []
 
-    def find_event(self, team_name: str, events: list[dict] | None = None) -> dict[str, Any] | None:
+    def find_event(
+        self,
+        team_name: str,
+        events: list[dict] | None = None,
+        upcoming_only: bool = False,
+        now: datetime | None = None,
+    ) -> dict[str, Any] | None:
         """
-        Next upcoming event involving `team_name` (e.g. "Boston Red Sox").
-        Matching is substring-based so "Red Sox" also works.
+        Next event involving `team_name` (e.g. "Boston Red Sox"). Matching is
+        substring-based so "Red Sox" also works.
+
+        `upcoming_only` skips events that have already started. The feed does
+        not: measured 2026-08-27, /events listed a game 81 minutes underway and
+        listed it *first*, because the ordering is by commence_time and a game
+        stays until it settles rather than until it starts.
+
+        On a single-game day that costs nothing -- there is one Red Sox event
+        and it is the right one either way. On a split doubleheader it decides
+        whether the nightcap gets a closing price at all: the opener carries the
+        earlier commence_time, so it keeps being returned for as long as the
+        provider lists it, and the caller reads a first pitch hours in the past
+        and declines to capture. That failure prints the same line as a healthy
+        skip. The next such date is 2026-08-29 at Yankee Stadium, games at 17:05Z
+        and 23:15Z.
+
+        Left off by default. The board wants whatever game is current, including
+        one in progress; only the closing capture needs the game that has not
+        started yet.
         """
         events = events if events is not None else self.get_events()
         needle = team_name.lower()
+        now = now or datetime.now(timezone.utc)
         # The Odds API returns events in commence_time order.
         for ev in events:
             home = str(ev.get("home_team", "")).lower()
             away = str(ev.get("away_team", "")).lower()
-            if needle in home or needle in away:
-                return ev
+            if needle not in home and needle not in away:
+                continue
+            if upcoming_only and not _starts_after(ev, now):
+                continue
+            return ev
         return None
 
     # ------------------------------------------------------------------
@@ -205,6 +234,27 @@ class OddsAPIClient:
 # ---------------------------------------------------------------------------
 # Module-level parsing helpers
 # ---------------------------------------------------------------------------
+
+def _starts_after(event: dict, now: datetime) -> bool:
+    """
+    True when this event's first pitch is still ahead of `now`.
+
+    An event with no parseable commence_time counts as upcoming. The only
+    caller uses this to *skip* events, and dropping one on a malformed
+    timestamp would turn a bad field into a missed capture; the window check
+    downstream still refuses to spend on it.
+    """
+    raw = (event or {}).get("commence_time")
+    if not raw:
+        return True
+    try:
+        start = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    return start > now
+
 
 def _safe_int(val: Any, default: int | None = None) -> int | None:
     try:

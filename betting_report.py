@@ -44,6 +44,7 @@ from analysis.betting import (
     biggest_movers,
     consensus_edge_table,
     fetch_book_lines,
+    find_team_events,
     first_5_innings_analysis,
     opposing_starter_k_model,
     nrfi_yrfi_tracker,
@@ -740,6 +741,57 @@ def _promo_html(edges, event_book: dict | None) -> str:
 def _betting_css() -> str:
     """Styling shared by both betting pages. One copy, two consumers."""
     return f"""
+    /* ---- Doubleheader chrome ------------------------------------------
+       Two boards on one page need a hard visual break between them, or a
+       reader scrolling on a phone carries game 1's prices into game 2's
+       section without noticing. Sized for a 390px viewport first: the strip
+       rows stack, and the game heading stays one line at that width. */
+    .dh-strip {{ list-style: none; margin: 0; padding: 0; }}
+    .dh-strip-row {{
+      display: grid;
+      grid-template-columns: minmax(64px, auto) 1fr auto;
+      gap: 6px 10px;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(197,160,89,0.22);
+    }}
+    .dh-strip-row:last-child {{ border-bottom: 0; }}
+    .dh-strip-game {{
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      text-transform: uppercase; color: {theme.BRASS};
+    }}
+    .dh-strip-time {{ color: {theme.PARCHMENT}; font-size: 0.94rem; }}
+    .dh-strip-detail {{ color: {theme.INK_MUTED}; font-size: 0.82rem; text-align: right; }}
+    .dh-strip-row.done .dh-strip-time {{ color: {theme.INK_MUTED}; }}
+
+    .dh-game {{
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
+      margin: 26px 0 12px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, {theme.MONSTER_DARK} 0%, #0b2b21 100%);
+      border-left: 4px solid {theme.BRASS};
+      border-radius: 4px;
+    }}
+    .dh-game-label {{
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: {theme.BRASS};
+    }}
+    .dh-game-sub {{ color: {theme.INK_MUTED}; font-size: 0.86rem; }}
+    .dh-state {{
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.64rem; letter-spacing: 0.1em;
+      padding: 3px 8px; border-radius: 3px;
+      background: {theme.FENWAY_CRIMSON}; color: #fff5f5;
+    }}
+    @media (max-width: 420px) {{
+      .dh-strip-row {{ grid-template-columns: minmax(58px, auto) 1fr; }}
+      .dh-strip-detail {{ grid-column: 1 / -1; text-align: left; }}
+      .dh-game {{ margin-top: 20px; }}
+    }}
+
     .matchup-banner {{
       background:
         repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0 2px, rgba(0,0,0,0) 2px 46px),
@@ -867,6 +919,366 @@ def _log_predictions(
     return predictions_history.append_snapshot(rows)
 
 
+def _preview_for_event(event: dict, previews: list[dict]) -> dict:
+    """
+    The MLB preview describing the same game as this odds event.
+
+    Matched on first pitch, not on list position: the two feeds order
+    independently, and nothing guarantees the provider lists a doubleheader in
+    the order MLB does. The ends of 2026-08-29 are six hours apart, so
+    nearest-start is a match rather than a guess -- the same rule the grader
+    uses to decide which end a prediction was about.
+    """
+    if not previews:
+        return {}
+    target = str((event or {}).get("commence_time", ""))
+    if not target:
+        return previews[0]
+
+    def _gap(preview):
+        try:
+            a = datetime.fromisoformat(target.replace("Z", "+00:00"))
+            b = datetime.fromisoformat(
+                str(preview.get("game_time_utc", "")).replace("Z", "+00:00"))
+            return abs((a - b).total_seconds())
+        except ValueError:
+            return float("inf")
+
+    return min(previews, key=_gap)
+
+
+def _doubleheader_sections(
+    *,
+    primary_event: dict,
+    primary_book: dict,
+    primary_cards: str,
+    extra_books: list,
+    previews: list,
+    history,
+    batting,
+    pitching,
+    games,
+    client,
+    team_id: int,
+    season: int,
+    date_str: str,
+    opp_logs,
+    league_k9,
+) -> str:
+    """
+    The whole board for a date with more than one game: a strip naming both,
+    then one full board per game in schedule order.
+
+    Schedule order rather than primary-first. A reader scrolling a doubleheader
+    page reads it as a day, and the opener belongs at the top of the day even
+    when it is the half already played -- putting the nightcap above a game that
+    has finished reads as a page that has lost track of the afternoon.
+    """
+    ordered = sorted(
+        [(primary_event, primary_book)] + list(extra_books),
+        key=lambda pair: str((pair[0] or {}).get("commence_time", "")),
+    )
+
+    strip_games, blocks = [], []
+    for i, (event, book) in enumerate(ordered, start=1):
+        preview = _preview_for_event(event, previews)
+        started = _has_started(event)
+        strip_games.append({
+            "label": f"Game {i}",
+            "time": format_first_pitch(preview) if preview else "TBD",
+            "state": "done" if started else "next",
+            "detail": (preview or {}).get("status", "") if started else "priced below",
+        })
+        if event is primary_event:
+            # Its cards were built by the main pass; only the heading is new.
+            blocks.append(
+                _game_heading(f"Game {i}", _game_subtitle(preview, event)) + primary_cards
+            )
+        else:
+            blocks.append(_extra_game_board(
+                event=event, book=book, preview=preview, label=f"Game {i}",
+                history=history, batting=batting, pitching=pitching, games=games,
+                client=client, team_id=team_id, season=season, date_str=date_str,
+                opp_logs=opp_logs, league_k9=league_k9,
+            ))
+
+    return _dh_strip(strip_games) + "\n" + "\n".join(blocks)
+
+
+def _price_the_day(
+    odds_client,
+    team_id: int,
+    day_events: list[dict],
+) -> tuple[dict, list[tuple[dict, dict]]]:
+    """
+    Buy prices for today's game, or games, and return ``(primary, extras)``.
+
+    A prop is per game, so a doubleheader is two purchases: game 2's strikeout
+    line is not game 1's and cannot be derived from it. What keeps that
+    affordable is refusing to buy a game that has already started. By the 15:00
+    and 17:30 builds the opener is under way, the book is quoting it in play,
+    and that is both a different market from the one these models project and
+    one `latest_per_game` discards anyway. Two upcoming games cost 6 credits;
+    one upcoming and one under way costs 3, the same as any other day.
+
+    The primary board is the first game still to be played -- the one a reader
+    arriving now can still act on.
+
+    **The single-game path is deliberately untouched.** With one event, none, or
+    an unreachable provider, this makes exactly the call it always made, with no
+    event argument, so the 95% of days that are not doubleheaders cannot regress
+    on a doubleheader feature. See TestTheSingleGameDayIsUnchanged.
+    """
+    if len(day_events) <= 1:
+        return fetch_book_lines(odds_client, team_id), []
+
+    priced = []
+    for ev in day_events:
+        if _has_started(ev):
+            # Not bought. The empty maps are what the board reads to know it
+            # must render this game as under way rather than as unpriced.
+            priced.append({"event": ev, MARKET_K: {}, MARKET_TB: {},
+                           MARKET_H2H: {}, "by_book": {}})
+        else:
+            priced.append(fetch_book_lines(odds_client, team_id, event=ev))
+
+    primary_i = next(
+        (i for i, b in enumerate(priced) if not _has_started(b["event"])), 0
+    )
+    return priced[primary_i], [
+        (b["event"], b) for i, b in enumerate(priced) if i != primary_i
+    ]
+
+
+def _has_started(event: dict, now: datetime | None = None) -> bool:
+    """
+    True once this event's first pitch has passed.
+
+    An unparseable or missing commence_time counts as *not* started, so a bad
+    timestamp degrades to the old behaviour -- the game gets priced -- rather
+    than silently dropping a game off the board.
+    """
+    raw = (event or {}).get("commence_time")
+    if not raw:
+        return False
+    try:
+        start = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    return start <= (now or datetime.now(timezone.utc))
+
+
+def _extra_game_board(
+    *,
+    event: dict,
+    book: dict,
+    preview: dict,
+    label: str,
+    history,
+    batting,
+    pitching,
+    games,
+    client,
+    team_id: int,
+    season: int,
+    date_str: str,
+    opp_logs,
+    league_k9,
+) -> str:
+    """
+    One further game's board, on a doubleheader date.
+
+    Everything here is the same call the primary game makes -- the same models
+    against that game's own book lines, the same five cards through
+    _board_cards -- differing only in which event it is about. A prop is per
+    game, so game 2's lines, movement, position and consensus are all its own.
+
+    `book` is empty of lines when the game is already under way: it is not
+    re-priced, the cards say so, and nothing is bought for a market the models
+    do not project. The heading still renders, because a reader scrolling a
+    doubleheader page needs to see both games whatever state they are in.
+    """
+    priced = bool(book.get(MARKET_K) or book.get(MARKET_TB) or book.get(MARKET_H2H))
+    state = "" if priced else "in play"
+    sub = _game_subtitle(preview, event)
+
+    if not priced:
+        return _game_heading(label, sub, state) + f"""  <section class="card">
+    <p class="table-note">This game is under way, so it is not re-priced. The
+    book is quoting it live by now, which is a different market from the one
+    these models project &mdash; and a live number recorded as a pre-game one
+    would corrupt the record it is kept for. Its closing prices are in the log.</p>
+  </section>"""
+
+    probable = (preview or {}).get("our_probable") or {}
+    only_ids = {probable["id"]} if probable.get("id") else set()
+
+    k_df = pitcher_strikeout_model(
+        pitching, batting, games, client, book.get(MARKET_K, {}), team_id, season,
+        opponent_logs=opp_logs, opponent_team_id=(preview or {}).get("opponent_id"),
+        as_of_date=date_str, league_k9=league_k9, only_player_ids=only_ids,
+    )
+    tb_df = batter_total_bases_model(batting, book.get(MARKET_TB, {}), season)
+    if not tb_df.empty:
+        # Against this game's posted order, not the other end's. A doubleheader
+        # routinely rests a regular in one of the two, and a prop on a hitter
+        # who is not in *this* lineup is void rather than bad.
+        tb_df["lineup_state"] = [lineup_status([preview], pid) for pid in tb_df["player_id"]]
+        tb_df["lineup_slot"] = [lineup_slot([preview], pid) for pid in tb_df["player_id"]]
+
+    _log_predictions(k_df, tb_df, event, date_str, (preview or {}).get("opponent_id"))
+
+    edges = consensus_edge_table(book.get("by_book", {}), primary_book=config.ODDS_BOOKMAKER)
+    event_id = (event or {}).get("id", "")
+    snapshots = (
+        int(history[history["event_id"] == str(event_id)]["captured_at"].nunique())
+        if history is not None and not history.empty and event_id else 0
+    )
+    graded = bet_log.grade_from_history(history)
+
+    who = probable.get("name") or "TBD"
+    starter_line_html = (
+        f'<p class="table-note">Probable starter: <strong>{who}</strong>. '
+        f"First pitch <strong>{format_first_pitch(preview)}</strong>.</p>"
+    )
+
+    return _game_heading(label, sub) + _board_cards(
+        _movers_html(biggest_movers(history, event_id, top_n=5), snapshots),
+        _position_html(graded, event_id, bet_log.clv_summary(graded),
+                       reference=_reference_close(history, event_id)),
+        _consensus_html(edges, movement_html=_movement_notes(
+            history, event, list(book.get(MARKET_H2H, {}).keys()), MARKET_H2H)),
+        _promo_html(edges, event),
+        starter_line_html,
+        _market_read(k_df, lambda r: f'gap <strong>{r["edge"]:+.2f} K</strong>'),
+        _market_read(tb_df, lambda r: f'gap <strong>{r["prob_edge"] * 100:+.1f} pts</strong>'),
+    )
+
+
+def _game_subtitle(preview: dict, event: dict) -> str:
+    """'1:05 PM ET · at NYY · Bennett' — enough to tell the two ends apart."""
+    bits = []
+    when = format_first_pitch(preview) if preview else ""
+    if when:
+        bits.append(when)
+    opp = (preview or {}).get("opponent_abbr")
+    if opp:
+        bits.append(f"{'vs' if (preview or {}).get('is_home') else 'at'} {opp}")
+    who = ((preview or {}).get("our_probable") or {}).get("name")
+    if who and who != "TBD":
+        bits.append(who)
+    if not bits and event:
+        bits.append(str(event.get("commence_time", ""))[11:16] + "Z")
+    return " &middot; ".join(bits)
+
+
+def _board_cards(
+    movers_html: str,
+    position_html: str,
+    consensus_html: str,
+    promo_html: str,
+    starter_line_html: str,
+    k_read_html: str,
+    tb_read_html: str,
+) -> str:
+    """
+    The five cards that are one game's board.
+
+    Extracted so a doubleheader can render them twice. It has to be one
+    definition rather than two: a board that differs between game 1 and game 2
+    is the five-copies-of-the-nav failure again, and here it would be worse,
+    because the thing that drifted would be prices.
+    """
+    return f"""  <section class="card">
+    <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
+    {movers_html}
+  </section>
+
+  <section class="card">
+    <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
+    {position_html}
+  </section>
+
+  <section class="card">
+    <h2>&#128202; Market Consensus &mdash; {config.ODDS_BOOKMAKER.title()} vs the Field</h2>
+    {consensus_html}
+  </section>
+
+  <section class="card">
+    <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
+    {promo_html}
+  </section>
+
+  <section class="card">
+    <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
+    {starter_line_html}
+    {k_read_html or '<p class="table-note">No strikeout line quoted for tonight.</p>'}
+    {tb_read_html or '<p class="table-note">No total-bases lines quoted for tonight.</p>'}
+    <p class="table-note">Every one of these reads <code>NO CALL</code> because
+    both models measured their own error and found it as large as the entire
+    spread of opinion they can demonstrate. The workings, the error bars and how
+    they were measured are on
+    <a href="{theme.PAGES['models'][0]}">Models &amp; Method</a>.</p>
+  </section>"""
+
+
+def _game_heading(label: str, subtitle: str, state: str = "") -> str:
+    """
+    The strip that says which game the cards under it are about.
+
+    Only rendered on a doubleheader. On a single-game day it would be a label
+    on the only thing present, which is noise.
+    """
+    # Slugged for the class, readable for the reader: "in play" is two CSS
+    # classes if it is dropped into the attribute as written.
+    badge = (
+        f'<span class="dh-state {state.replace(" ", "-")}">{state.upper()}</span>'
+        if state else ""
+    )
+    return f"""  <div class="dh-game" role="heading" aria-level="2">
+    <span class="dh-game-label">{label}</span>
+    <span class="dh-game-sub">{subtitle}</span>
+    {badge}
+  </div>"""
+
+
+def _dh_strip(games: list[dict]) -> str:
+    """
+    The header a doubleheader page opens with: both games, in order, with what
+    is known about each.
+
+    Written to be read first and read once. A fan arriving at 4pm on a
+    doubleheader Saturday wants to know that the early one is over, what it
+    finished, and that the numbers below are about the nightcap -- before
+    reading a single price.
+    """
+    if len(games) < 2:
+        return ""
+    rows = []
+    for g in games:
+        state = g.get("state", "")
+        detail = g.get("detail", "")
+        rows.append(
+            f'<li class="dh-strip-row {state}">'
+            f'<span class="dh-strip-game">{g["label"]}</span>'
+            f'<span class="dh-strip-time">{g["time"]}</span>'
+            f'<span class="dh-strip-detail">{detail}</span>'
+            f"</li>"
+        )
+    return f"""  <section class="card dh-strip-card">
+    <h2>&#9917; Doubleheader &mdash; Two Games, Two Boards</h2>
+    <ul class="dh-strip">
+{chr(10).join(rows)}
+    </ul>
+    <p class="table-note">A prop is per game, so each game below gets its own
+    board. A game already under way is not re-priced &mdash; the book is quoting
+    it live by then, which is a different market from the one these models
+    project, and buying it would put an in-play number in the record.</p>
+  </section>"""
+
+
 def _shell(title: str, slug: str, heading: str, subtitle: str, sections: str) -> str:
     """
     The common document around either betting page.
@@ -938,9 +1350,28 @@ def generate_betting_html(
     batting = fetcher.load("batting")
     pitching = fetcher.load("pitching")
 
+    # What today actually is, before paying for any of it. get_events() costs
+    # zero quota, so the page can discover it is looking at a doubleheader for
+    # free and decide what to buy.
+    day_events = find_team_events(odds_client, team_name, date_str)
+    doubleheader = len(day_events) > 1
+
     # One trip to the odds provider for the whole page — two credits, one for
     # each prop market — and every model prices off the same snapshot.
-    book = fetch_book_lines(odds_client, team_id)
+    #
+    # A doubleheader is two games and therefore two of those trips, because a
+    # prop is per game: game 2's strikeout line is not game 1's and cannot be
+    # derived from it. What keeps that affordable is refusing to buy a game
+    # that has already started -- by the 15:00 and 17:30 builds the opener is
+    # under way, the book is quoting it in play, and that is both a different
+    # market from the one these models project and one the scoring layer
+    # discards anyway. Two upcoming games cost 6 credits; one upcoming and one
+    # under way costs 3, the same as any other day.
+    #
+    # The single-game path is deliberately untouched: when the provider lists
+    # one game, or none, or is unreachable, this is the same call it has always
+    # made. See TestTheSingleGameDayIsUnchanged.
+    book, extra_books = _price_the_day(odds_client, team_id, day_events)
     event = book.get("event")
 
     # Write that snapshot down before rendering anything. A static page can only
@@ -958,12 +1389,20 @@ def generate_betting_html(
     # Falls back to the single-book view for any market the by-book parse could
     # not produce, so a parser change can degrade the breadth of the log but
     # never empty it.
+    #
+    # Every priced game, not only the primary one. On a doubleheader the
+    # nightcap's prices are a separate event with its own id, and dropping them
+    # would leave the log unable to say anything about the game the page spent
+    # credits on.
+    for _bk in [book] + [b for _, b in extra_books]:
+        _ev = _bk.get("event")
+        _by_book = _bk.get("by_book", {}) or {}
+        for market in (MARKET_K, MARKET_TB, MARKET_H2H):
+            rows = odds_history.snapshot_rows_by_book(
+                _ev, market, _by_book.get(market, {})
+            ) or odds_history.snapshot_rows(_ev, market, _bk.get(market, {}))
+            odds_history.append_snapshot(rows)
     by_book = book.get("by_book", {}) or {}
-    for market in (MARKET_K, MARKET_TB, MARKET_H2H):
-        rows = odds_history.snapshot_rows_by_book(
-            event, market, by_book.get(market, {})
-        ) or odds_history.snapshot_rows(event, market, book.get(market, {}))
-        odds_history.append_snapshot(rows)
     # Read it back afterwards so this build's own prices are the "now" end of
     # any movement the page reports.
     history = odds_history.load_history()
@@ -1620,37 +2059,23 @@ def generate_betting_html(
     # every night to reach the four numbers that had changed since morning.
     # ------------------------------------------------------------------
 
-    board_sections = f"""  <section class="card">
-    <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
-    {movers_html}
-  </section>
+    # ------------------------------------------------------------------
+    # A doubleheader is two boards, in schedule order, each about its own game.
+    # ------------------------------------------------------------------
+    # The five cards for the game the page is primarily about, built from the
+    # fragments computed above. On a single-game day they are the whole board.
+    primary_cards = _board_cards(
+        movers_html, position_html, consensus_html, promo_html,
+        starter_line_html, k_read_html, tb_read_html,
+    )
 
-  <section class="card">
-    <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
-    {position_html}
-  </section>
-
-  <section class="card">
-    <h2>&#128202; Market Consensus &mdash; {config.ODDS_BOOKMAKER.title()} vs the Field</h2>
-    {consensus_html}
-  </section>
-
-  <section class="card">
-    <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
-    {promo_html}
-  </section>
-
-  <section class="card">
-    <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
-    {starter_line_html}
-    {k_read_html or '<p class="table-note">No strikeout line quoted for tonight.</p>'}
-    {tb_read_html or '<p class="table-note">No total-bases lines quoted for tonight.</p>'}
-    <p class="table-note">Every one of these reads <code>NO CALL</code> because
-    both models measured their own error and found it as large as the entire
-    spread of opinion they can demonstrate. The workings, the error bars and how
-    they were measured are on
-    <a href="{theme.PAGES['models'][0]}">Models &amp; Method</a>.</p>
-  </section>"""
+    board_sections = primary_cards if not doubleheader else _doubleheader_sections(
+        primary_event=event, primary_book=book, primary_cards=primary_cards,
+        extra_books=extra_books, previews=previews,
+        history=history, batting=batting, pitching=pitching, games=games,
+        client=client, team_id=team_id, season=season, date_str=date_str,
+        opp_logs=opp_logs, league_k9=league_k9,
+    )
 
     models_sections = f"""  <section class="card">
     <h2>&#9918; Pitcher Strikeout Over/Under (O/U K's) &mdash; Today's Starter</h2>

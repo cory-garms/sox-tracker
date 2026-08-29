@@ -125,8 +125,13 @@ def main() -> int:
         return 0
 
     # Free call. This is the whole reason the gate can be cheap.
+    #
+    # upcoming_only: the provider lists a game until it settles, not until it
+    # starts, and lists it in commence_time order -- so on a split doubleheader
+    # the opener is still returned first hours after it began, and the nightcap
+    # never gets a close. See OddsAPIClient.find_event.
     try:
-        event = client.find_event(team_name)
+        event = client.find_event(team_name, upcoming_only=True)
     except Exception as e:
         print(f"Could not reach the odds provider: {e}")
         return 0

@@ -283,9 +283,49 @@ MARKET_K = "pitcher_strikeouts"
 MARKET_TB = "batter_total_bases"
 
 
+def find_team_events(
+    odds_client: "OddsAPIClient | None",
+    team_name: str,
+    date_str: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Every event the provider lists for `team_name`, oldest first.
+
+    Costs zero quota -- get_events() is free -- so a caller can learn that today
+    is a doubleheader before deciding what to pay for.
+
+    Filtered to `date_str` when given, against the event's own commence_time in
+    UTC. That is the same day boundary the provider uses and the same one the
+    odds history is keyed on; it is *not* the local calendar day, so a 20:10 ET
+    first pitch belongs to the following UTC date. MLB's own doubleheaders are
+    both ends of one UTC date in every case this has to handle -- 2026-08-29 is
+    17:05Z and 23:15Z -- and a nightcap that crossed midnight UTC would show up
+    as a single game on each of two dates, which is wrong but conservative:
+    fewer games priced, never a game priced twice.
+    """
+    if odds_client is None or not getattr(odds_client, "configured", False):
+        return []
+    try:
+        events = odds_client.get_events()
+    except Exception as e:
+        log.warning("Could not list events: %s", e)
+        return []
+
+    needle = team_name.lower()
+    mine = [
+        ev for ev in events
+        if needle in str(ev.get("home_team", "")).lower()
+        or needle in str(ev.get("away_team", "")).lower()
+    ]
+    if date_str:
+        mine = [ev for ev in mine if str(ev.get("commence_time", ""))[:10] == str(date_str)]
+    return sorted(mine, key=lambda ev: str(ev.get("commence_time", "")))
+
+
 def fetch_book_lines(
     odds_client: "OddsAPIClient | None",
     team_id: int = config.TEAM_ID,
+    event: dict | None = None,
 ) -> dict[str, Any]:
     """
     One trip to the odds provider for the whole page.
@@ -312,7 +352,8 @@ def fetch_book_lines(
         team_name = config.TEAMS.get(
             _ID_TO_ABBR.get(team_id, ""), {}
         ).get("name", config.TEAM_NAME)
-        event = odds_client.find_event(team_name)
+        if event is None:
+            event = odds_client.find_event(team_name)
     except Exception as e:                          # provider down / quota spent
         log.warning("Could not reach the odds provider: %s", e)
         return empty

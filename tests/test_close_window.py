@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from client.odds_api_client import OddsAPIClient
 from scripts.capture_close import (
     DEFAULT_FLOOR_MIN,
     DEFAULT_WINDOW_MIN,
@@ -93,3 +94,85 @@ class TestMinutesArithmetic:
     def test_a_missing_commence_time_is_none_not_zero(self):
         """Zero would read as 'right now' and capture in-play prices."""
         assert minutes_to_first_pitch({}, now=FIRST_PITCH) is None
+
+
+class TestTheDoubleheaderNightcap:
+    """
+    The gate reads one event, and on 2026-08-29 there are two.
+
+    Boston plays a split doubleheader at Yankee Stadium that day: game 1 at
+    17:05Z, game 2 at 23:15Z. The provider orders /events by commence_time and
+    keeps a game listed until it settles rather than until it starts -- measured
+    2026-08-27, when the feed still carried a game 81 minutes underway, and
+    carried it first.
+
+    So while game 1 is live, an unfiltered find_event keeps returning it. The
+    nightcap's window (22:30-23:13Z) then reads a first pitch six hours in the
+    past, falls under the floor, and declines -- printing the same line as a
+    healthy skip. That is the 2026-08-26 failure again: not an error, just a
+    close that never got taken, and a close cannot be reconstructed afterwards.
+    """
+
+    NOW = datetime(2026, 8, 29, 22, 40, tzinfo=timezone.utc)  # inside game 2's window
+    OPENER = {"id": "g1", "commence_time": "2026-08-29T17:05:00Z",
+              "away_team": "Boston Red Sox", "home_team": "New York Yankees"}
+    NIGHTCAP = {"id": "g2", "commence_time": "2026-08-29T23:15:00Z",
+                "away_team": "Boston Red Sox", "home_team": "New York Yankees"}
+
+    @property
+    def client(self):
+        return OddsAPIClient(api_key="test-key")
+
+    def test_the_unfiltered_read_still_returns_the_opener(self):
+        """The behaviour being guarded against, stated as a fact."""
+        ev = self.client.find_event(
+            "Boston Red Sox", events=[self.OPENER, self.NIGHTCAP], now=self.NOW
+        )
+        assert ev["id"] == "g1"
+
+    def test_and_that_opener_would_be_refused_as_in_play(self):
+        """Which is why the miss is silent: it looks exactly like a normal skip."""
+        assert minutes_to_first_pitch(self.OPENER, now=self.NOW) < DEFAULT_FLOOR_MIN
+
+    def test_upcoming_only_selects_the_nightcap(self):
+        ev = self.client.find_event(
+            "Boston Red Sox", events=[self.OPENER, self.NIGHTCAP],
+            upcoming_only=True, now=self.NOW,
+        )
+        assert ev["id"] == "g2"
+
+    def test_and_the_nightcap_is_then_inside_the_gate(self):
+        mins = minutes_to_first_pitch(self.NIGHTCAP, now=self.NOW)
+        assert DEFAULT_FLOOR_MIN <= mins <= DEFAULT_WINDOW_MIN
+
+    def test_a_single_game_day_is_unaffected(self):
+        """The flag must be free on the other 95% of the schedule."""
+        events = [self.NIGHTCAP]
+        before = datetime(2026, 8, 29, 22, 40, tzinfo=timezone.utc)
+        plain = self.client.find_event("Boston Red Sox", events=events, now=before)
+        filtered = self.client.find_event(
+            "Boston Red Sox", events=events, upcoming_only=True, now=before
+        )
+        assert plain == filtered == self.NIGHTCAP
+
+    def test_no_upcoming_game_returns_none_rather_than_a_finished_one(self):
+        """A stale event would be captured as if it were a close."""
+        after_both = datetime(2026, 8, 30, 3, 0, tzinfo=timezone.utc)
+        assert self.client.find_event(
+            "Boston Red Sox", events=[self.OPENER, self.NIGHTCAP],
+            upcoming_only=True, now=after_both,
+        ) is None
+
+    def test_an_unparseable_commence_time_is_not_silently_dropped(self):
+        """
+        Skipping it would turn a malformed field into a missed capture. The
+        window check refuses to spend on it anyway, so keeping it is the safe
+        direction of the two.
+        """
+        broken = {"id": "g?", "commence_time": "not-a-date",
+                  "away_team": "Boston Red Sox", "home_team": "New York Yankees"}
+        ev = self.client.find_event(
+            "Boston Red Sox", events=[broken], upcoming_only=True, now=self.NOW
+        )
+        assert ev["id"] == "g?"
+        assert minutes_to_first_pitch(broken, now=self.NOW) is None
