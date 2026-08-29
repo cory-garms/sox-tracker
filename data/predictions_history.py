@@ -52,7 +52,14 @@ COLUMNS = [
     "actual", "outcome", "settled_at",
 ]
 
-KEY = ["captured_at", "market", "player", "game_date"]
+# event_id is part of the key, and has to be. A doubleheader logs both games
+# from one build, so every other field here is identical between them: same
+# capture instant, same market, same hitter, same date. Without the event the
+# nightcap's entire projection set collides with the opener's and is dropped by
+# the de-duplication below -- silently, because dropping a duplicate is exactly
+# what this key is for. That is worse than the read-side collapse
+# latest_per_game guards, since nothing is written down to recover later.
+KEY = ["captured_at", "market", "player", "game_date", "event_id"]
 
 # Outcome vocabulary.
 #

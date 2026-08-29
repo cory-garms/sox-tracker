@@ -312,3 +312,46 @@ class TestTheKeyIsANoOpOnHistory:
         keep = ph.latest_per_game(pd.DataFrame(rows))
         assert len(keep) == 2
         assert set(keep["event_id"]) == {"e1", "e2"}
+
+
+class TestBothEndsOfADoubleheaderAreWritten:
+    """
+    The write-side twin of TestTheKeyIsANoOpOnHistory, and the worse of the two.
+
+    A doubleheader logs both games from a single build, so game 1 and game 2
+    share captured_at, market, player and game_date -- every field the dedupe
+    key had. The nightcap's rows were therefore dropped as duplicates of the
+    opener's, by the mechanism that exists to drop duplicates, leaving no trace.
+
+    Caught on 2026-08-29 by the board rendering two games and the log holding
+    one. The read-side fix could not have saved it: latest_per_game can only
+    pick among rows that were written.
+    """
+
+    def _row(self, event_id, player="BAT", captured="2026-08-29T12:00:00+00:00"):
+        return {
+            "captured_at": captured, "game_date": "2026-08-29",
+            "commence_time": "2026-08-29T17:05:00Z", "event_id": event_id,
+            "market": "batter_total_bases", "player": player, "player_id": 800,
+            "line": 1.5, "projection": 1.8,
+        }
+
+    def test_the_nightcap_is_not_dropped_as_a_duplicate_of_the_opener(self, tmp_path):
+        path = tmp_path / "history.parquet"
+        added = ph.append_snapshot(
+            [self._row("evt-g1"), self._row("evt-g2")], path=path
+        )
+        assert added == 2
+        frame = ph.load_history(path)
+        assert set(frame["event_id"]) == {"evt-g1", "evt-g2"}
+
+    def test_a_genuine_repeat_of_the_same_game_still_dedupes(self, tmp_path):
+        """The key still has to do the job it was added for."""
+        path = tmp_path / "history.parquet"
+        ph.append_snapshot([self._row("evt-g1")], path=path)
+        added = ph.append_snapshot([self._row("evt-g1")], path=path)
+        assert added == 0
+        assert len(ph.load_history(path)) == 1
+
+    def test_event_id_is_in_the_key(self):
+        assert "event_id" in ph.KEY
