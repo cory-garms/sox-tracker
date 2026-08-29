@@ -526,7 +526,7 @@
     <h2>Pitcher strikeouts</h2>
     <p class="sample">34 graded.</p>
 
-    <p class="verdict flat">No demonstrated edge. Across 34 graded predictions the model's Brier score is 0.2618 against the market's 0.2500 — a gap of -0.0118, whose 95% interval [-0.0431, +0.0153] contains zero. On this sample the model knows nothing the price did not already carry.</p>
+    <p class="verdict flat">No demonstrated edge. Across 34 graded predictions the model's Brier score is 0.2618 against the market's 0.2500 — a gap of -0.0118, whose 95% interval [-0.0425, +0.0151] contains zero. On this sample the model knows nothing the price did not already carry.</p>
 
     <div class="table-scroll">
     <table class="report-table">
@@ -568,7 +568,7 @@
     <h2>Batter total bases</h2>
     <p class="sample">162 graded.</p>
 
-    <p class="verdict flat">No demonstrated edge. Across 162 graded predictions the model's Brier score is 0.2449 against the market's 0.2456 — a gap of +0.0007, whose 95% interval [-0.0084, +0.0101] contains zero. On this sample the model knows nothing the price did not already carry.</p>
+    <p class="verdict flat">No demonstrated edge. Across 162 graded predictions the model's Brier score is 0.2449 against the market's 0.2456 — a gap of +0.0007, whose 95% interval [-0.0088, +0.0103] contains zero. On this sample the model knows nothing the price did not already carry.</p>
 
     <div class="table-scroll">
     <table class="report-table">
@@ -640,16 +640,16 @@
     prices is the book revising its own opinion. If the model knows something
     the book has not priced yet, the revision should on average come
     <em>toward</em> the side the model took.</p>
-    <p>Measured over <strong>247</strong> priced player-games — the side
+    <p>Measured over <strong>250</strong> priced player-games — the side
     fixed against the opening price, the movement measured to the last capture
     before first pitch:</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead><tr><th>Market</th><th>n</th><th>Mean move (pts)</th><th>95% CI</th><th>Beat the close</th></tr></thead>
-      <tbody><tr><td>Strikeouts</td><td>65</td><td>-0.04</td><td>[-0.86, +0.77]</td><td>37%</td></tr><tr><td>Total bases</td><td>182</td><td>+0.05</td><td>[-0.15, +0.25]</td><td>36%</td></tr>
-        <tr><td><strong>All</strong></td><td><strong>247</strong></td>
-            <td><strong>+0.03</strong></td>
-            <td><strong>[-0.23, +0.29]</strong></td>
+      <tbody><tr><td>Strikeouts</td><td>67</td><td>-0.23</td><td>[-1.06, +0.60]</td><td>36%</td></tr><tr><td>Total bases</td><td>183</td><td>+0.05</td><td>[-0.15, +0.25]</td><td>36%</td></tr>
+        <tr><td><strong>All</strong></td><td><strong>250</strong></td>
+            <td><strong>-0.02</strong></td>
+            <td><strong>[-0.29, +0.24]</strong></td>
             <td><strong>36%</strong></td></tr>
       </tbody>
     </table>
