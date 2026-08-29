@@ -274,7 +274,22 @@ def latest_per_game(frame: pd.DataFrame) -> pd.DataFrame:
     # tail(1) on the ordering, not groupby().last(): the latter takes the last
     # non-null value of each column independently and can stitch together a row
     # that never existed.
-    keep = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)
+    #
+    # Keyed by event, not by date. A prop is per game and a doubleheader puts
+    # two games on one date, so a date key silently collapses both ends into
+    # whichever was captured later -- one of the two predictions disappears
+    # rather than being scored, and the sample quietly shrinks on exactly the
+    # dates that carry the most of it.
+    #
+    # event_id and not game_pk: the provider issues one id per game and it is
+    # populated on all 4586 archived rows, where game_pk is null on 2854 of
+    # them (62%). Across the 31 dates in the archive no date has ever carried
+    # two event_ids, so on every existing row this key is identical to the old
+    # one -- verified, not assumed, by TestTheKeyIsANoOpOnHistory.
+    key = ["game_date", "market", "player"]
+    if "event_id" in ordered.columns:
+        key.insert(1, "event_id")
+    keep = ordered.groupby(key, sort=False).tail(1)
     return keep
 
 

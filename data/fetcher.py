@@ -135,6 +135,12 @@ def parse_schedule(raw_games: list[dict], team_id: int, season: int) -> list[dic
             "season":         season,
             "game_num":       i + 1,
             "game_number":    _safe_int(game.get("gameNumber"), 1),
+            # UTC first pitch, kept so a prediction can be matched to the end of
+            # a doubleheader it was actually about. Both grading resolvers used
+            # to refuse a doubleheader outright and both gave the same reason --
+            # "the cache carries no first-pitch time to match the odds event's
+            # commence_time against". This is that time.
+            "game_start":     game.get("gameDate", ""),
             "home_team_id":   home_id,
             "away_team_id":   away_id,
             "team_id":        team_id,

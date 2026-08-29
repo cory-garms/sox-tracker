@@ -251,3 +251,137 @@ class TestGradedRowsAreUsable:
         settled = ph.graded(out)
         assert not settled.empty
         assert settled["line"].notna().all()
+
+
+class TestTheDoubleheaderNowResolves:
+    """
+    Refusing a doubleheader was correct only while the reason held.
+
+    Both resolvers declined these dates and both gave the same reason: the
+    cache carried no first-pitch time to match the odds event's commence_time
+    against. It carries one now (`game_start`, stored by the Fetcher), and
+    every archived prediction has always carried a commence_time. So the end of
+    the doubleheader a prediction was about is a lookup, not a guess.
+
+    2026-08-29 is the first doubleheader date this project will have logged
+    predictions for -- the two earlier ones, 2026-07-17 and 2026-07-22, predate
+    the archive. Its two games start at 17:05Z and 23:15Z.
+    """
+
+    DATE = "2026-08-29"
+    G1, G2 = 823539, 823501           # note: game 2 carries the *lower* pk
+    STARTS = {G1: "2026-08-29T17:05:00Z", G2: "2026-08-29T23:15:00Z"}
+
+    def logs(self):
+        return pd.DataFrame([
+            {"player_id": 800, "player_name": "BAT", "game_date": self.DATE,
+             "game_pk": self.G1, "h": 2, "doubles": 0, "triples": 0, "hr": 0},
+            # Deliberately different totals: 2 bases in the opener, 3 in the
+            # nightcap, so a test that grades the wrong end says so.
+            {"player_id": 800, "player_name": "BAT", "game_date": self.DATE,
+             "game_pk": self.G2, "h": 2, "doubles": 1, "triples": 0, "hr": 0},
+        ])
+
+    def test_a_prediction_on_the_opener_grades_against_the_opener(self):
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T17:05:00Z", starts=self.STARTS,
+        )
+        assert reason == "ok"
+        assert row["game_pk"] == self.G1
+
+    def test_a_prediction_on_the_nightcap_grades_against_the_nightcap(self):
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:15:00Z", starts=self.STARTS,
+        )
+        assert reason == "ok"
+        assert row["game_pk"] == self.G2
+
+    def test_the_match_survives_a_book_quoting_a_few_minutes_off(self):
+        """The two ends are six hours apart; nobody's clock is that wrong."""
+        row, _ = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:09:00Z", starts=self.STARTS,
+        )
+        assert row["game_pk"] == self.G2
+
+    def test_without_first_pitch_times_it_still_refuses(self):
+        """A cache written before game_start existed must not start guessing."""
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:15:00Z", starts=None,
+        )
+        assert row is None
+        assert "ambiguous" in reason
+
+    def test_one_missing_start_poisons_the_whole_match(self):
+        """Nearest-of-what-we-know is a guess wearing arithmetic."""
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:15:00Z",
+            starts={self.G1: "2026-08-29T17:05:00Z"},
+        )
+        assert row is None
+        assert "ambiguous" in reason
+
+    def test_a_tie_is_refused(self):
+        """Two games equidistant from the quote is not a doubleheader we know."""
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T20:10:00Z",
+            starts={self.G1: "2026-08-29T17:05:00Z", self.G2: "2026-08-29T23:15:00Z"},
+        )
+        assert row is None
+        assert "ambiguous" in reason
+
+    def test_totals_are_still_never_summed(self):
+        """The original trap, re-checked now that the date resolves at all."""
+        frame = pd.DataFrame([prediction(
+            market="batter_total_bases", player_id=800, player="BAT",
+            game_date=self.DATE, commence_time="2026-08-29T23:15:00Z", line=1.5,
+        )])
+        out, stats = grade_frame(
+            frame, pd.DataFrame(), self.logs(), starts=self.STARTS,
+        )
+        assert stats["graded"] == 1
+        assert out.iloc[0]["actual"] == 3.0        # the nightcap's 3, not the opener's 2
+        assert out.iloc[0]["game_pk"] == self.G2
+
+
+class TestFirstPitchSurvivesToTheCache:
+    """
+    The schema is an allowlist, and a column it omits is dropped silently.
+
+    game_start was added to the Fetcher and verified against parse_schedule's
+    output, which was the wrong thing to check: enforce_schema runs afterwards
+    and kept only the declared columns, so the parquet had no first-pitch time
+    and every doubleheader would have gone on being refused with the resolver
+    sitting right there ready to use it. Checked here at the schema, which is
+    where the drop happened.
+    """
+
+    def test_the_games_schema_declares_a_first_pitch(self):
+        from data.schema import GAMES_SCHEMA
+        assert "game_start" in GAMES_SCHEMA
+
+    def test_the_fetcher_emits_what_the_schema_declares(self):
+        """Neither half is useful without the other."""
+        from data.fetcher import parse_schedule
+        from data.schema import GAMES_SCHEMA
+        raw = [{
+            "gamePk": 824735, "officialDate": "2026-07-22", "gameNumber": 1,
+            "gameDate": "2026-07-22T17:35:00Z",
+            "status": {"abstractGameState": "Final", "detailedState": "Final"},
+            "teams": {
+                "home": {"team": {"id": 147}, "score": 2,
+                         "leagueRecord": {"wins": 70, "losses": 55}},
+                "away": {"team": {"id": 111}, "score": 5,
+                         "leagueRecord": {"wins": 71, "losses": 54}},
+            },
+        }]
+        rows = parse_schedule(raw, 111, 2026)
+        assert rows and rows[0]["game_start"] == "2026-07-22T17:35:00Z"
+        assert set(rows[0]) <= set(GAMES_SCHEMA), (
+            f"emitted but undeclared: {set(rows[0]) - set(GAMES_SCHEMA)}"
+        )

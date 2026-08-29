@@ -24,6 +24,11 @@ GAMES_SCHEMA: dict[str, str] = {
     "season":         "Int64",
     "game_num":       "Int64",   # sequential game number in season
     "game_number":    "Int64",   # MLB gameNumber: 1, or 2 for the nightcap of a doubleheader
+    # UTC first pitch. Declared here or enforce_schema drops it: the schema is
+    # an allowlist, so a column the Fetcher builds and the schema omits reaches
+    # the parquet as nothing at all. Grading a doubleheader needs this to tell
+    # which end a prediction was about.
+    "game_start":     "object",  # ISO-8601 UTC, e.g. 2026-08-29T17:05:00Z
     "home_team_id":   "Int64",
     "away_team_id":   "Int64",
     "team_id":        "Int64",   # the team we're tracking

@@ -212,3 +212,103 @@ class TestGradedAndUngraded:
         out = ph.graded(self._log())
         assert len(out) == 3
         assert "void" not in set(out["outcome"])
+
+
+class TestTheKeyIsANoOpOnHistory:
+    """
+    latest_per_game is now keyed by event, not by date.
+
+    A prop is per game and a doubleheader puts two games on one date, so the
+    old key collapsed both ends into whichever was captured later: one of the
+    two predictions vanished rather than being scored. 2026-08-29 at Yankee
+    Stadium is the first doubleheader this archive will hold predictions for.
+
+    The change is only safe if it leaves every existing row alone, and that is
+    checkable rather than arguable: no date in the archive has ever carried two
+    event_ids, so the two keys must partition it identically. This reads the
+    real file when it is present and says so when it is not, because the claim
+    is about this archive and not about a fixture.
+    """
+
+    def _history(self):
+        if not ph.HISTORY_PATH.exists():
+            pytest.skip(f"no archive at {ph.HISTORY_PATH}")
+        frame = ph.load_history()
+        if frame.empty:
+            pytest.skip("archive is empty")
+        return frame
+
+    def test_a_mislabelled_row_cannot_reach_scoring(self):
+        """
+        game_date comes from the runner's clock, the event from find_event, and
+        on a build that straddles a game they disagree.
+
+        Observed twice: the 08-27 builds (an off day) and the 08-28 late builds
+        (after midnight UTC, still pointing at that night's game in progress).
+        Both filed predictions under a date whose game they were not about.
+
+        Almost all of it is harmless -- the same builds are in-play captures,
+        and the filter above discards them before anything is scored. What is
+        not harmless is a *pre-game* projection filed under the wrong date: it
+        is a real prediction about a real game that can never be graded,
+        because grading looks for a game on its game_date and finds none.
+
+        One such batch exists, from the 2026-08-27 20:57Z build. This asserts
+        that set does not grow -- the count is deliberately not pinned, since
+        the roster size behind it may change, but a *new date* appearing here
+        means the bug has bitten again and wants a human.
+        """
+        frame = self._history()
+        kept = ph.latest_per_game(frame)
+        event_day = (
+            pd.to_datetime(kept["commence_time"], utc=True, errors="coerce")
+            .dt.tz_convert("America/New_York").dt.date.astype(str)
+        )
+        orphan_dates = set(kept.loc[event_day != kept["game_date"].astype(str), "game_date"])
+        assert orphan_dates <= {"2026-08-27"}, (
+            f"predictions filed under a date they are not about: {sorted(orphan_dates)}"
+        )
+
+    def test_the_in_play_half_is_discarded_before_scoring(self):
+        """The reason the above is a leak and not a flood."""
+        frame = self._history()
+        event_day = (
+            pd.to_datetime(frame["commence_time"], utc=True, errors="coerce")
+            .dt.tz_convert("America/New_York").dt.date.astype(str)
+        )
+        mislabelled = (event_day != frame["game_date"].astype(str)).sum()
+        kept = ph.latest_per_game(frame)
+        kept_day = (
+            pd.to_datetime(kept["commence_time"], utc=True, errors="coerce")
+            .dt.tz_convert("America/New_York").dt.date.astype(str)
+        )
+        survived = (kept_day != kept["game_date"].astype(str)).sum()
+        assert survived < mislabelled, "the filter is not removing any of them"
+
+    def test_the_two_keys_select_the_same_rows(self):
+        frame = self._history()
+        new = ph.latest_per_game(frame)
+
+        ordered = frame.sort_values("captured_at")
+        commence = pd.to_datetime(ordered["commence_time"], utc=True, errors="coerce")
+        captured = pd.to_datetime(ordered["captured_at"], utc=True, errors="coerce")
+        ordered = ordered[~(commence.notna() & captured.notna() & (captured >= commence))]
+        old = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)
+
+        assert len(new) == len(old)
+        assert sorted(new.index) == sorted(old.index)
+
+    def test_a_doubleheader_keeps_both_ends(self):
+        """A fixture, because the archive has no such date yet -- until Saturday."""
+        rows = []
+        for event, commence in (("e1", "2026-08-29T17:05:00Z"),
+                                ("e2", "2026-08-29T23:15:00Z")):
+            rows.append({
+                "captured_at": "2026-08-29T15:00:00+00:00",
+                "game_date": "2026-08-29", "commence_time": commence,
+                "event_id": event, "market": "batter_total_bases",
+                "player": "BAT", "player_id": 800, "line": 1.5,
+            })
+        keep = ph.latest_per_game(pd.DataFrame(rows))
+        assert len(keep) == 2
+        assert set(keep["event_id"]) == {"e1", "e2"}

@@ -55,8 +55,8 @@ class TestTheOpposingStarter:
         preds = pd.DataFrame([_pred(999, "Tyler Phillips", "pitcher_strikeouts", 3.5)])
         calls = []
 
-        def lookup(game_date, player_id, player_name, market):
-            calls.append((game_date, player_id, market))
+        def lookup(game_date, player_id, player_name, market, commence_time=None):
+            calls.append((game_date, player_id, market, commence_time))
             return 7.0, 823826
 
         out, stats = grade_frame(preds, PITCHING, BATTING, boxscore_lookup=lookup)
@@ -64,7 +64,11 @@ class TestTheOpposingStarter:
         assert out.iloc[0]["actual"] == 7.0
         assert out.iloc[0]["outcome"] == ph.OUTCOME_OVER      # 7 over a 3.5 line
         assert out.iloc[0]["game_pk"] == 823826
-        assert calls == [(LOGS_DATE, 999, "pitcher_strikeouts")]
+        # commence_time rides along because on a doubleheader date it is the
+        # only thing that says which end of it the prediction was about.
+        assert calls == [
+            (LOGS_DATE, 999, "pitcher_strikeouts", "2026-08-25T22:40:00Z")
+        ]
 
     def test_our_own_players_never_reach_the_box_score(self):
         """One call per game is cheap; one per player is not, and unnecessary."""

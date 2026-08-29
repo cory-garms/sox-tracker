@@ -34,6 +34,29 @@ from data.fetcher import Fetcher  # noqa: E402
 log = logging.getLogger(__name__)
 
 
+def _nearest_end(on_date: "pd.DataFrame", commence_time: str | None):
+    """
+    The one game of a doubleheader that a prediction quoted at `commence_time`
+    is about, or None when that cannot be told.
+
+    Same bar as analysis.grading._nearest_by_first_pitch: every game needs a
+    known first pitch and exactly one must be nearest. The two ends of
+    2026-08-29 are six hours apart.
+    """
+    if not commence_time or "game_start" not in on_date.columns:
+        return None
+    target = pd.to_datetime(commence_time, utc=True, errors="coerce")
+    if pd.isna(target):
+        return None
+    starts = pd.to_datetime(on_date["game_start"], utc=True, errors="coerce")
+    if starts.isna().any():
+        return None
+    gaps = (starts - target).abs()
+    if (gaps == gaps.min()).sum() != 1:
+        return None
+    return on_date.loc[[gaps.idxmin()]]
+
+
 def make_boxscore_lookup(client, games: "pd.DataFrame"):
     """
     Resolve a player from the box score of the game he actually played in.
@@ -45,33 +68,43 @@ def make_boxscore_lookup(client, games: "pd.DataFrame"):
     Returns ``(actual, game_pk)`` or None. Box scores are fetched once per date
     and reused: a night's board is a dozen predictions about one game.
 
-    Doubleheaders are refused rather than guessed, exactly as
-    resolve_appearance refuses them. A prop is per game and the log carries no
-    first-pitch time to match against, so attributing a result to whichever end
-    happened to be checked first would invent a number.
-    """
-    cache: dict[str, dict] = {}
+    Doubleheaders resolve by first pitch, exactly as resolve_appearance does.
+    A prop is per game, so attributing a result to whichever end happened to be
+    checked first would invent a number -- this used to refuse the date for
+    want of a first-pitch time, and the games cache now carries one. A date
+    with two games and no `game_start` is still refused.
 
-    def _boxscore_for(game_date: str):
-        if game_date in cache:
-            return cache[game_date]
+    Keyed by (date, first pitch) rather than by date: on a doubleheader the two
+    ends are different games and must not share a cached box score.
+    """
+    cache: dict[tuple, dict] = {}
+
+    def _boxscore_for(game_date: str, commence_time: str | None = None):
+        key = (str(game_date), str(commence_time or ""))
+        if key in cache:
+            return cache[key]
         on_date = games[games["game_date"].astype(str) == str(game_date)]
-        if len(on_date) != 1:                     # none yet, or a doubleheader
-            cache[game_date] = None
+        if on_date.empty:                         # not played yet
+            cache[key] = None
             return None
+        if len(on_date) > 1:
+            on_date = _nearest_end(on_date, commence_time)
+            if on_date is None:
+                cache[key] = None
+                return None
         pk = int(on_date.iloc[0]["game_pk"])
         try:
             box = client.get_boxscore(pk)
         except Exception as e:
             log.warning("Could not fetch box score %s: %s", pk, e)
             box = None
-        cache[game_date] = (box, pk) if box else None
-        return cache[game_date]
+        cache[key] = (box, pk) if box else None
+        return cache[key]
 
-    def lookup(game_date, player_id, player_name, market):
+    def lookup(game_date, player_id, player_name, market, commence_time=None):
         if player_id is None or pd.isna(player_id):
             return None
-        found = _boxscore_for(game_date)
+        found = _boxscore_for(game_date, commence_time)
         if not found:
             return None
         box, pk = found
@@ -133,7 +166,20 @@ def main() -> int:
         games = pd.DataFrame(columns=["game_date", "game_pk"])
     lookup = make_boxscore_lookup(MLBClient(), games) if not games.empty else None
 
-    graded, stats = grade_frame(history, pitching, batting, boxscore_lookup=lookup)
+    # game_pk -> UTC first pitch, which is what lets a doubleheader date grade
+    # instead of being refused. Empty for a cache written before game_start was
+    # stored, and grading then behaves exactly as it did before.
+    starts: dict = {}
+    if not games.empty and "game_start" in games.columns:
+        starts = {
+            int(pk): str(start)
+            for pk, start in zip(games["game_pk"], games["game_start"])
+            if str(start)
+        }
+
+    graded, stats = grade_frame(
+        history, pitching, batting, boxscore_lookup=lookup, starts=starts,
+    )
 
     log.info(
         "%d newly settled (%d via box score), %d did not play, "

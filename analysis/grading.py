@@ -50,6 +50,8 @@ def resolve_appearance(
     player_id,
     player_name: str,
     game_date: str,
+    commence_time: str | None = None,
+    starts: dict | None = None,
 ) -> tuple[pd.Series | None, str]:
     """
     Find the one appearance a prediction is about.
@@ -59,10 +61,20 @@ def resolve_appearance(
     **Doubleheaders are the trap.** A prop is per game, not per date, so summing
     both ends of 2026-07-22 would invent a player who batted nine times. A
     starting pitcher appears once on a doubleheader date, so he resolves
-    cleanly; a position player can appear in both, and the cache carries no
-    first-pitch time to match the odds event's commence_time against. Rather
-    than attribute the result to a guessed game, this leaves the prediction
-    ungraded and says why — a smaller honest sample beats a larger corrupt one.
+    cleanly; a position player can appear in both.
+
+    This used to refuse that case, because "the cache carries no first-pitch
+    time to match the odds event's commence_time against". It does now:
+    `starts` maps game_pk to UTC first pitch, and every archived prediction
+    carries the commence_time of the event it was quoted on. Given both, the
+    right end of a doubleheader is the one starting nearest that time, which is
+    a match rather than a guess -- the two ends of 2026-08-29 are six hours
+    apart, and no plausible clock error spans that.
+
+    Without both it still refuses and says why, which is the case for every
+    caller that has not been given `starts` and for any date whose games were
+    cached before first pitch was stored. A smaller honest sample beats a
+    larger corrupt one.
     """
     if logs is None or logs.empty:
         return None, "no logs"
@@ -85,7 +97,45 @@ def resolve_appearance(
     if distinct_games == 1:
         return mine.iloc[0], "ok"
 
+    nearest = _nearest_by_first_pitch(mine, commence_time, starts)
+    if nearest is not None:
+        return nearest, "ok"
+
     return None, f"ambiguous: {distinct_games} games on a doubleheader date"
+
+
+def _nearest_by_first_pitch(
+    candidates: pd.DataFrame,
+    commence_time: str | None,
+    starts: dict | None,
+) -> pd.Series | None:
+    """
+    The appearance whose game started closest to `commence_time`.
+
+    Returns None unless the match is unambiguous, and the bar is deliberately
+    high: every candidate must have a known first pitch, and one must be
+    strictly nearer than the rest. A tie means two games are equidistant from
+    the quoted first pitch, which is not a doubleheader we understand, and
+    guessing there is the behaviour this replaced.
+    """
+    if not commence_time or not starts or "game_pk" not in candidates.columns:
+        return None
+
+    target = pd.to_datetime(commence_time, utc=True, errors="coerce")
+    if pd.isna(target):
+        return None
+
+    gaps: list[float] = []
+    for pk in candidates["game_pk"]:
+        start = pd.to_datetime(starts.get(pk), utc=True, errors="coerce")
+        if pd.isna(start):
+            return None                     # one unknown start poisons the match
+        gaps.append(abs((start - target).total_seconds()))
+
+    best = min(gaps)
+    if gaps.count(best) != 1:
+        return None
+    return candidates.iloc[gaps.index(best)]
 
 
 def grade_frame(
@@ -94,6 +144,7 @@ def grade_frame(
     batting: pd.DataFrame,
     now: str | None = None,
     boxscore_lookup: Any = None,
+    starts: dict | None = None,
 ) -> tuple[pd.DataFrame, dict[str, int]]:
     """
     Settle every ungraded prediction that can be settled.
@@ -103,7 +154,8 @@ def grade_frame(
     simply waits for tonight to finish.
 
     `boxscore_lookup` is an optional callable
-    ``(game_date, player_id, player_name, market) -> (actual, game_pk) | None``
+    ``(game_date, player_id, player_name, market, commence_time)
+    -> (actual, game_pk) | None``
     consulted only when the team caches cannot resolve a player. It exists for
     the opposing starter: those caches hold Boston and nobody else, so Tyler
     Phillips on 2026-08-25 -- the first opposing-starter projection ever logged
@@ -114,6 +166,10 @@ def grade_frame(
     A player genuinely absent from a game that *was* played is settled as
     OUTCOME_DNP rather than left blank. Blank means "ask again next run", and
     for a bench bat that is every run until the season ends.
+
+    `starts` maps game_pk to UTC first pitch and is what lets a doubleheader
+    resolve at all; omit it and those dates go on being refused, which is what
+    every caller got before it existed.
     """
     stats = {"graded": 0, "skipped": 0, "already": 0, "dnp": 0, "boxscore": 0}
     if predictions is None or predictions.empty:
@@ -141,6 +197,7 @@ def grade_frame(
 
         appearance, reason = resolve_appearance(
             logs, row.get("player_id"), row.get("player"), row.get("game_date"),
+            commence_time=row.get("commence_time"), starts=starts,
         )
 
         actual = None
@@ -153,7 +210,7 @@ def grade_frame(
             try:
                 found = boxscore_lookup(
                     row.get("game_date"), row.get("player_id"),
-                    row.get("player"), market,
+                    row.get("player"), market, row.get("commence_time"),
                 )
             except Exception as e:                    # a box score is not worth a crash
                 log.warning("Box score lookup failed for %s on %s: %s",
