@@ -863,6 +863,7 @@ def _betting_css() -> str:
 
 
 _ID_TO_NAME = {info["id"]: info["name"] for info in config.TEAMS.values()}
+_ID_TO_ABBR = {info["id"]: abbr for abbr, info in config.TEAMS.items()}
 
 
 def _log_predictions(
@@ -1415,6 +1416,22 @@ def generate_betting_html(
     # legitimately has two probables, so this is a list.
     probables = probable_starters(client, team_id, date_str)
 
+    # Scoped to the game this board is primarily about, not to the date.
+    #
+    # probable_starters answers for the *date*, which on a doubleheader is both
+    # starters. That was harmless while the primary game was always the opener,
+    # and stopped being harmless the moment the opener started: game 2 became
+    # primary and inherited game 1's pitcher, so the nightcap's event logged a
+    # projection for a man who had already pitched that afternoon. Grading would
+    # then look for him in a game he never appeared in.
+    #
+    # Single-game days are unaffected — one preview, one probable, and this
+    # picks the same starter probable_starters already returned.
+    primary_preview = _preview_for_event(event, previews) if previews else {}
+    if len(previews) > 1:
+        mine = (primary_preview or {}).get("our_probable") or {}
+        probables = [mine] if mine.get("id") else []
+
     # First pitch is what makes the "lines as of" timestamp legible: a reader
     # needs both to judge how stale the odds on this page really are.
     try:
@@ -1500,7 +1517,10 @@ def generate_betting_html(
     # starter, so this fetches nothing and spends nothing.
     opp_k_df = pd.DataFrame()
     try:
-        opp_sp = (previews[0] or {}).get("opp_probable", {}) if previews else {}
+        # The opposing starter of the primary game, for the same reason: on a
+        # doubleheader previews[0] is always the opener's, whichever game this
+        # board is about.
+        opp_sp = (primary_preview or {}).get("opp_probable", {}) if previews else {}
         if opp_sp.get("id"):
             opp_k_df = opposing_starter_k_model(
                 league_logs, opp_logs, opp_sp["id"], opp_sp.get("name", ""),
@@ -1689,8 +1709,25 @@ def generate_betting_html(
                   "projections only — no edge or EV can be computed without a real "
                   "line to compare against. Set <code>ODDS_API_KEY</code> to enable them.")
 
+    # The opposing starter belongs in the read, not only in the log.
+    #
+    # He is priced in the same response, modelled by the same model, and on
+    # 2026-08-29 he carried one of the two calls the models made all day --
+    # Rodón UNDER 5.5 at +8.7% -- while the page showed only ours. A reader
+    # could see his price in the consensus table and nowhere find out what the
+    # model thought of it. Tagged with his club so the two are never confused:
+    # ours and theirs sit in one list and mean opposite things for the game.
+    k_read_frame = k_df
+    if opp_k_df is not None and not opp_k_df.empty:
+        tagged = opp_k_df.copy()
+        opp_abbr = _ID_TO_ABBR.get(opp_id, "OPP") if opp_id else "OPP"
+        tagged["player_name"] = (
+            tagged["player_name"].astype(str) + f" &middot; {opp_abbr}"
+        )
+        k_read_frame = pd.concat([k_df, tagged], ignore_index=True)
+
     k_read_html = _market_read(
-        k_df, lambda r: f'gap <strong>{r["edge"]:+.2f} K</strong>')
+        k_read_frame, lambda r: f'gap <strong>{r["edge"]:+.2f} K</strong>')
 
     k_html = f"""
     {stamp_html}

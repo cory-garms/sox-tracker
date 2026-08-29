@@ -319,3 +319,48 @@ class TestTheAssembledPage:
         head = _game_heading("Game 1", "1:05 PM ET", "in play")
         assert 'class="dh-state in-play"' in head
         assert "IN PLAY" in head
+
+
+class TestTheBoardIsAboutOneGame:
+    """
+    probable_starters answers for a date. A doubleheader has two.
+
+    Harmless while the primary board was always the opener. The moment the
+    opener started — 2026-08-29, 17:06Z — game 2 became primary and inherited
+    game 1's starter, so the nightcap's event logged a projection for a pitcher
+    who had already thrown that afternoon. Caught by reading the log and seeing
+    Bennett and Rodón, game 1's pair, filed under game 2's event.
+
+    Grading would not have saved it either: it would have gone looking for
+    Bennett in a game he never appeared in and settled him DNP.
+    """
+
+    PV1 = {"game_number": 1, "game_time_utc": "2026-08-29T17:05:00Z",
+           "our_probable": {"id": 701, "name": "Jake Bennett"},
+           "opp_probable": {"id": 801, "name": "Carlos Rodón"}}
+    PV2 = {"game_number": 2, "game_time_utc": "2026-08-29T23:15:00Z",
+           "our_probable": {"id": None, "name": "TBD"},
+           "opp_probable": {"id": 802, "name": "Max Fried"}}
+
+    def test_the_opener_board_takes_the_openers_pair(self):
+        from betting_report import _preview_for_event
+        pv = _preview_for_event(G1, [self.PV1, self.PV2])
+        assert pv["our_probable"]["name"] == "Jake Bennett"
+        assert pv["opp_probable"]["name"] == "Carlos Rodón"
+
+    def test_the_nightcap_board_takes_the_nightcaps_pair(self):
+        from betting_report import _preview_for_event
+        pv = _preview_for_event(G2, [self.PV1, self.PV2])
+        assert pv["opp_probable"]["name"] == "Max Fried"
+
+    def test_an_unnamed_starter_yields_nobody_not_the_other_game_s(self):
+        """
+        The nightcap's starter is unannounced. The honest answer is an empty
+        table the page explains, never the pitcher from the game before it.
+        """
+        from betting_report import _preview_for_event
+        pv = _preview_for_event(G2, [self.PV1, self.PV2])
+        mine = pv.get("our_probable") or {}
+        probables = [mine] if mine.get("id") else []
+        assert probables == []
+        assert {p["id"] for p in probables} == set()

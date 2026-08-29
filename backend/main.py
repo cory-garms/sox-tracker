@@ -103,6 +103,10 @@ def root_page():
 # Exact HTML filename routes
 @app.api_route(f"/tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html", methods=["GET", "HEAD"], include_in_schema=False)
 @app.api_route("/board", methods=["GET", "HEAD"], include_in_schema=False)
+# The name the README has always given this page, and the only one of its
+# documented short routes that 404ed. Every other page answers on the slug the
+# docs advertise; this one answered on /board alone.
+@app.api_route("/tonights_board", methods=["GET", "HEAD"], include_in_schema=False)
 def page_board():
     return _serve_page(f"tonights_board_{config.TEAM_ABBR}_{config.SEASON}.html")
 

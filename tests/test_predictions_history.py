@@ -285,18 +285,63 @@ class TestTheKeyIsANoOpOnHistory:
         survived = (kept_day != kept["game_date"].astype(str)).sum()
         assert survived < mislabelled, "the filter is not removing any of them"
 
-    def test_the_two_keys_select_the_same_rows(self):
+    def test_the_keys_agree_on_every_single_game_date(self):
+        """
+        Where a date holds one game the change is invisible, which is most of
+        the archive and every date before 2026-08-29.
+        """
         frame = self._history()
-        new = ph.latest_per_game(frame)
+        single = frame.groupby("game_date")["event_id"].nunique()
+        single = set(single[single == 1].index)
+        sub = frame[frame["game_date"].isin(single)]
 
-        ordered = frame.sort_values("captured_at")
+        new_key = ph.latest_per_game(sub)
+
+        ordered = sub.sort_values("captured_at")
         commence = pd.to_datetime(ordered["commence_time"], utc=True, errors="coerce")
         captured = pd.to_datetime(ordered["captured_at"], utc=True, errors="coerce")
         ordered = ordered[~(commence.notna() & captured.notna() & (captured >= commence))]
-        old = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)
+        old_key = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)
 
-        assert len(new) == len(old)
-        assert sorted(new.index) == sorted(old.index)
+        assert sorted(new_key.index) == sorted(old_key.index)
+
+    def test_on_a_doubleheader_the_old_key_loses_a_game(self):
+        """
+        The divergence is the whole point, and until 2026-08-29 the archive had
+        no date that could show it. Now it does: the old key collapses the two
+        ends into one row per player and the nightcap is the half that goes.
+        """
+        frame = self._history()
+        dh = frame[frame["game_date"] == "2026-08-29"]
+        if dh.empty or dh["event_id"].nunique() < 2:
+            pytest.skip("no doubleheader in the archive yet")
+
+        new_key = ph.latest_per_game(dh)
+
+        ordered = dh.sort_values("captured_at")
+        commence = pd.to_datetime(ordered["commence_time"], utc=True, errors="coerce")
+        captured = pd.to_datetime(ordered["captured_at"], utc=True, errors="coerce")
+        ordered = ordered[~(commence.notna() & captured.notna() & (captured >= commence))]
+        old_key = ordered.groupby(["game_date", "market", "player"], sort=False).tail(1)
+
+        assert new_key["event_id"].nunique() == 2, "one end of the doubleheader is missing"
+        assert len(new_key) > len(old_key), "the event key kept no extra rows"
+
+        # What the old key actually did is subtler than dropping an event
+        # wholesale, and worse to read: for a hitter projected in both games it
+        # kept whichever row sorted last, while a pitcher projected in only one
+        # survived with his own. The result is one set of rows stitched from
+        # two different games — the same "row that never existed" failure the
+        # tail(1) comment above guards against, one level up.
+        new_tb = new_key[new_key["market"] == "batter_total_bases"]
+        old_tb = old_key[old_key["market"] == "batter_total_bases"]
+        assert new_tb["event_id"].nunique() == 2, "a hitter is projected in both games"
+        # Roughly double: one row per hitter per game, where the old key had one
+        # row per hitter for the date. The exact figure is not pinned because
+        # the projected roster moves; the doubling is the point.
+        assert len(new_tb) >= 1.8 * len(old_tb), (
+            f"expected about two games of hitters, got {len(new_tb)} vs {len(old_tb)}"
+        )
 
     def test_a_doubleheader_keeps_both_ends(self):
         """A fixture, because the archive has no such date yet -- until Saturday."""

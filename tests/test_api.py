@@ -309,3 +309,21 @@ class TestRefreshWebhook:
         assert body["refreshed"] == []
         assert body["errors"] == {"bogus": "unknown table"}
 
+
+
+class TestTheDocumentedShortRoutes:
+    """
+    Every page answers on the slug the README advertises.
+
+    /tonights_board was the exception and returned 404 while every sibling
+    resolved. Nothing in the site linked it — the nav builds hrefs from
+    theme.PAGES filenames — so it only broke for someone following the docs,
+    which is the hardest kind of breakage to notice from inside.
+    """
+
+    @pytest.mark.parametrize("route", [
+        "/", "/matchup", "/dashboard", "/leaders", "/models",
+        "/tonights_board", "/board", "/track_record", "/healthz",
+    ])
+    def test_the_route_resolves(self, client_with_db, route):
+        assert client_with_db.get(route).status_code == 200, f"{route} does not resolve"
