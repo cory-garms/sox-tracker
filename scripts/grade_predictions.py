@@ -26,7 +26,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd  # noqa: E402
 
 import config  # noqa: E402
-from analysis.grading import MARKET_HR, MARKET_K, grade_frame  # noqa: E402
+from analysis.grading import (  # noqa: E402
+    MARKET_HR,
+    MARKET_K,
+    SAME_GAME_TOLERANCE_S,
+    grade_frame,
+)
 from client.mlb_client import MLBClient  # noqa: E402
 from data import predictions_history as ph  # noqa: E402
 from data.fetcher import Fetcher  # noqa: E402
@@ -44,14 +49,22 @@ def _nearest_end(on_date: "pd.DataFrame", commence_time: str | None):
     2026-08-29 are six hours apart.
     """
     if not commence_time or "game_start" not in on_date.columns:
-        return None
+        # No way to tell the ends apart. One game is taken as before; two are
+        # refused, which is where this started.
+        return on_date if len(on_date) == 1 else None
     target = pd.to_datetime(commence_time, utc=True, errors="coerce")
     if pd.isna(target):
-        return None
+        return on_date if len(on_date) == 1 else None
     starts = pd.to_datetime(on_date["game_start"], utc=True, errors="coerce")
     if starts.isna().any():
-        return None
+        return on_date if len(on_date) == 1 else None
+
     gaps = (starts - target).abs()
+    # The nearest game is only the right game if it is actually near. A
+    # prediction about tonight's nightcap must not be settled against this
+    # afternoon's opener merely because the opener is the only one cached.
+    if gaps.min() > pd.Timedelta(seconds=SAME_GAME_TOLERANCE_S):
+        return None
     if (gaps == gaps.min()).sum() != 1:
         return None
     return on_date.loc[[gaps.idxmin()]]
@@ -87,11 +100,15 @@ def make_boxscore_lookup(client, games: "pd.DataFrame"):
         if on_date.empty:                         # not played yet
             cache[key] = None
             return None
-        if len(on_date) > 1:
-            on_date = _nearest_end(on_date, commence_time)
-            if on_date is None:
-                cache[key] = None
-                return None
+        # Checked even when the date holds one game. "One game on this date"
+        # does not mean "the game this prediction is about": on 2026-08-29 the
+        # opener was final and cached while the nightcap had not started, and an
+        # unguarded lookup handed the nightcap's predictions the opener's box
+        # score. See analysis.grading._played_in_the_right_game.
+        on_date = _nearest_end(on_date, commence_time)
+        if on_date is None:
+            cache[key] = None
+            return None
         pk = int(on_date.iloc[0]["game_pk"])
         try:
             box = client.get_boxscore(pk)

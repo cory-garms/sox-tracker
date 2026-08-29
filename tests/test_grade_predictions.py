@@ -325,15 +325,24 @@ class TestTheDoubleheaderNowResolves:
         assert row is None
         assert "ambiguous" in reason
 
-    def test_a_tie_is_refused(self):
-        """Two games equidistant from the quote is not a doubleheader we know."""
+    def test_a_quote_matching_neither_game_is_refused(self):
+        """
+        Two games equidistant from the quote is not a doubleheader we know.
+
+        Once the game check landed this stopped reading "ambiguous" and started
+        reading "no appearance in the game this prediction is about", which is
+        the better description: a 20:10Z quote is not three hours from the right
+        game, it is nowhere near either. Both refuse, and the refusal is what
+        this test is for -- so it asserts that, not the sentence.
+        """
         row, reason = resolve_appearance(
             self.logs(), 800, "BAT", self.DATE,
             commence_time="2026-08-29T20:10:00Z",
             starts={self.G1: "2026-08-29T17:05:00Z", self.G2: "2026-08-29T23:15:00Z"},
         )
         assert row is None
-        assert "ambiguous" in reason
+        assert reason != "ok"
+        assert reason != "player did not appear", "must not settle terminally"
 
     def test_totals_are_still_never_summed(self):
         """The original trap, re-checked now that the date resolves at all."""
@@ -385,3 +394,122 @@ class TestFirstPitchSurvivesToTheCache:
         assert set(rows[0]) <= set(GAMES_SCHEMA), (
             f"emitted but undeclared: {set(rows[0]) - set(GAMES_SCHEMA)}"
         )
+
+
+class TestOneGameOnTheDateIsNotTheRightGame:
+    """
+    The failure the doubleheader fix did not cover, found live on 2026-08-29.
+
+    The opener finished 6-0 and was cached. The nightcap had not started. A
+    prediction about the nightcap looked for its player on that date, found the
+    opener's line sitting there alone, and matched it -- because the ambiguity
+    check only ran when a player had two appearances, and here he had one.
+
+    89 rows settled hours before their game began: 36 took the opener's totals
+    as their own, and 53 were settled "did not appear" for a game nobody had
+    played. The second half is the worse one, because DNP is terminal.
+
+    The date was never the question. The game was.
+    """
+
+    DATE = "2026-08-29"
+    G1, G2 = 823539, 823501
+    STARTS = {G1: "2026-08-29T17:05:00Z", G2: "2026-08-29T23:15:00Z"}
+    OPENER_ONLY = {G1: "2026-08-29T17:05:00Z"}      # the cache mid-afternoon
+
+    def logs(self):
+        """One appearance: the opener, which is all that has been played."""
+        return pd.DataFrame([
+            {"player_id": 800, "player_name": "BAT", "game_date": self.DATE,
+             "game_pk": self.G1, "h": 2, "doubles": 0, "triples": 0, "hr": 0},
+        ])
+
+    def test_a_nightcap_prediction_is_not_settled_by_the_opener(self):
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:16:00Z", starts=self.OPENER_ONLY,
+        )
+        assert row is None, "the nightcap was graded against the opener"
+        assert "game this prediction is about" in reason
+
+    def test_an_opener_prediction_still_settles_normally(self):
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T17:06:00Z", starts=self.OPENER_ONLY,
+        )
+        assert reason == "ok"
+        assert row["game_pk"] == self.G1
+
+    def test_a_single_game_day_is_untouched(self):
+        """The clock check must not start refusing ordinary Tuesdays."""
+        logs = pd.DataFrame([
+            {"player_id": 800, "player_name": "BAT", "game_date": "2026-08-25",
+             "game_pk": 823826, "h": 1, "doubles": 0, "triples": 0, "hr": 0},
+        ])
+        row, reason = resolve_appearance(
+            logs, 800, "BAT", "2026-08-25",
+            commence_time="2026-08-25T22:41:00Z",
+            starts={823826: "2026-08-25T22:40:00Z"},
+        )
+        assert reason == "ok"
+
+    def test_without_start_times_it_behaves_as_it_always_did(self):
+        """A cache written before game_start existed must not start refusing."""
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:16:00Z", starts=None,
+        )
+        assert reason == "ok"
+
+    def test_a_dnp_is_not_invented_for_a_game_not_yet_played(self):
+        """
+        The half that does the lasting damage: DNP is terminal, so a hitter
+        settled that way for tonight's game never gets asked about again.
+        """
+        empty = pd.DataFrame(columns=["player_id", "player_name", "game_date",
+                                      "game_pk", "h", "doubles", "triples", "hr"])
+        row, reason = resolve_appearance(
+            empty, 800, "BAT", self.DATE,
+            commence_time="2026-08-29T23:16:00Z", starts=self.OPENER_ONLY,
+        )
+        assert row is None
+        assert reason != "player did not appear", "would settle DNP terminally"
+
+
+class TestADnpNeedsTheGameToHaveHappened:
+    """
+    "Did not appear" is terminal, so it must never be said about a game we are
+    not actually looking at.
+
+    The rollover bug files some rows under the following day's date while their
+    event is the night before's game. Grading looked for those players on the
+    written date, found nothing, and settled them DNP -- permanently, for a game
+    they may well have played in. 26 such rows on 2026-08-29.
+    """
+
+    STARTS = {823539: "2026-08-29T17:05:00Z"}      # only today's opener is known
+
+    def logs(self):
+        """Somebody else played today. An empty frame short-circuits earlier."""
+        return pd.DataFrame([
+            {"player_id": 999, "player_name": "OTHER", "game_date": "2026-08-29",
+             "game_pk": 823539, "h": 1, "doubles": 0, "triples": 0, "hr": 0},
+        ])
+
+    def test_a_row_about_another_days_game_is_not_settled_dnp(self):
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", "2026-08-29",
+            commence_time="2026-08-28T23:16:00Z",   # last night's game
+            starts=self.STARTS,
+        )
+        assert row is None
+        assert reason != "player did not appear"
+
+    def test_a_genuine_absence_from_today_still_settles_dnp(self):
+        """The bench bat this outcome exists for."""
+        row, reason = resolve_appearance(
+            self.logs(), 800, "BAT", "2026-08-29",
+            commence_time="2026-08-29T17:06:00Z",   # the game we do know
+            starts=self.STARTS,
+        )
+        assert reason == "player did not appear"

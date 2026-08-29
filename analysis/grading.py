@@ -89,9 +89,44 @@ def resolve_appearance(
         mine = on_date[on_date["player_name"].astype(str) == str(player_name)]
 
     if mine.empty:
+        # Before concluding he did not play, check that the game this row is
+        # about is one we know of at all. The rollover bug files some rows under
+        # the following day's date -- their game was played, just not on the
+        # date written on them -- and settling those DNP is terminal and wrong.
+        if commence_time and starts and not _any_game_near(commence_time, starts):
+            return None, "no appearance in the game this prediction is about"
         return None, "player did not appear"
-    if len(mine) == 1:
+
+    # Every appearance found here is on the right *date*. That is not the same
+    # as the right *game*, and on a doubleheader the difference is the whole
+    # problem -- including when only one end has been played, which is the case
+    # this originally got wrong. A prediction about the nightcap found the
+    # opener's box score sitting alone on the date, matched it because there was
+    # nothing to be ambiguous with, and was settled hours before its game began:
+    # 36 rows took the opener's totals and 53 more were settled "did not appear"
+    # for a game that had not started.
+    #
+    # So the game is checked before the count is. Both feeds carry a scheduled
+    # first pitch and they agree to within a minute, while the two ends of a
+    # doubleheader are hours apart, so a wide tolerance still separates them.
+    candidates = len(mine)
+    mine = _played_in_the_right_game(mine, commence_time, starts)
+    if mine.empty:
+        # Deliberately not "player did not appear", which is terminal: he may
+        # yet appear in the game this row is about, which has not been played.
+        return None, "no appearance in the game this prediction is about"
+
+    if len(mine) == 1 and candidates == 1:
         return mine.iloc[0], "ok"
+    if len(mine) == 1:
+        # Ambiguity resolved by exclusion rather than by choosing. Trust it only
+        # when the survivor's own first pitch is known; otherwise this is the
+        # nearest-of-what-we-know guess the tie rule below refuses.
+        pk = mine.iloc[0].get("game_pk")
+        if starts and not pd.isna(pd.to_datetime(
+                (starts or {}).get(pk), utc=True, errors="coerce")):
+            return mine.iloc[0], "ok"
+        return None, f"ambiguous: {candidates} games on a doubleheader date"
 
     distinct_games = mine["game_pk"].nunique() if "game_pk" in mine.columns else len(mine)
     if distinct_games == 1:
@@ -102,6 +137,63 @@ def resolve_appearance(
         return nearest, "ok"
 
     return None, f"ambiguous: {distinct_games} games on a doubleheader date"
+
+
+# How far apart two scheduled first pitches may be and still be the same game.
+# Both feeds publish a *scheduled* start, not an actual one, so a rain delay
+# does not move either and they agree to within a minute in practice. The
+# closest doubleheader this has to separate is a traditional one, whose halves
+# are still hours apart.
+SAME_GAME_TOLERANCE_S = 2 * 60 * 60
+
+
+def _any_game_near(commence_time: str, starts: dict) -> bool:
+    """Is any game we know about scheduled within tolerance of this quote?"""
+    target = pd.to_datetime(commence_time, utc=True, errors="coerce")
+    if pd.isna(target):
+        return True                       # unparseable cannot convict a row
+    for raw in (starts or {}).values():
+        start = pd.to_datetime(raw, utc=True, errors="coerce")
+        if pd.isna(start):
+            continue
+        if abs((start - target).total_seconds()) <= SAME_GAME_TOLERANCE_S:
+            return True
+    return False
+
+
+def _played_in_the_right_game(
+    candidates: pd.DataFrame,
+    commence_time: str | None,
+    starts: dict | None,
+) -> pd.DataFrame | None:
+    """
+    Narrow appearances to the game this prediction was actually about.
+
+    Returns the surviving rows, or None when the question cannot be answered --
+    no commence_time, no start times, or no game_pk to join on -- in which case
+    the caller keeps its previous behaviour rather than refusing every date.
+    Filtering to an empty frame is a real answer: the player did not appear in
+    *this* game, whatever he did in the other one.
+    """
+    if not commence_time or not starts or "game_pk" not in candidates.columns:
+        return candidates
+
+    target = pd.to_datetime(commence_time, utc=True, errors="coerce")
+    if pd.isna(target):
+        return candidates
+
+    keep = []
+    for _, row in candidates.iterrows():
+        start = pd.to_datetime(starts.get(row["game_pk"]), utc=True, errors="coerce")
+        if pd.isna(start):
+            # An unknown start cannot convict a row. Losing a real appearance is
+            # worse than keeping a doubtful one, and the nearest-first-pitch
+            # check below still has to choose between whatever survives.
+            keep.append(True)
+            continue
+        keep.append(abs((start - target).total_seconds()) <= SAME_GAME_TOLERANCE_S)
+
+    return candidates[pd.Series(keep, index=candidates.index)]
 
 
 def _nearest_by_first_pitch(
