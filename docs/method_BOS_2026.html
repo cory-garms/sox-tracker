@@ -442,7 +442,7 @@
 
   <section class="card" id="how-movement-is-ranked">
     <h2>How movement is ranked</h2>
-    <p class="table-note">Across 7 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
+    <p class="table-note">Across 8 logged snapshots, by change in <em>de-vigged</em> probability &mdash; so a book widening its margin does not read as an opinion changing, because a wider margin moves both sides and cancels. Anything under 0.8 of a point is churn. Line moves sort above price moves because they are a different bet, not a repricing. A selection missing here simply moved less than the ones on it.</p>
   </section>
 
   <section class="card" id="what-clv-measures">
@@ -453,11 +453,6 @@
   <section class="card" id="where-these-numbers-come-from">
     <h2>Where these numbers come from</h2>
     <p class="table-note">A 50% profit boost pays <strong>1.5 &times; EV<sub>raw</sub> + 0.5 &times; (1 &minus; p)</strong> &mdash; +25% on a fair even-money bet, +40% on a fair +400 one. The token adds a fixed 10.3 points of win probability, measured by <code>scripts/measure_early_win_lift.py</code> over 3,172 team-games: P(ever led by 2+ <em>or</em> won) &minus; P(won) = <strong>+0.1028</strong>. Stored as a lift, not a rate, because a team's own P(ever up 2) is anchored to the schedule it played. Assumes the bet settles normally when the trigger never happens &mdash; check the promotion's terms, that assumption does real work.</p>
-  </section>
-
-  <section class="card" id="why-the-total-bases-model-calls-nothing">
-    <h2>Why the total-bases model calls nothing</h2>
-    <p class="table-note">Lines are DraftKings' own, fetched with the strikeout market. Comparing a projection to the line would rank hitters by quality the book already charges for, so the model prices a probability instead. That over-probability moves by &plusmn;4.8 points when its inputs are resampled, while the entire spread of opinion it has been shown to hold out of sample is 4.8 points &mdash; walk-forward backtest, 714 held-out starts, AUC 0.57 against 0.50 for a coin flip. An edge must be larger than the first and smaller than the second to mean anything, and almost nothing is. The honest reading is the two probability columns side by side, not the last one.</p>
   </section>
 
 
