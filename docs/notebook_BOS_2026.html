@@ -348,6 +348,57 @@
     }
 
 
+    /* ---- Doubleheader chrome ------------------------------------------
+       Two boards on one page need a hard visual break between them, or a
+       reader scrolling on a phone carries game 1's prices into game 2's
+       section without noticing. Sized for a 390px viewport first: the strip
+       rows stack, and the game heading stays one line at that width. */
+    .dh-strip { list-style: none; margin: 0; padding: 0; }
+    .dh-strip-row {
+      display: grid;
+      grid-template-columns: minmax(64px, auto) 1fr auto;
+      gap: 6px 10px;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(197,160,89,0.22);
+    }
+    .dh-strip-row:last-child { border-bottom: 0; }
+    .dh-strip-game {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #C5A059;
+    }
+    .dh-strip-time { color: #F6F1E3; font-size: 0.94rem; }
+    .dh-strip-detail { color: #9DB0A5; font-size: 0.82rem; text-align: right; }
+    .dh-strip-row.done .dh-strip-time { color: #9DB0A5; }
+
+    .dh-game {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
+      margin: 26px 0 12px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #00483A 0%, #0b2b21 100%);
+      border-left: 4px solid #C5A059;
+      border-radius: 4px;
+    }
+    .dh-game-label {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: #C5A059;
+    }
+    .dh-game-sub { color: #9DB0A5; font-size: 0.86rem; }
+    .dh-state {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.64rem; letter-spacing: 0.1em;
+      padding: 3px 8px; border-radius: 3px;
+      background: #BD3039; color: #fff5f5;
+    }
+    @media (max-width: 420px) {
+      .dh-strip-row { grid-template-columns: minmax(58px, auto) 1fr; }
+      .dh-strip-detail { grid-column: 1 / -1; text-align: left; }
+      .dh-game { margin-top: 20px; }
+    }
+
     .matchup-banner {
       background:
         repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0 2px, rgba(0,0,0,0) 2px 46px),
@@ -495,7 +546,7 @@
     computed when the page is built &mdash; nothing is typed in by hand, so a post
     cannot quietly go stale while the team keeps playing, and it will move against
     its own argument if the data does.</p>
-    <p class="dateline">Built 03:34 UTC on 29 Aug 2026</p>
+    <p class="dateline">Built 12:10 UTC on 29 Aug 2026</p>
   </section>
   <section class="card post" id="bello-two-pitchers">
     <div class="post-head">

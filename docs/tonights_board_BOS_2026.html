@@ -348,6 +348,57 @@
     }
 
 
+    /* ---- Doubleheader chrome ------------------------------------------
+       Two boards on one page need a hard visual break between them, or a
+       reader scrolling on a phone carries game 1's prices into game 2's
+       section without noticing. Sized for a 390px viewport first: the strip
+       rows stack, and the game heading stays one line at that width. */
+    .dh-strip { list-style: none; margin: 0; padding: 0; }
+    .dh-strip-row {
+      display: grid;
+      grid-template-columns: minmax(64px, auto) 1fr auto;
+      gap: 6px 10px;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(197,160,89,0.22);
+    }
+    .dh-strip-row:last-child { border-bottom: 0; }
+    .dh-strip-game {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #C5A059;
+    }
+    .dh-strip-time { color: #F6F1E3; font-size: 0.94rem; }
+    .dh-strip-detail { color: #9DB0A5; font-size: 0.82rem; text-align: right; }
+    .dh-strip-row.done .dh-strip-time { color: #9DB0A5; }
+
+    .dh-game {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
+      margin: 26px 0 12px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #00483A 0%, #0b2b21 100%);
+      border-left: 4px solid #C5A059;
+      border-radius: 4px;
+    }
+    .dh-game-label {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: #C5A059;
+    }
+    .dh-game-sub { color: #9DB0A5; font-size: 0.86rem; }
+    .dh-state {
+      font-family: 'Graduate', Georgia, serif;
+      font-size: 0.64rem; letter-spacing: 0.1em;
+      padding: 3px 8px; border-radius: 3px;
+      background: #BD3039; color: #fff5f5;
+    }
+    @media (max-width: 420px) {
+      .dh-strip-row { grid-template-columns: minmax(58px, auto) 1fr; }
+      .dh-strip-detail { grid-column: 1 / -1; text-align: left; }
+      .dh-game { margin-top: 20px; }
+    }
+
     .matchup-banner {
       background:
         repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0 2px, rgba(0,0,0,0) 2px 46px),
@@ -434,16 +485,31 @@
     </div>
   </header>
 
-  <section class="card">
+  <section class="card dh-strip-card">
+    <h2>&#9917; Doubleheader &mdash; Two Games, Two Boards</h2>
+    <ul class="dh-strip">
+<li class="dh-strip-row next"><span class="dh-strip-game">Game 1</span><span class="dh-strip-time">1:05 PM ET (17:05 UTC)</span><span class="dh-strip-detail">priced below</span></li>
+<li class="dh-strip-row next"><span class="dh-strip-game">Game 2</span><span class="dh-strip-time">7:15 PM ET (23:15 UTC)</span><span class="dh-strip-detail">priced below</span></li>
+    </ul>
+    <p class="table-note">A prop is per game, so each game below gets its own
+    board. A game already under way is not re-priced &mdash; the book is quoting
+    it live by then, which is a different market from the one these models
+    project, and buying it would put an in-play number in the record.</p>
+  </section>
+  <div class="dh-game" role="heading" aria-level="2">
+    <span class="dh-game-label">Game 1</span>
+    <span class="dh-game-sub">1:05 PM ET (17:05 UTC) &middot; at NYY &middot; Jake Bennett</span>
+    
+  </div>  <section class="card">
     <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
-    <p class="table-note"><strong>No movement to report yet.</strong> This is the first snapshot of the game, and movement needs two. The next scheduled build will have something to compare against.</p>
+    <p class="table-note"><strong>Nothing has moved.</strong> 3 snapshots of this game are logged and no price has shifted by as much as 0.8 of a probability point. A quiet board is a real observation, not a missing one.</p>
   </section>
 
   <section class="card">
     <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
     
     <p class="market-read">No bets logged on tonight's game.</p>
-    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>03:16 UTC</strong>, 829 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
+    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>12:09 UTC</strong>, 296 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -460,9 +526,9 @@
   <section class="card">
     <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
     
-    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>Boston Red Sox</strong> moneyline at +109, -2.42%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
-    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Boston Red Sox</strong> moneyline at +109 becomes <strong>+23.03%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
-    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> +102 at 03:16 UTC &rarr; +101 &nbsp;·&nbsp; <strong>New York Yankees</strong> -120 at 03:16 UTC &rarr; -121 — every build's prices are logged, so this is measured drift rather than an impression.</p>
+    <p class="market-read">Best raw price: <strong>Jake Bennett</strong> over 4.5 at +100 &mdash; the market's own fair number is <strong>50.9%</strong> across 4 other books, making it <strong>+1.83%</strong>. Measured against the rest of the market, never against itself: a book cannot be its own benchmark. The Models page prices the same selection against this book's own de-vigged number instead, so the two EVs will differ &mdash; they answer different questions, one about the price and one about the projection.</p>
+    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Jake Bennett</strong> over 4.5 at +100 becomes <strong>+27.29%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
+    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> +102 at 03:16 UTC &rarr; +106 &nbsp;·&nbsp; <strong>New York Yankees</strong> -120 at 03:16 UTC &rarr; -116 — every build's prices are logged, so this is measured drift rather than an impression.</p>
     <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <div class="table-scroll">
     <table class="report-table">
@@ -480,23 +546,228 @@
       </thead>
       <tbody>
         <tr>
-          <td>Boston Red Sox</td>
-          <td>Moneyline</td>
-          <td>+109</td>
-          <td class="delta-neg">-2.42%</td>
-          <td>+23.03%</td>
-          <td>46.7%</td>
-          <td>6</td>
-          <td>Moneyline</td>
+          <td>Jake Bennett</td>
+          <td>Over 4.5</td>
+          <td>+100</td>
+          <td class="delta-pos">+1.83%</td>
+          <td>+27.29%</td>
+          <td>50.9%</td>
+          <td>4</td>
+          <td>Strikeouts</td>
         </tr>
         <tr>
           <td>New York Yankees</td>
           <td>Moneyline</td>
-          <td>-131</td>
-          <td class="delta-neg">-5.99%</td>
-          <td>+14.35%</td>
-          <td>53.3%</td>
-          <td>6</td>
+          <td>-118</td>
+          <td class="delta-neg">-1.71%</td>
+          <td>+20.83%</td>
+          <td>53.2%</td>
+          <td>8</td>
+          <td>Moneyline</td>
+        </tr>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>+110</td>
+          <td class="delta-neg">-1.72%</td>
+          <td>+24.01%</td>
+          <td>46.8%</td>
+          <td>8</td>
+          <td>Moneyline</td>
+        </tr>
+        <tr>
+          <td>Carlos Rodon</td>
+          <td>Over 5.5</td>
+          <td>+110</td>
+          <td class="delta-neg">-5.59%</td>
+          <td>+19.14%</td>
+          <td>45.0%</td>
+          <td>4</td>
+          <td>Strikeouts</td>
+        </tr>
+        <tr>
+          <td>Carlos Rodon</td>
+          <td>Under 5.5</td>
+          <td>-140</td>
+          <td class="delta-neg">-5.64%</td>
+          <td>+14.02%</td>
+          <td>55.0%</td>
+          <td>4</td>
+          <td>Strikeouts</td>
+        </tr>
+        <tr>
+          <td>Jake Bennett</td>
+          <td>Under 4.5</td>
+          <td>-127</td>
+          <td class="delta-neg">-12.27%</td>
+          <td>+7.06%</td>
+          <td>49.1%</td>
+          <td>4</td>
+          <td>Strikeouts</td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#how-the-consensus-is-built">How the consensus is built &rarr;</a></p>
+  </section>
+
+  <section class="card">
+    <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
+    
+    <p class="market-read">Both promotions are worth <strong>more on longer
+    prices</strong>. The token only settles a moneyline, so most rows below have
+    no token figure &mdash; the boost's real advantage is what it can reach.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Price</th>
+          <th>EV raw</th>
+          <th>EV + 50% boost</th>
+          <th>EV + 2-run token</th>
+          <th>Better</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Jake Bennett</td>
+          <td>Over 4.5</td>
+          <td>+100</td>
+          <td>+1.83%</td>
+          <td>+27.29%</td>
+          <td><span class="no-line">&mdash; n/a</span></td>
+          <td><strong>Boost only</strong></td>
+        </tr>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>+110</td>
+          <td>-1.72%</td>
+          <td>+24.01%</td>
+          <td>+19.86%</td>
+          <td><strong>Boost</strong></td>
+        </tr>
+        <tr>
+          <td>New York Yankees</td>
+          <td>Moneyline</td>
+          <td>-118</td>
+          <td>-1.71%</td>
+          <td>+20.83%</td>
+          <td>+17.28%</td>
+          <td><strong>Boost</strong></td>
+        </tr>
+        <tr>
+          <td>Carlos Rodon</td>
+          <td>Over 5.5</td>
+          <td>+110</td>
+          <td>-5.59%</td>
+          <td>+19.14%</td>
+          <td><span class="no-line">&mdash; n/a</span></td>
+          <td><strong>Boost only</strong></td>
+        </tr>
+        <tr>
+          <td>Carlos Rodon</td>
+          <td>Under 5.5</td>
+          <td>-140</td>
+          <td>-5.64%</td>
+          <td>+14.02%</td>
+          <td><span class="no-line">&mdash; n/a</span></td>
+          <td><strong>Boost only</strong></td>
+        </tr>
+        <tr>
+          <td>Jake Bennett</td>
+          <td>Under 4.5</td>
+          <td>-127</td>
+          <td>-12.27%</td>
+          <td>+7.06%</td>
+          <td><span class="no-line">&mdash; n/a</span></td>
+          <td><strong>Boost only</strong></td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#where-these-numbers-come-from">Where these numbers come from &rarr;</a></p>
+  </section>
+
+  <section class="card">
+    <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
+    <p class="table-note">Probable starter for 2026-08-29: <strong>Jake Bennett</strong>. First pitch <strong>G1: 1:05 PM ET (17:05 UTC) · G2: 7:15 PM ET (23:15 UTC)</strong>.</p>
+    <ul class="market-read"><li><strong>Jake Bennett</strong> &nbsp;<span class="prop-line">4.5 (+100)</span><br>market <strong>47.2%</strong> over &nbsp;·&nbsp; model <strong>59.0%</strong> &nbsp;·&nbsp; gap <strong>+0.68 K</strong> &nbsp; <span class="rec-badge over">OVER (+18.0% EV) 🔥</span></li></ul>
+    <ul class="market-read"><li><strong>Ceddanne Rafaela</strong> &nbsp;<span class="prop-line">1.5 (+145)</span><br>market <strong>38.2%</strong> over &nbsp;·&nbsp; model <strong>46.0%</strong> &nbsp;·&nbsp; gap <strong>+7.8 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (+7.8 pts vs market)</span></li></ul>
+    <p class="table-note">Every one of these reads <code>NO CALL</code> because
+    both models measured their own error and found it as large as the entire
+    spread of opinion they can demonstrate. The workings, the error bars and how
+    they were measured are on
+    <a href="models_BOS_2026.html">Models &amp; Method</a>.</p>
+  </section>
+  <div class="dh-game" role="heading" aria-level="2">
+    <span class="dh-game-label">Game 2</span>
+    <span class="dh-game-sub">7:15 PM ET (23:15 UTC) &middot; at NYY</span>
+    
+  </div>  <section class="card">
+    <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
+    <p class="table-note"><strong>Nothing has moved.</strong> 2 snapshots of this game are logged and no price has shifted by as much as 0.8 of a probability point. A quiet board is a real observation, not a missing one.</p>
+  </section>
+
+  <section class="card">
+    <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
+    
+    <p class="market-read">No bets logged on tonight's game.</p>
+    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>12:09 UTC</strong>, 666 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr><th>Selection</th><th>Side</th><th>Stake</th>
+            <th>Took</th><th>Closed</th><th>CLV</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+    <p class="table-note">Across <strong>10</strong> graded bets: beat the close <strong>20%</strong> of the time, mean CLV <strong>-0.38</strong> points. <strong>An anecdote, not a record</strong> &mdash; 20+ before the sign means anything.</p>
+    <p class="method-link"><a href="method_BOS_2026.html#what-clv-measures">What CLV measures &rarr;</a></p>
+  </section>
+
+  <section class="card">
+    <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
+    
+    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>New York Yankees</strong> moneyline at -124, -1.09%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
+    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Boston Red Sox</strong> moneyline at +116 becomes <strong>+23.97%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
+    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> +118 at 12:06 UTC &rarr; +110 &nbsp;·&nbsp; <strong>New York Yankees</strong> -126 at 12:06 UTC &rarr; -135 — every build's prices are logged, so this is measured drift rather than an impression.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Draftkings</th>
+          <th>EV</th>
+          <th>EV <em>if</em> boosted (50%)</th>
+          <th>Consensus Fair %</th>
+          <th>Books</th>
+          <th>Market</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>New York Yankees</td>
+          <td>Moneyline</td>
+          <td>-124</td>
+          <td class="delta-neg">-1.09%</td>
+          <td>+20.99%</td>
+          <td>54.8%</td>
+          <td>4</td>
+          <td>Moneyline</td>
+        </tr>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>+116</td>
+          <td class="delta-neg">-2.27%</td>
+          <td>+23.97%</td>
+          <td>45.2%</td>
+          <td>4</td>
           <td>Moneyline</td>
         </tr></tbody>
     </table>
@@ -528,19 +799,19 @@
         <tr>
           <td>Boston Red Sox</td>
           <td>Moneyline</td>
-          <td>+109</td>
-          <td>-2.42%</td>
-          <td>+23.03%</td>
-          <td>+19.07%</td>
+          <td>+116</td>
+          <td>-2.27%</td>
+          <td>+23.97%</td>
+          <td>+19.93%</td>
           <td><strong>Boost</strong></td>
         </tr>
         <tr>
           <td>New York Yankees</td>
           <td>Moneyline</td>
-          <td>-131</td>
-          <td>-5.99%</td>
-          <td>+14.35%</td>
-          <td>+12.13%</td>
+          <td>-124</td>
+          <td>-1.09%</td>
+          <td>+20.99%</td>
+          <td>+17.48%</td>
           <td><strong>Boost</strong></td>
         </tr></tbody>
     </table>
@@ -550,7 +821,7 @@
 
   <section class="card">
     <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
-    <p class="table-note">Probable starter for 2026-08-29: <strong>Jake Bennett</strong>. First pitch <strong>G1: 1:05 PM ET (17:05 UTC) · G2: 7:15 PM ET (23:15 UTC)</strong>.</p>
+    <p class="table-note">Probable starter: <strong>TBD</strong>. First pitch <strong>7:15 PM ET (23:15 UTC)</strong>.</p>
     <p class="table-note">No strikeout line quoted for tonight.</p>
     <p class="table-note">No total-bases lines quoted for tonight.</p>
     <p class="table-note">Every one of these reads <code>NO CALL</code> because
