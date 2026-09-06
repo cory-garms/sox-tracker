@@ -285,65 +285,62 @@ _BRASS, _PARCHMENT, _MUTED = theme.BRASS, theme.PARCHMENT, theme.INK_MUTED
 _GREEN, _CRIMSON, _GRID = theme.OUTFIELD_GREEN, theme.FENWAY_CRIMSON, theme.TURF_GRID
 
 
-def _svg(inner: str, w: int, h: int) -> str:
+def _svg(inner: str, w: int, h: int, max_w: int = 480) -> str:
+    # Capped, not merely responsive. An SVG on a viewBox scales in both
+    # directions, so a 360x128 chart in a 1160px card renders 412px tall and
+    # swamps the prose it belongs to -- while _bar_pair's HTML bars stay 15px
+    # whatever the width. The cap keeps the two kinds of figure the same size
+    # on a desktop and changes nothing on a phone, where 100% is already less.
     return (f'<svg viewBox="0 0 {w} {h}" width="100%" height="auto" '
-            f'style="max-width:100%;display:block;margin:16px 0" '
+            f'style="width:100%;max-width:{max_w}px;display:block;margin:14px 0" '
             f'role="img" aria-hidden="true">{inner}</svg>')
 
 
 def _ladder(rows: list[tuple[str, float, bool]], marker: float | None = None,
-            marker_label: str = "") -> str:
+            marker_label: str = "", label: str = "") -> str:
     """
-    Horizontal bars, one per row, tallest first. `rows` is (name, value, is_us).
+    Ranked bars, tallest first. `rows` is (name, value, is_us).
 
-    Used where the ranking *is* the point -- an all-time leaderboard, a
-    standings table -- and where a reader wants to see the gap rather than
-    subtract two numbers. The optional marker draws a vertical line at a
-    threshold, which is how a milestone post shows a club boundary without
-    writing "the 400 club" on the picture.
+    Built from the same .cmp markup _bar_pair uses rather than as an SVG, so a
+    leaderboard and a two-bar comparison are the same object at every width.
+    The SVG version scaled its type and bar height with the container and was
+    three times life size on a desktop.
+
+    The optional marker is a threshold rule drawn inside the track -- a club
+    boundary, a playoff cut -- so the picture carries it without a caption.
     """
     if not rows:
         return ""
-    pad_l, pad_r, row_h, top = 92, 34, 20, 8
-    # The marker label sits under the last row, so it needs room of its own --
-    # without it the threshold caption lands on top of the bottom bar's value.
-    foot = 18 if marker_label else 6
-    w, h = 360, top + row_h * len(rows) + foot
-    span = w - pad_l - pad_r
     top_val = max(v for _, v, _ in rows) or 1.0
-    # Counting stats print bare (652 saves); rates print to a fixed width, or a
-    # 5.00 lands as "5" in a column of 4.94s and reads like a different kind of
-    # number.
     whole = all(float(v).is_integer() for _, v, _ in rows)
     num = (lambda v: f"{v:g}") if whole else (lambda v: f"{v:.2f}")
+    head = f'<div class="cmp-label">{label}</div>' if label else ""
     out = []
-    for i, (name, val, us) in enumerate(rows):
-        y = top + i * row_h
-        bar = span * (val / top_val)
+    for name, val, us in rows:
         col = _BRASS if us else _GRID
-        txt = _PARCHMENT if us else _MUTED
         weight = "600" if us else "400"
+        tint = _PARCHMENT if us else _MUTED
+        rule = ""
+        if marker is not None:
+            rule = (f'<b style="position:absolute;left:{100.0 * marker / top_val:.1f}%;'
+                    f'top:0;bottom:0;width:2px;background:{_CRIMSON};'
+                    f'opacity:0.9"></b>')
         out.append(
-            f'<text x="{pad_l - 6}" y="{y + 11}" text-anchor="end" font-size="10" '
-            f'fill="{txt}" font-weight="{weight}" font-family="Georgia,serif">{name}</text>'
-            f'<rect x="{pad_l}" y="{y + 2}" width="{bar:.1f}" height="12" rx="2" fill="{col}"/>'
-            f'<text x="{pad_l + bar + 5:.1f}" y="{y + 12}" font-size="10" fill="{txt}" '
-            f'font-family="monospace" font-weight="{weight}">{num(val)}</text>')
-    if marker is not None and top_val:
-        mx = pad_l + span * (marker / top_val)
-        out.append(
-            f'<line x1="{mx:.1f}" y1="2" x2="{mx:.1f}" y2="{h - 4}" stroke="{_CRIMSON}" '
-            f'stroke-width="1.5" stroke-dasharray="3,3"/>')
-        if marker_label:
-            anchor = "end" if mx > w * 0.72 else "start"
-            dx = -4 if anchor == "end" else 4
-            out.append(
-                f'<text x="{mx + dx:.1f}" y="{h - 5}" font-size="9" fill="{_CRIMSON}" '
-                f'text-anchor="{anchor}" font-family="monospace">{marker_label}</text>')
-    return _svg("".join(out), w, h)
+            f'<div class="cmp-row">'
+            f'<span class="cmp-name" style="flex:0 0 96px;color:{tint};'
+            f'font-weight:{weight}">{name}</span>'
+            f'<span class="cmp-bar" style="position:relative">'
+            f'<i style="width:{100.0 * val / top_val:.1f}%;background:{col}"></i>{rule}'
+            f'</span>'
+            f'<span class="cmp-num" style="font-weight:{weight}">{num(val)}</span>'
+            f'</div>')
+    foot = ""
+    if marker is not None and marker_label:
+        foot = (f'<div class="cmp-foot">&#9474; {marker_label}</div>')
+    return f'<div class="cmp">{head}{"".join(out)}{foot}</div>'
 
 
-def _label_y(y: float, h: int, below: float = 15, above: float = 8) -> float:
+def _label_y(y: float, h: int, below: float = 15, above: float = 13) -> float:
     """Below the point when there is room, above it when there is not."""
     return y + below if y + below <= h - 3 else y - above
 

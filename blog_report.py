@@ -87,6 +87,10 @@ def _blog_css() -> str:
       flex: 0 0 56px; font-family: 'Share Tech Mono', monospace;
       font-size: 0.85rem; color: #F6F1E3;
     }
+    .cmp-foot {
+      font-family: 'Share Tech Mono', monospace; font-size: 0.72rem;
+      color: #BD3039; margin-top: 4px; padding-left: 104px;
+    }
     """
 
 

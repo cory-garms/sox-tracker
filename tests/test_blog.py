@@ -288,3 +288,26 @@ class TestLadderFormatting:
     def test_no_rows_draws_nothing(self):
         from blog.posts import _ladder
         assert _ladder([]) == ""
+
+
+class TestEveryPostActuallyBuilds:
+    """
+    render_post turns an exception into a placeholder so one bad post cannot
+    take the page down. That is right, and it also means a post can break in
+    total silence: the section is still on the page, the suite still passes,
+    and only a human reading the rendered page notices.
+
+    A refactor deleted a helper one chart used and the whole post became a
+    NameError placeholder with 936 tests green. This is the assertion that was
+    missing.
+    """
+
+    def test_no_post_renders_as_a_placeholder(self):
+        from blog.posts import POSTS
+        ctx = blog_report.build_context("BOS", 2026)
+        broken = []
+        for post in POSTS:
+            html = blog_report.render_post(post, ctx)
+            if "could not be built" in html:
+                broken.append(post.slug)
+        assert not broken, f"posts failed to build: {broken}"
