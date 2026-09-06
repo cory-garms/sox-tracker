@@ -253,10 +253,26 @@ class TestTheKeyIsANoOpOnHistory:
         is a real prediction about a real game that can never be graded,
         because grading looks for a game on its game_date and finds none.
 
-        One such batch exists, from the 2026-08-27 20:57Z build. This asserts
-        that set does not grow -- the count is deliberately not pinned, since
-        the roster size behind it may change, but a *new date* appearing here
-        means the bug has bitten again and wants a human.
+        Three such batches exist, 70 rows, all written before the fix below:
+
+            2026-08-27  off day, 20:57Z build
+            2026-08-30  day game (17:35Z), post-game rebuild at 23:43Z
+            2026-09-02  day game (20:10Z), post-game rebuild at 23:31Z
+
+        The shape is one bug, not three. Once the day's game settles it leaves
+        the provider's feed, find_team_events returns nothing for the date, and
+        _price_the_day falls through to an unscoped find_event that answers with
+        *tomorrow's* game -- while game_date stays on the runner's clock. Only
+        day games and off days reach it; after a night game the clock has rolled
+        to the next UTC date too, so the two agree again.
+
+        betting_report._log_predictions now refuses to write when the event's
+        Eastern date is not the row's game_date, so this set is closed. None of
+        the 70 ever carried a grade, which is why they are left in place rather
+        than deleted out of an append-only log.
+
+        A *new date* appearing here means the guard has a hole and wants a
+        human. The counts are deliberately not pinned -- roster size moves.
         """
         frame = self._history()
         kept = ph.latest_per_game(frame)
@@ -265,7 +281,7 @@ class TestTheKeyIsANoOpOnHistory:
             .dt.tz_convert("America/New_York").dt.date.astype(str)
         )
         orphan_dates = set(kept.loc[event_day != kept["game_date"].astype(str), "game_date"])
-        assert orphan_dates <= {"2026-08-27"}, (
+        assert orphan_dates <= {"2026-08-27", "2026-08-30", "2026-09-02"}, (
             f"predictions filed under a date they are not about: {sorted(orphan_dates)}"
         )
 
@@ -400,3 +416,71 @@ class TestBothEndsOfADoubleheaderAreWritten:
 
     def test_event_id_is_in_the_key(self):
         assert "event_id" in ph.KEY
+
+
+class TestTheEventMustBeTheGameTheBuildIsAbout:
+    """
+    The guard in betting_report._log_predictions, from the other side.
+
+    TestTheKeyIsANoOpOnHistory asserts the orphan set has stopped growing, but
+    it can only say so *after* a bad batch has already been written to the
+    archive. This pins the behaviour directly, on the two cases that look
+    identical from inside the function and must go opposite ways.
+    """
+
+    def _log(self, monkeypatch, commence, game_date):
+        import betting_report as br
+
+        captured = []
+        monkeypatch.setattr(
+            br.predictions_history, "append_snapshot",
+            lambda rows, *a, **k: captured.append(rows) or len(rows),
+        )
+        n = br._log_predictions(
+            _frame(), pd.DataFrame(),
+            {"id": "evt", "commence_time": commence} if commence is not None else {},
+            game_date, opponent_id=147,
+        )
+        return n, captured
+
+    def test_the_days_own_game_is_logged(self, monkeypatch):
+        n, captured = self._log(monkeypatch, "2026-09-02T20:10:00Z", "2026-09-02")
+        assert captured, "a build about its own game logged nothing"
+        assert n > 0
+
+    def test_tomorrows_game_under_todays_date_is_refused(self, monkeypatch):
+        """
+        The bug: 09-02 was a 20:10Z day game, so by the 23:31Z post-game rebuild
+        it had settled and left the feed, and find_event answered with 09-03.
+        Twenty-three pre-game projections were filed under 09-02 and could never
+        be graded.
+        """
+        n, captured = self._log(monkeypatch, "2026-09-03T23:16:00Z", "2026-09-02")
+        assert captured == [], "wrote projections about a game it was not about"
+        assert n == 0
+
+    def test_a_west_coast_start_after_midnight_utc_still_logs(self, monkeypatch):
+        """
+        The reason the comparison is Eastern and not UTC.
+
+        This game's Eastern date is 07-27 and its UTC date is 07-28. Sixteen
+        games this season look like this, and games_111_2026 files every one of
+        them under the Eastern date. A UTC comparison would read this as the
+        case above and refuse -- silently dropping 11% of the season, 1,305 rows
+        across the 07-27..08-01 trip alone.
+        """
+        n, captured = self._log(monkeypatch, "2026-07-28T01:40:00Z", "2026-07-27")
+        assert captured, "refused a west-coast game it should have logged"
+        assert n > 0
+
+    def test_a_build_with_no_event_is_unaffected(self, monkeypatch):
+        """Projections-only: no odds key, no event, nothing to compare against."""
+        n, captured = self._log(monkeypatch, None, "2026-09-02")
+        assert captured, "a projections-only build stopped logging"
+        assert n > 0
+
+    def test_an_unparseable_commence_time_degrades_to_logging(self, monkeypatch):
+        """A bad timestamp loses the check, not the row."""
+        n, captured = self._log(monkeypatch, "not-a-time", "2026-09-02")
+        assert captured, "a malformed timestamp silently dropped the batch"
+        assert n > 0

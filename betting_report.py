@@ -889,6 +889,49 @@ def _log_predictions(
     commence = event.get("commence_time")
     opponent_name = _ID_TO_NAME.get(opponent_id, "") if opponent_id else ""
 
+    # The event has to be the game this build says it is about.
+    #
+    # `game_date` comes from the runner's clock; `event` comes from find_event,
+    # which is unscoped whenever find_team_events returned nothing for the date
+    # -- the single-game path in _price_the_day. Those two agree on an ordinary
+    # day and disagree in one situation: today's game has already settled and
+    # left the provider's feed, so the next Red Sox event is tomorrow's. The
+    # post-game rebuild after a *day* game hits that every time, and an off day
+    # hits it all afternoon. A night game never does, because by the time that
+    # rebuild runs the clock has rolled to the next UTC date too.
+    #
+    # What got written then was a full set of pre-game projections about
+    # tomorrow's game, filed under today's date, computed from today's probable
+    # starter -- who is not tomorrow's. Ungradeable by construction: grading
+    # looks for a game on the row's game_date and finds a different one. Three
+    # such batches existed before this (08-27, 08-30, 09-02; 70 rows), none of
+    # which ever reached the record.
+    #
+    # Compared in Eastern, not UTC. Sixteen games this season start after
+    # midnight UTC -- the west-coast trips -- and it is the Eastern date that
+    # games_111_2026 stores: all 143 game_dates match Eastern, only 127 match
+    # UTC. On those dates find_team_events finds nothing (it filters on the UTC
+    # day, as its own docstring admits) and this unscoped fallback is the only
+    # thing that prices the game at all. Measured against the archive, Eastern
+    # keeps 1,305 rows across the 07-27..08-01 trip that a UTC comparison would
+    # have thrown away, and drops 185 -- one of them graded, and that one a
+    # mis-grade that never reached scoring.
+    #
+    # A missing or unparseable commence_time falls through and logs, so a
+    # projections-only build with no odds key and no event is unaffected.
+    if commence:
+        try:
+            event_day = pd.Timestamp(commence).tz_convert(
+                "America/New_York"
+            ).date().isoformat()
+        except (ValueError, TypeError):
+            event_day = str(game_date)
+        if event_day != str(game_date):
+            print(f"Not logging predictions: the priced event is {event_day}, "
+                  f"but this build is about {game_date}. Today's game has "
+                  f"settled and left the feed; the next event is another game.")
+            return 0
+
     rows = []
     rows.extend(predictions_history.snapshot_rows(
         k_df, MARKET_K, game_date,
