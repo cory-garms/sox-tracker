@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -25,7 +26,11 @@ import pandas as pd
 import config
 from betting_report import _shell
 from blog.posts import POSTS
+from client.mlb_client import MLBClient
+from data import career_saves, league_games
 from data.fetcher import Fetcher
+
+log = logging.getLogger(__name__)
 
 
 def _blog_css() -> str:
@@ -89,12 +94,35 @@ def build_context(team_abbr: str, season: int) -> dict:
     """Everything a post may read, loaded once."""
     team_id = config.TEAMS.get(team_abbr, {}).get("id", config.TEAM_ID)
     fetcher = Fetcher(team_id=team_id, season=season)
-    ctx: dict = {"team_abbr": team_abbr, "season": season}
+    ctx: dict = {"team_abbr": team_abbr, "season": season, "team_id": team_id}
     for name in ("pitching", "batting", "games"):
         try:
             ctx[name] = fetcher.load(name)
         except FileNotFoundError:
             ctx[name] = pd.DataFrame()
+
+    # Two sources that are not this team's season caches, and so are not the
+    # Fetcher's to hand out.
+    #
+    # Both refetch themselves when stale and fall back to disk when the network
+    # is gone, so a local build with no connectivity renders yesterday's copy
+    # rather than failing. `league_games` needs the client passed in or it will
+    # happily serve whatever is on disk forever -- nothing else in the nightly
+    # build reads it, so before this its cache had been sitting twelve days old
+    # while every page around it rebuilt hourly. A standings post on that would
+    # have published a record eleven games out of date and looked entirely
+    # plausible doing it.
+    client = MLBClient()
+    try:
+        ctx["league"] = league_games.load_league_games(season, client=client)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("League games unavailable (%s); standings posts will skip", e)
+        ctx["league"] = pd.DataFrame()
+    try:
+        ctx["saves_leaders"] = career_saves.load_leaders(client=client)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("Career saves unavailable (%s); the milestone post will skip", e)
+        ctx["saves_leaders"] = pd.DataFrame()
     return ctx
 
 

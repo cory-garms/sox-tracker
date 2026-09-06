@@ -35,6 +35,21 @@ BELLO = _pitching([
 ])
 
 
+def _raise(msg):
+    def _boom(*a, **k):
+        raise RuntimeError(msg)
+    return _boom
+
+
+def _offline(monkeypatch):
+    """No test in this file is allowed to depend on a live provider."""
+    monkeypatch.setattr(blog_report, "MLBClient", lambda *a, **k: object())
+    monkeypatch.setattr(blog_report.league_games, "load_league_games",
+                        lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(blog_report.career_saves, "load_leaders",
+                        lambda *a, **k: pd.DataFrame())
+
+
 class TestPostsAreComputed:
     def test_every_post_is_registered_with_the_fields_a_page_needs(self):
         assert POSTS
@@ -89,8 +104,32 @@ class TestOnePostCannotTakeThePageDown:
             def load(self, name): raise FileNotFoundError(name)
 
         monkeypatch.setattr(blog_report, "Fetcher", NoCache)
+        _offline(monkeypatch)
         ctx = blog_report.build_context("BOS", 2026)
         assert ctx["pitching"].empty and ctx["batting"].empty
+
+    def test_an_unreachable_provider_leaves_the_other_posts_alone(self, monkeypatch):
+        """
+        build_context reaches the network for the league table and the all-time
+        saves list. Neither is allowed to take the page down: a post that cannot
+        be built says so, and the ones reading local caches still build.
+        """
+        monkeypatch.setattr(blog_report, "MLBClient", lambda *a, **k: object())
+        monkeypatch.setattr(blog_report.league_games, "load_league_games",
+                            _raise("league down"))
+        monkeypatch.setattr(blog_report.career_saves, "load_leaders",
+                            _raise("leaders down"))
+        ctx = blog_report.build_context("BOS", 2026)
+        assert ctx["league"].empty and ctx["saves_leaders"].empty
+
+    def test_the_posts_that_need_the_network_say_so_when_it_is_gone(self):
+        from blog.posts import chapman_400, the_wildcard
+        empty = pd.DataFrame()
+        assert "unavailable" in chapman_400(
+            {"saves_leaders": empty, "pitching": empty, "season": 2026,
+             "team_id": 111})
+        assert "unavailable" in the_wildcard(
+            {"league": empty, "team_abbr": "BOS", "team_id": 111})
 
 
 class TestItIsPartOfTheSite:
@@ -114,3 +153,49 @@ class TestItIsPartOfTheSite:
         html = blog_report.generate_blog_html("BOS", 2026)
         assert f'id="{post.slug}"' in html
         assert post.title in html
+
+
+class TestAClaimWithANumberInItIsCounted:
+    """
+    The new posts make three claims that would be ordinary prose anywhere else
+    and are load-bearing here: how many pitchers have reached a milestone, where
+    a run ranks in the league, and how a small sample is shaped. Each is counted
+    at build time, so each must move with its input and disappear without it.
+    """
+
+    def _league(self, rows):
+        return pd.DataFrame(
+            [{"game_pk": i, "game_date": d, "home_team_id": h,
+              "away_team_id": a, "home_score": hs, "away_score": as_}
+             for i, (d, h, a, hs, as_) in enumerate(rows)])
+
+    def test_the_league_rank_is_computed_from_results(self):
+        from blog.posts import _rank_since
+        # 111 wins both its games; 110 loses both. Two teams, we are first.
+        lg = self._league([("2026-07-01", 111, 110, 5, 1),
+                           ("2026-07-02", 110, 111, 2, 9)])
+        assert _rank_since(lg, 111, "2026-06-30") == (1, 2)
+        assert _rank_since(lg, 110, "2026-06-30") == (2, 2)
+
+    def test_the_rank_respects_the_window(self):
+        """A run is a run *since* a date; games before it must not count."""
+        from blog.posts import _rank_since
+        lg = self._league([("2026-05-01", 111, 110, 0, 9),   # before the window
+                           ("2026-07-02", 111, 110, 9, 0)])
+        assert _rank_since(lg, 111, "2026-06-30")[0] == 1
+
+    def test_no_league_data_means_no_claim_rather_than_a_guess(self):
+        from blog.posts import _rank_since
+        assert _rank_since(pd.DataFrame(), 111, "2026-06-30") == (0, 0)
+        assert _rank_since(None, 111, "2026-06-30") == (0, 0)
+
+    def test_a_team_absent_from_the_window_is_not_ranked_first_by_default(self):
+        """The failure this guards: an empty record scoring as an unbeaten one."""
+        from blog.posts import _rank_since
+        lg = self._league([("2026-07-02", 110, 109, 9, 0)])
+        assert _rank_since(lg, 111, "2026-06-30") == (0, 0)
+
+    def test_the_ordinal_reads_as_english(self):
+        from blog.posts import _ordinal
+        assert [_ordinal(n) for n in (1, 2, 3, 4, 11, 12, 13, 21, 22)] == [
+            "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]
