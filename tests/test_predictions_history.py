@@ -15,6 +15,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+import config
 from data import predictions_history as ph
 
 
@@ -276,11 +277,22 @@ class TestTheKeyIsANoOpOnHistory:
         """
         frame = self._history()
         kept = ph.latest_per_game(frame)
-        event_day = (
-            pd.to_datetime(kept["commence_time"], utc=True, errors="coerce")
-            .dt.tz_convert("America/New_York").dt.date.astype(str)
-        )
-        orphan_dates = set(kept.loc[event_day != kept["game_date"].astype(str), "game_date"])
+        commence = pd.to_datetime(kept["commence_time"], utc=True, errors="coerce")
+        event_day = commence.dt.tz_convert("America/New_York").dt.date.astype(str)
+        # Only a row that *has* an event can disagree with one.
+        #
+        # On 2026-09-06 the post-game rebuild ran after the day game had settled
+        # and left the provider's feed, and the provider listed no Red Sox event
+        # at all -- so twenty-four rows were written with a blank event_id and no
+        # commence_time. Counting those as mislabelled failed this test on a
+        # build that had done nothing wrong: a row with no event is not filed
+        # under the wrong game, it has nothing to be compared against. What keeps
+        # those rows honest is the game they attach to, which is asserted in
+        # TestAnEventlessBuildIsStillCorrectlyDated rather than dropped.
+        orphan_dates = set(kept.loc[
+            commence.notna() & (event_day != kept["game_date"].astype(str)),
+            "game_date",
+        ])
         assert orphan_dates <= {"2026-08-27", "2026-08-30", "2026-09-02"}, (
             f"predictions filed under a date they are not about: {sorted(orphan_dates)}"
         )
@@ -484,3 +496,50 @@ class TestTheEventMustBeTheGameTheBuildIsAbout:
         n, captured = self._log(monkeypatch, "not-a-time", "2026-09-02")
         assert captured, "a malformed timestamp silently dropped the batch"
         assert n > 0
+
+
+class TestAnEventlessBuildIsStillCorrectlyDated:
+    """
+    The rows TestTheKeyIsANoOpOnHistory deliberately skips.
+
+    When the odds provider lists no event -- an off day, or a game that has
+    already settled and left the feed -- the board still projects and still
+    logs, with no event_id and no commence_time. Those rows cannot be checked
+    against an event, so they are checked against the thing that actually
+    decides whether they can be graded: the game they attach to.
+    """
+
+    def _history(self):
+        if not ph.HISTORY_PATH.exists():
+            pytest.skip(f"no archive at {ph.HISTORY_PATH}")
+        frame = ph.load_history()
+        if frame.empty:
+            pytest.skip("archive is empty")
+        return frame
+
+    def _games(self):
+        path = config.CACHE_DIR / f"games_{config.TEAM_ID}_{config.SEASON}.parquet"
+        if not path.exists():
+            pytest.skip(f"no games cache at {path}")
+        return pd.read_parquet(path)
+
+    def test_an_eventless_row_attaches_to_a_game_on_its_own_date(self):
+        """
+        The failure this would catch: a build with no event stamping the
+        runner's date on projections about a game played the day before. The
+        event is gone, so the date is the only claim the row makes -- and the
+        grader resolves it to a game_pk. Those two must agree.
+        """
+        kept = ph.latest_per_game(self._history())
+        commence = pd.to_datetime(kept["commence_time"], utc=True, errors="coerce")
+        eventless = kept[commence.isna() & kept["game_pk"].notna()]
+        if eventless.empty:
+            pytest.skip("no eventless rows have been graded yet")
+
+        when = dict(zip(self._games()["game_pk"], self._games()["game_date"].astype(str)))
+        wrong = [
+            (int(r["game_pk"]), str(r["game_date"]), when.get(int(r["game_pk"])))
+            for _, r in eventless.iterrows()
+            if when.get(int(r["game_pk"])) not in (None, str(r["game_date"]))
+        ]
+        assert not wrong, f"eventless rows graded against another date's game: {wrong[:5]}"

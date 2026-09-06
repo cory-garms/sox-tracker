@@ -111,6 +111,23 @@ def club_at(leaders: pd.DataFrame, threshold: int) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def nearest_milestone(saves: int, step: int = 50) -> int:
+    """
+    The round number this total is *about* -- the one nearest it, either side.
+
+    `next_milestone` answers what a pitcher is chasing, which is the wrong
+    question the day he arrives: at 400 saves it returns 450, and a post built
+    on it announces a man is fifty away from a number nobody was discussing,
+    on the evening he reached the one everybody was. Nearest keeps the
+    achievement in view while it is still the story and hands over to the next
+    one at the midpoint -- 400 through 424 is about 400, 425 is about 450.
+    """
+    step = int(step)
+    below = (int(saves) // step) * step
+    above = below + step
+    return below if (saves - below) <= (above - saves) else above
+
+
 def next_milestone(saves: int, step: int = 50) -> int:
     """
     The next round number above `saves`.

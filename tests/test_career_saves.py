@@ -182,3 +182,42 @@ class TestRateLeaders:
                     {"rank": 1, "person": {"id": 1, "fullName": "A"}, "value": 6.0}]}]}
 
         assert list(pl.fetch_leaders(C(), 2026)["value"]) == [6.0, 3.0]
+
+
+class TestNearestMilestone:
+    """
+    The bug this fixes shipped and was caught by the event it was written for.
+    Chapman recorded his 400th save; next_milestone(400) is 450, so the post
+    announced a man fifty short of a number nobody was discussing, on the
+    evening he reached the one everybody was. Under a headline about the 400
+    club.
+    """
+
+    @pytest.mark.parametrize("saves,expected", [
+        (399, 400),     # one away: about 400
+        (400, 400),     # the day he gets there: still about 400
+        (401, 400),
+        (424, 400),     # just under halfway: still the achievement
+        (425, 400),     # the midpoint stays with the one he has
+        (430, 450),     # past it: now he is chasing
+        (449, 450),
+        (450, 450),
+    ])
+    def test_tracks_the_number_the_total_is_about(self, saves, expected):
+        from data import career_saves as cs
+        assert cs.nearest_milestone(saves, 50) == expected
+
+    def test_it_differs_from_next_exactly_where_it_should(self):
+        from data import career_saves as cs
+        assert cs.next_milestone(400, 50) == 450       # what he is chasing
+        assert cs.nearest_milestone(400, 50) == 400    # what he just did
+
+    def test_the_club_counts_him_once_he_is_in_it(self):
+        from data import career_saves as cs
+        board = pd.DataFrame([
+            {"rank": 1, "player_id": 1, "player_name": "A", "saves": 652},
+            {"rank": 2, "player_id": 2, "player_name": "B", "saves": 422},
+            {"rank": 3, "player_id": 3, "player_name": "C", "saves": 400},
+        ])
+        target = cs.nearest_milestone(400, 50)
+        assert len(cs.club_at(board, target)) == 3

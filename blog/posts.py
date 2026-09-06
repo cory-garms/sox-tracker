@@ -458,9 +458,10 @@ def chapman_400(ctx: dict[str, Any]) -> str:
     # active and still saving games, so who is in and how many there are both
     # move. next_milestone treats a total already on a round number as having
     # arrived at it rather than approaching it.
-    target = career_saves.next_milestone(career, 50)
+    target = career_saves.nearest_milestone(career, 50)
     club = career_saves.club_at(leaders, target)
     to_go = target - career
+    arrived = to_go <= 0
 
     p = ctx["pitching"]
     mine = p[p["player_name"].str.contains("Chapman", na=False)] if not p.empty else p
@@ -476,34 +477,40 @@ def chapman_400(ctx: dict[str, Any]) -> str:
             for n, v in zip(leaders["player_name"].head(11),
                             leaders["saves"].head(11))]
 
-    arrived = to_go <= 0
+    # No claim about being the Nth man *to reach* it: this ranks by career
+    # total, and the order in which a club was joined is not the order it is
+    # listed in. Membership is what the data supports.
     lede = (f"<strong>{name} has {career} career saves.</strong> "
-            + (f"He is {to_go} from {target}."
-               if not arrived else f"He is past {target}."))
+            + (f"He is one of {len(club)} pitchers who have reached {target}."
+               if arrived else
+               f"He is {to_go} from {target}, a number {len(club)} pitchers "
+               f"in the history of the game have reached."))
 
     return f"""
-    <p class="lede">{lede} {len(club)} pitchers in the history of the game
-    have reached {target}.</p>
+    <p class="lede">{lede}</p>
 
     <div class="stat-row">
-      {_stat("Career saves", f"{career}", f"{rank}th all-time")}
-      {_stat("From " + str(target), f"{to_go}" if not arrived else "&mdash;",
-             "one save" if to_go == 1 else ("arrived" if arrived else f"{to_go} saves"))}
+      {_stat("Career saves", f"{career}", f"{_ordinal(rank)} all-time")}
+      {_stat(("In the " + str(target) + " club") if arrived else ("From " + str(target)),
+             f"{len(club)}" if arrived else f"{to_go}",
+             "members, with him" if arrived
+             else ("one save" if to_go == 1 else f"{to_go} saves"))}
       {_stat("This season", f"{sv}", f"{conv:.0%} converted, {bs} blown")}
     </div>
 
     {_ladder(rows, marker=float(target), marker_label=str(target))}
 
-    <p>The bar he is short of is drawn in red. Everyone above it got there over
-    a career; he is {to_go} away at <strong>{_age(ctx, "Chapman") or "&mdash;"}</strong>,
-    still closing, and still striking out
+    <p>{"The line he has crossed is drawn in red" if arrived
+        else "The bar he is short of is drawn in red"}. He is
+    <strong>{_age(ctx, "Chapman") or "&mdash;"}</strong>, still closing, and
+    still striking out
     <strong>{k9:.1f} per nine</strong> across {ip:.0f} innings with a
     <strong>{era:.2f}</strong> ERA.</p>
 
     <p class="caveat">A save is the most argued-over number in the sport &mdash;
     it rewards being handed a three-run lead and says nothing about the innings
     a reliever did not get. It is worth exactly what a counting stat is worth.
-    What it does measure honestly is durability: {career} of them means
+    What it does measure honestly is durability: {career} of them means only
     {rank - 1} men have ever been trusted with more.</p>
     """
 
