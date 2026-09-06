@@ -199,3 +199,65 @@ class TestAClaimWithANumberInItIsCounted:
         from blog.posts import _ordinal
         assert [_ordinal(n) for n in (1, 2, 3, 4, 11, 12, 13, 21, 22)] == [
             "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]
+
+
+class TestOnBasePercentage:
+    """
+    The regression: OBP was (H + BB) / PA, which drops hit-by-pitch from the
+    numerator while leaving it in the denominator and counts sacrifice bunts
+    that the official denominator excludes. Both push the number down. It
+    understated Gasper's post-return on-base by 47 points, and OPS with it,
+    on a page whose entire argument was the size of that number.
+    """
+
+    def _line(self, **kw):
+        row = dict(ab=0, pa=0, h=0, doubles=0, triples=0, hr=0, bb=0, so=0,
+                   rbi=0, hbp=0, sac_fly=0, sac_bunt=0)
+        row.update(kw)
+        return pd.DataFrame([row])
+
+    def test_a_hit_by_pitch_puts_a_man_on_base(self):
+        from blog.posts import _slash
+        # 1-for-4 with a plunk: 2 on base in 5 chances.
+        out = _slash(self._line(ab=4, pa=5, h=1, hbp=1))
+        assert out["obp"] == pytest.approx(0.400)
+
+    def test_a_hit_by_pitch_is_not_counted_against_him(self):
+        """The old form did exactly this: denominator only."""
+        from blog.posts import _slash
+        plain = _slash(self._line(ab=4, pa=4, h=1))
+        plunked = _slash(self._line(ab=4, pa=5, h=1, hbp=1))
+        assert plunked["obp"] > plain["obp"]
+
+    def test_a_sacrifice_bunt_does_not_lower_on_base(self):
+        from blog.posts import _slash
+        plain = _slash(self._line(ab=4, pa=4, h=2))
+        bunted = _slash(self._line(ab=4, pa=5, h=2, sac_bunt=1))
+        assert bunted["obp"] == pytest.approx(plain["obp"])
+
+    def test_a_sacrifice_fly_does_lower_on_base(self):
+        from blog.posts import _slash
+        plain = _slash(self._line(ab=4, pa=4, h=2))
+        flied = _slash(self._line(ab=4, pa=5, h=2, sac_fly=1))
+        assert flied["obp"] < plain["obp"]
+
+    def test_ops_is_on_base_plus_slugging(self):
+        from blog.posts import _slash
+        out = _slash(self._line(ab=4, pa=5, h=2, doubles=1, hbp=1))
+        assert out["ops"] == pytest.approx(out["obp"] + out["slg"])
+
+    def test_slugging_weights_extra_bases(self):
+        from blog.posts import _slash
+        out = _slash(self._line(ab=4, pa=4, h=2, doubles=1, hr=1))
+        assert out["slg"] == pytest.approx(6 / 4)      # one 2B, one HR
+
+    def test_a_cache_without_the_optional_columns_still_computes(self):
+        """Older parquet files predate hbp/sac_fly; they must not raise."""
+        from blog.posts import _slash
+        thin = pd.DataFrame([{"ab": 4, "pa": 4, "h": 1, "doubles": 0,
+                              "triples": 0, "hr": 0, "bb": 0, "so": 1, "rbi": 0}])
+        assert _slash(thin)["obp"] == pytest.approx(0.250)
+
+    def test_no_at_bats_is_refused_rather_than_divided_by_zero(self):
+        from blog.posts import _slash
+        assert _slash(self._line(ab=0, pa=1, bb=1)) == {}

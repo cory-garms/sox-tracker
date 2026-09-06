@@ -155,19 +155,42 @@ def bello(ctx: dict[str, Any]) -> str:
     """
 
 
+def _col(x: pd.DataFrame, name: str) -> float:
+    """A column's total, or zero when the cache does not carry it."""
+    return float(x[name].sum()) if name in x.columns else 0.0
+
+
 def _slash(x: pd.DataFrame) -> dict[str, float]:
-    """AVG / OBP / SLG and the counting stats behind them."""
-    ab, h, bb = float(x["ab"].sum()), float(x["h"].sum()), float(x["bb"].sum())
-    hr, d, t = float(x["hr"].sum()), float(x["doubles"].sum()), float(x["triples"].sum())
-    pa = float(x["pa"].sum()) or (ab + bb)
-    if ab <= 0 or pa <= 0:
+    """
+    AVG / OBP / SLG and the counting stats behind them.
+
+    On-base percentage is (H + BB + HBP) / (AB + BB + HBP + SF), which is worth
+    spelling out because this used to be (H + BB) / PA and that is wrong twice
+    over: it drops hit-by-pitch from the numerator while leaving it in the
+    denominator, and PA also carries sacrifice bunts, which the official
+    denominator excludes. Both errors push the figure down. On Gasper's games
+    since his return it understated on-base by 47 points and OPS with it --
+    1.406 against a true 1.453 -- and the rarer a walk-and-plunk profile is, the
+    worse it gets. Checked against MLB's own season line: this lands within a
+    few points, the old form was 28 off.
+
+    Strikeout rate stays per plate appearance, which is what K% means.
+    """
+    ab, h, bb = _col(x, "ab"), _col(x, "h"), _col(x, "bb")
+    hr, d, t = _col(x, "hr"), _col(x, "doubles"), _col(x, "triples")
+    hbp, sf = _col(x, "hbp"), _col(x, "sac_fly")
+    pa = _col(x, "pa") or (ab + bb + hbp + sf)
+    on_base_chances = ab + bb + hbp + sf
+    if ab <= 0 or pa <= 0 or on_base_chances <= 0:
         return {}
     tb = (h - d - t - hr) + 2 * d + 3 * t + 4 * hr
+    obp = (h + bb + hbp) / on_base_chances
+    slg = tb / ab
     return {
-        "g": len(x), "ab": ab, "hr": hr, "rbi": float(x["rbi"].sum()),
-        "so": float(x["so"].sum()), "pa": pa,
-        "avg": h / ab, "obp": (h + bb) / pa, "slg": tb / ab,
-        "ops": (h + bb) / pa + tb / ab, "k_rate": float(x["so"].sum()) / pa,
+        "g": len(x), "ab": ab, "hr": hr, "rbi": _col(x, "rbi"),
+        "so": _col(x, "so"), "pa": pa,
+        "avg": h / ab, "obp": obp, "slg": slg,
+        "ops": obp + slg, "k_rate": _col(x, "so") / pa,
     }
 
 
