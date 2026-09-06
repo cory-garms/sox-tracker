@@ -136,3 +136,49 @@ class TestNextMilestone:
         countdown that never ends.
         """
         assert cs.next_milestone(400, 50) == 450
+
+
+class TestRateLeaders:
+    """
+    data/pitching_leaders.py. The trap here is qualification: MLB's rate boards
+    hold only pitchers past one inning per team game, so a young starter on an
+    innings limit is absent from a list he would place well inside. Reading that
+    absence as "not good enough" is the error; rank_for exists so a post can say
+    where a number *would* fall and then say plainly that it does not count.
+    """
+
+    def _frame(self):
+        from data import pitching_leaders as pl
+        return pd.DataFrame(
+            [{"rank": i + 1, "player_id": i + 1, "player_name": f"P{i}",
+              "value": v} for i, v in enumerate([6.34, 5.00, 4.10, 3.75, 1.55])]
+        )[pl.COLUMNS]
+
+    def test_finds_where_a_value_would_slot(self):
+        from data import pitching_leaders as pl
+        assert pl.rank_for(self._frame(), 3.97) == (4, 5)
+
+    def test_a_value_better_than_the_field_leads_it(self):
+        from data import pitching_leaders as pl
+        assert pl.rank_for(self._frame(), 7.0)[0] == 1
+
+    def test_a_value_below_the_field_is_last(self):
+        from data import pitching_leaders as pl
+        assert pl.rank_for(self._frame(), 1.0) == (6, 5)
+
+    def test_an_empty_board_yields_no_claim_rather_than_first_place(self):
+        """The failure this guards: ranking first against nothing at all."""
+        from data import pitching_leaders as pl
+        assert pl.rank_for(pd.DataFrame(), 3.97) == (0, 0)
+        assert pl.rank_for(None, 3.97) == (0, 0)
+
+    def test_the_board_is_ordered_by_value_not_the_given_rank(self):
+        from data import pitching_leaders as pl
+
+        class C:
+            def _get(self, path, params=None):
+                return {"leagueLeaders": [{"leaders": [
+                    {"rank": 9, "person": {"id": 2, "fullName": "B"}, "value": 3.0},
+                    {"rank": 1, "person": {"id": 1, "fullName": "A"}, "value": 6.0}]}]}
+
+        assert list(pl.fetch_leaders(C(), 2026)["value"]) == [6.0, 3.0]

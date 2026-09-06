@@ -22,7 +22,7 @@ import pandas as pd
 
 import config
 from analysis.streaks import played_in_order
-from data import career_saves
+from data import career_saves, pitching_leaders
 from viz import theme
 
 
@@ -311,6 +311,11 @@ def _ladder(rows: list[tuple[str, float, bool]], marker: float | None = None,
     w, h = 360, top + row_h * len(rows) + foot
     span = w - pad_l - pad_r
     top_val = max(v for _, v, _ in rows) or 1.0
+    # Counting stats print bare (652 saves); rates print to a fixed width, or a
+    # 5.00 lands as "5" in a column of 4.94s and reads like a different kind of
+    # number.
+    whole = all(float(v).is_integer() for _, v, _ in rows)
+    num = (lambda v: f"{v:g}") if whole else (lambda v: f"{v:.2f}")
     out = []
     for i, (name, val, us) in enumerate(rows):
         y = top + i * row_h
@@ -323,7 +328,7 @@ def _ladder(rows: list[tuple[str, float, bool]], marker: float | None = None,
             f'fill="{txt}" font-weight="{weight}" font-family="Georgia,serif">{name}</text>'
             f'<rect x="{pad_l}" y="{y + 2}" width="{bar:.1f}" height="12" rx="2" fill="{col}"/>'
             f'<text x="{pad_l + bar + 5:.1f}" y="{y + 12}" font-size="10" fill="{txt}" '
-            f'font-family="monospace" font-weight="{weight}">{val:g}</text>')
+            f'font-family="monospace" font-weight="{weight}">{num(val)}</text>')
     if marker is not None and top_val:
         mx = pad_l + span * (marker / top_val)
         out.append(
@@ -893,6 +898,123 @@ def anthony_back(ctx: dict[str, Any]) -> str:
     """
 
 
+def _diverging(pos: list[float], neg: list[float]) -> str:
+    """
+    Two counts per start, one above a shared baseline and one below.
+
+    A ratio is a quotient and hides its own inputs: 3.97 is the same number
+    whether it came from a steady eight-and-two or from one enormous night
+    carrying a run of walks. Drawn this way the shape answers that without a
+    legend -- gold above is a strikeout, red below is a walk, and the gap
+    between the two rows is the ratio.
+    """
+    if not pos:
+        return ""
+    n = len(pos)
+    w, pad = 360, 8
+    top_p = max(pos) or 1.0
+    top_n = max(neg) or 1.0
+    up, down = 46, 24
+    mid = pad + up
+    h = mid + down + pad
+    slot = (w - 2 * pad) / n
+    bw = min(slot * 0.66, 14)
+    out = [f'<line x1="{pad}" y1="{mid}" x2="{w - pad}" y2="{mid}" '
+           f'stroke="{_MUTED}" stroke-width="1" opacity="0.5"/>']
+    for i, (p_, n_) in enumerate(zip(pos, neg)):
+        x = pad + slot * i + (slot - bw) / 2
+        ph = up * (p_ / top_p)
+        nh = down * (n_ / top_n)
+        if p_:
+            out.append(f'<rect x="{x:.1f}" y="{mid - ph:.1f}" width="{bw:.1f}" '
+                       f'height="{ph:.1f}" rx="1.5" fill="{_BRASS}"/>')
+        if n_:
+            out.append(f'<rect x="{x:.1f}" y="{mid + 1:.1f}" width="{bw:.1f}" '
+                       f'height="{nh:.1f}" rx="1.5" fill="{_CRIMSON}" opacity="0.85"/>')
+    return _svg("".join(out), w, h)
+
+
+def tolle_command(ctx: dict[str, Any]) -> str:
+    """A first full season, told through the ratio it is built on."""
+    p = ctx["pitching"]
+    t = p[p["player_name"].str.contains("Tolle", na=False)].sort_values("game_date")
+    if t.empty:
+        return "<p>No appearances on record.</p>"
+
+    outs = float(t["ip_outs"].sum())
+    ip = outs / 3.0
+    so, bb = float(t["so"].sum()), float(t["bb"].sum())
+    bf = float(t["bf"].sum())
+    if ip <= 0 or bb <= 0 or bf <= 0:
+        return "<p>Not enough on record to compute a ratio.</p>"
+    kbb = so / bb
+    era = float(t["er"].sum()) * 9.0 / ip
+    whip = (float(t["h"].sum()) + bb) / ip
+    k_rate, bb_rate = so / bf, bb / bf
+    starts = int(t["is_starter"].astype(bool).sum())
+
+    # Where that ratio would sit among the pitchers MLB counts, and the reason
+    # he is not one of them. Qualification is one inning per team game, so the
+    # bar moves every day the team plays -- it is read off the schedule, never
+    # typed in.
+    leaders = ctx.get("kbb_leaders")
+    rank, field = pitching_leaders.rank_for(leaders, kbb)
+    games = ctx["games"]
+    need = len(games)
+    short = max(need - ip, 0.0)
+
+    quiet = int(((t["bb"] <= 1).sum()))
+    best = t.loc[t["so"].idxmax()]
+
+    # Everyone above him, and then him -- so the bar he is on is the position
+    # the sentence claims. Showing a top ten with him appended would put him
+    # eleventh in the picture and seventeenth in the prose. Past twenty rows the
+    # chart stops being readable on a phone, so it is dropped rather than
+    # truncated into a false position.
+    board = ""
+    if rank and rank <= 20:
+        rows = [(nm.split()[-1], float(v), False)
+                for nm, v in zip(leaders["player_name"].head(rank - 1),
+                                 leaders["value"].head(rank - 1))]
+        rows.append((t.iloc[0]["player_name"].split()[-1], round(kbb, 2), True))
+        board = _ladder(rows)
+
+    rank_line = (f" That would be <strong>{_ordinal(rank)}</strong> among the "
+                 f"{field} pitchers who have thrown enough innings to qualify."
+                 if rank else "")
+
+    return f"""
+    <p class="lede">Payton Tolle has struck out <strong>{int(so)}</strong> and
+    walked <strong>{int(bb)}</strong> across {starts} starts, a ratio of
+    <strong>{kbb:.2f}</strong>.{rank_line}</p>
+
+    <div class="stat-row">
+      {_stat("Strikeouts / walks", f"{kbb:.2f}", f"{int(so)} and {int(bb)}")}
+      {_stat("Of batters faced", f"{k_rate:.1%}", f"against {bb_rate:.1%} walked")}
+      {_stat("Earned run average", f"{era:.2f}", f"{ip:.1f} IP, {whip:.2f} WHIP")}
+    </div>
+
+    {_diverging(list(t["so"].astype(float)), list(t["bb"].astype(float)))}
+
+    <p>Every start this season: strikeouts above the line, walks below it. The
+    ratio is not carried by one night &mdash; he walked one or none in
+    <strong>{quiet} of the {starts}</strong>, and his biggest game
+    ({int(best['so'])} strikeouts on {best['game_date']}) came with
+    {int(best['bb'])} walks.</p>
+
+    {board}
+
+    <p class="caveat"><strong>He is not actually on that leaderboard.</strong> A
+    rate qualifies at one inning per team game, which today is
+    <strong>{need}</strong>; he has thrown {ip:.1f} and is about
+    {short:.0f} innings short. So the bar above is where the number would fall,
+    not a standing he holds &mdash; and the reason it does not count is the same
+    reason it is a good number: a {_age(ctx, "Tolle") or "young"}-year-old in
+    his first full season is being given fewer innings than the men above
+    him.</p>
+    """
+
+
 POSTS: tuple[Post, ...] = (
     Post(
         slug="bello-two-pitchers",
@@ -918,6 +1040,14 @@ POSTS: tuple[Post, ...] = (
             "how short a list it is.",
         dateline="2026-09-06",
         build=chapman_400,
+    ),
+    Post(
+        slug="tolle-command",
+        title="Payton Tolle's strikeouts, and his walks",
+        dek="A first full season built on the ratio between the two, and the "
+            "innings limit that keeps it off the leaderboard.",
+        dateline="2026-09-06",
+        build=tolle_command,
     ),
     Post(
         slug="the-turnaround",

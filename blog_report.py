@@ -27,7 +27,7 @@ import config
 from betting_report import _shell
 from blog.posts import POSTS
 from client.mlb_client import MLBClient
-from data import career_saves, league_games
+from data import career_saves, league_games, pitching_leaders
 from data.fetcher import Fetcher
 
 log = logging.getLogger(__name__)
@@ -123,6 +123,11 @@ def build_context(team_abbr: str, season: int) -> dict:
     except Exception as e:                                  # noqa: BLE001
         log.warning("Career saves unavailable (%s); the milestone post will skip", e)
         ctx["saves_leaders"] = pd.DataFrame()
+    try:
+        ctx["kbb_leaders"] = pitching_leaders.load_leaders(season, client=client)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("K/BB leaders unavailable (%s); that post will skip", e)
+        ctx["kbb_leaders"] = pd.DataFrame()
     return ctx
 
 

@@ -48,6 +48,8 @@ def _offline(monkeypatch):
                         lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(blog_report.career_saves, "load_leaders",
                         lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(blog_report.pitching_leaders, "load_leaders",
+                        lambda *a, **k: pd.DataFrame())
 
 
 class TestPostsAreComputed:
@@ -119,8 +121,11 @@ class TestOnePostCannotTakeThePageDown:
                             _raise("league down"))
         monkeypatch.setattr(blog_report.career_saves, "load_leaders",
                             _raise("leaders down"))
+        monkeypatch.setattr(blog_report.pitching_leaders, "load_leaders",
+                            _raise("rates down"))
         ctx = blog_report.build_context("BOS", 2026)
         assert ctx["league"].empty and ctx["saves_leaders"].empty
+        assert ctx["kbb_leaders"].empty
 
     def test_the_posts_that_need_the_network_say_so_when_it_is_gone(self):
         from blog.posts import chapman_400, the_wildcard
@@ -261,3 +266,25 @@ class TestOnBasePercentage:
     def test_no_at_bats_is_refused_rather_than_divided_by_zero(self):
         from blog.posts import _slash
         assert _slash(self._line(ab=0, pa=1, bb=1)) == {}
+
+
+class TestLadderFormatting:
+    def test_counting_stats_print_whole(self):
+        from blog.posts import _ladder
+        out = _ladder([("Rivera", 652, False), ("Chapman", 399, True)])
+        assert ">652<" in out and ">399<" in out
+
+    def test_rates_print_to_a_fixed_width(self):
+        """A 5.00 rendered as "5" in a column of 4.94s reads as a typo."""
+        from blog.posts import _ladder
+        out = _ladder([("Sale", 6.34, False), ("Schlittler", 5.0, False)])
+        assert ">5.00<" in out and ">5<" not in out
+
+    def test_the_highlighted_row_is_marked(self):
+        from blog.posts import _ladder
+        from viz import theme
+        assert theme.BRASS in _ladder([("A", 1.0, True)])
+
+    def test_no_rows_draws_nothing(self):
+        from blog.posts import _ladder
+        assert _ladder([]) == ""
