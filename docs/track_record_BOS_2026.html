@@ -518,32 +518,32 @@
     against, then settled against the box score. This is that record — not a
     backtest of a model against its own training data, but the published
     projections scored on what happened next.</p>
-    <p><strong>238</strong> graded predictions across
-    <strong>38</strong> game dates (2026-07-25 to 2026-09-04).</p>
+    <p><strong>246</strong> graded predictions across
+    <strong>39</strong> game dates (2026-07-25 to 2026-09-05).</p>
     <p class='note'>170 of these were reconstructed from stored odds rather than published live. Both models are pure functions of their inputs, so a projection can be rebuilt exactly, provided the rebuild is given only the games played before the date it is projecting. They are tagged <code>-replay</code> in the log.</p>
   </section>
   <section class="card">
     <h2>Pitcher strikeouts</h2>
-    <p class="sample">46 graded.</p>
+    <p class="sample">48 graded.</p>
 
-    <p class="verdict flat">No demonstrated edge. Across 46 graded predictions the model's Brier score is 0.2521 against the market's 0.2385 — a gap of -0.0136, whose 95% interval [-0.0366, +0.0089] contains zero. On this sample the model knows nothing the price did not already carry.</p>
+    <p class="verdict flat">No demonstrated edge. Across 48 graded predictions the model's Brier score is 0.2583 against the market's 0.2391 — a gap of -0.0192, whose 95% interval [-0.0430, +0.0044] contains zero. On this sample the model knows nothing the price did not already carry.</p>
 
     <div class="table-scroll">
     <table class="report-table">
       <tbody>
-        <tr><th>Graded predictions</th><td>46</td></tr>
-        <tr><th>AUC</th><td>0.513 <span class="dim">(0.50 = coin flip)</span></td></tr>
-        <tr><th>Brier score</th><td>0.2521 <span class="dim">vs 0.2424 for always quoting the base rate</span></td></tr>
-        <tr><th>Skill vs base rate</th><td>-0.0399</td></tr>
-        <tr><th>Recalibration slope</th><td>0.352</td></tr>
-        <tr><th>Projection bias</th><td>-0.08 K <span class="dim">(mean over-projection)</span></td></tr>
-        <tr><th>Mean absolute error</th><td>1.42 K</td></tr>
+        <tr><th>Graded predictions</th><td>48</td></tr>
+        <tr><th>AUC</th><td>0.497 <span class="dim">(0.50 = coin flip)</span></td></tr>
+        <tr><th>Brier score</th><td>0.2583 <span class="dim">vs 0.2391 for always quoting the base rate</span></td></tr>
+        <tr><th>Skill vs base rate</th><td>-0.0801</td></tr>
+        <tr><th>Recalibration slope</th><td>-0.011</td></tr>
+        <tr><th>Projection bias</th><td>-0.14 K <span class="dim">(mean over-projection)</span></td></tr>
+        <tr><th>Mean absolute error</th><td>1.44 K</td></tr>
         <tr><th>Measured model error</th><td>0.000 K</td></tr>
         <tr><th>In force (gates NO CALL)</th><td>0.37 K</td></tr>
       </tbody>
     </table>
     </div>
-    <p class="note">The slope says how much of the spread in the predictions is real; 1.00 would mean all of it. Measured over 63 projections with a known result. The in-force constant is a league-wide backtest; this is the model's own record.</p>
+    <p class="note">A negative slope means the ordering is backwards: the predictions it is most confident about are the ones it gets wrong. Measured over 65 projections with a known result. The in-force constant is a league-wide backtest; this is the model's own record.</p>
 
     <h3>Calibration</h3>
     
@@ -553,8 +553,8 @@
       <line x1="97.0" y1="34" x2="97.0" y2="286" stroke="#244035" stroke-width="1"/><line x1="34" y1="223.0" x2="286" y2="223.0" stroke="#244035" stroke-width="1"/><line x1="160.0" y1="34" x2="160.0" y2="286" stroke="#244035" stroke-width="1"/><line x1="34" y1="160.0" x2="286" y2="160.0" stroke="#244035" stroke-width="1"/><line x1="223.0" y1="34" x2="223.0" y2="286" stroke="#244035" stroke-width="1"/><line x1="34" y1="97.0" x2="286" y2="97.0" stroke="#244035" stroke-width="1"/>
       <line x1="34.0" y1="286.0" x2="286.0" y2="34.0"
             stroke="#9DB0A5" stroke-width="1" stroke-dasharray="4 3"/>
-      <path d="M131.7,128.5 L147.5,128.5 L153.6,142.0 L161.8,191.5 L173.9,142.0 L190.6,97.0" fill="none" stroke="#4391e9" stroke-width="2"/>
-      <circle cx="131.7" cy="128.5" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 39%, happened 62% — 8 predictions</title></circle><circle cx="147.5" cy="128.5" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 45%, happened 62% — 8 predictions</title></circle><circle cx="153.6" cy="142.0" r="5.6" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 47%, happened 57% — 7 predictions</title></circle><circle cx="161.8" cy="191.5" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 51%, happened 38% — 8 predictions</title></circle><circle cx="173.9" cy="142.0" r="5.6" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 56%, happened 57% — 7 predictions</title></circle><circle cx="190.6" cy="97.0" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 62%, happened 75% — 8 predictions</title></circle>
+      <path d="M126.6,97.0 L146.2,160.0 L153.2,128.5 L160.7,191.5 L173.1,128.5 L190.6,97.0" fill="none" stroke="#4391e9" stroke-width="2"/>
+      <circle cx="126.6" cy="97.0" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 37%, happened 75% — 8 predictions</title></circle><circle cx="146.2" cy="160.0" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 45%, happened 50% — 8 predictions</title></circle><circle cx="153.2" cy="128.5" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 47%, happened 62% — 8 predictions</title></circle><circle cx="160.7" cy="191.5" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 50%, happened 38% — 8 predictions</title></circle><circle cx="173.1" cy="128.5" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 55%, happened 62% — 8 predictions</title></circle><circle cx="190.6" cy="97.0" r="5.8" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 62%, happened 75% — 8 predictions</title></circle>
       <text x="34.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">0%</text><text x="28" y="289.0" fill="#9DB0A5" font-size="10" text-anchor="end">0%</text><text x="97.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">25%</text><text x="28" y="226.0" fill="#9DB0A5" font-size="10" text-anchor="end">25%</text><text x="160.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">50%</text><text x="28" y="163.0" fill="#9DB0A5" font-size="10" text-anchor="end">50%</text><text x="223.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">75%</text><text x="28" y="100.0" fill="#9DB0A5" font-size="10" text-anchor="end">75%</text><text x="286.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">100%</text><text x="28" y="37.0" fill="#9DB0A5" font-size="10" text-anchor="end">100%</text>
       <text x="160.0" y="316" fill="#9DB0A5" font-size="10" text-anchor="middle">Model said</text>
       <text x="10" y="160.0" fill="#9DB0A5" font-size="10" text-anchor="middle"
@@ -562,25 +562,25 @@
     </svg>
     <p class="note">The dashed diagonal is perfect calibration. Dot size is how
     many predictions fell in that band; points above the line mean the model
-    said it less often than it happened.</p><p class="note">Weighted RMS gap 0.150 against a sampling-noise floor of 0.179. The gap is inside the noise floor: this sample cannot tell this model apart from a well-calibrated one.</p>
+    said it less often than it happened.</p><p class="note">Weighted RMS gap 0.187 against a sampling-noise floor of 0.174. The gap is larger than the noise, so it is a real miscalibration.</p>
   </section>
   <section class="card">
     <h2>Batter total bases</h2>
-    <p class="sample">192 graded.</p>
+    <p class="sample">198 graded.</p>
 
-    <p class="verdict flat">No demonstrated edge. Across 192 graded predictions the model's Brier score is 0.2505 against the market's 0.2466 — a gap of -0.0039, whose 95% interval [-0.0127, +0.0050] contains zero. On this sample the model knows nothing the price did not already carry.</p>
+    <p class="verdict flat">No demonstrated edge. Across 198 graded predictions the model's Brier score is 0.2504 against the market's 0.2466 — a gap of -0.0038, whose 95% interval [-0.0127, +0.0047] contains zero. On this sample the model knows nothing the price did not already carry.</p>
 
     <div class="table-scroll">
     <table class="report-table">
       <tbody>
-        <tr><th>Graded predictions</th><td>192</td></tr>
-        <tr><th>AUC</th><td>0.467 <span class="dim">(0.50 = coin flip)</span></td></tr>
-        <tr><th>Brier score</th><td>0.2505 <span class="dim">vs 0.2439 for always quoting the base rate</span></td></tr>
-        <tr><th>Skill vs base rate</th><td>-0.0272</td></tr>
-        <tr><th>Recalibration slope</th><td>-0.523</td></tr>
+        <tr><th>Graded predictions</th><td>198</td></tr>
+        <tr><th>AUC</th><td>0.465 <span class="dim">(0.50 = coin flip)</span></td></tr>
+        <tr><th>Brier score</th><td>0.2504 <span class="dim">vs 0.2435 for always quoting the base rate</span></td></tr>
+        <tr><th>Skill vs base rate</th><td>-0.0285</td></tr>
+        <tr><th>Recalibration slope</th><td>-0.599</td></tr>
         <tr><th>Projection bias</th><td>-0.03 TB <span class="dim">(mean over-projection)</span></td></tr>
-        <tr><th>Mean absolute error</th><td>1.39 TB</td></tr>
-        <tr><th>Measured projection error</th><td>1.309 TB</td></tr>
+        <tr><th>Mean absolute error</th><td>1.38 TB</td></tr>
+        <tr><th>Measured projection error</th><td>1.292 TB</td></tr>
       </tbody>
     </table>
     </div>
@@ -594,8 +594,8 @@
       <line x1="97.0" y1="34" x2="97.0" y2="286" stroke="#244035" stroke-width="1"/><line x1="34" y1="223.0" x2="286" y2="223.0" stroke="#244035" stroke-width="1"/><line x1="160.0" y1="34" x2="160.0" y2="286" stroke="#244035" stroke-width="1"/><line x1="34" y1="160.0" x2="286" y2="160.0" stroke="#244035" stroke-width="1"/><line x1="223.0" y1="34" x2="223.0" y2="286" stroke="#244035" stroke-width="1"/><line x1="34" y1="97.0" x2="286" y2="97.0" stroke="#244035" stroke-width="1"/>
       <line x1="34.0" y1="286.0" x2="286.0" y2="34.0"
             stroke="#9DB0A5" stroke-width="1" stroke-dasharray="4 3"/>
-      <path d="M112.9,183.6 L121.1,136.4 L127.1,207.2 L138.2,191.5 L143.9,175.8 L149.7,183.6" fill="none" stroke="#4391e9" stroke-width="2"/>
-      <circle cx="112.9" cy="183.6" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 31%, happened 41% — 32 predictions</title></circle><circle cx="121.1" cy="136.4" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 35%, happened 59% — 32 predictions</title></circle><circle cx="127.1" cy="207.2" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 37%, happened 31% — 32 predictions</title></circle><circle cx="138.2" cy="191.5" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 41%, happened 38% — 32 predictions</title></circle><circle cx="143.9" cy="175.8" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 44%, happened 44% — 32 predictions</title></circle><circle cx="149.7" cy="183.6" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 46%, happened 41% — 32 predictions</title></circle>
+      <path d="M112.7,179.1 L120.9,148.5 L126.9,202.0 L137.7,194.4 L143.8,171.5 L149.6,186.7" fill="none" stroke="#4391e9" stroke-width="2"/>
+      <circle cx="112.7" cy="179.1" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 31%, happened 42% — 33 predictions</title></circle><circle cx="120.9" cy="148.5" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 35%, happened 55% — 33 predictions</title></circle><circle cx="126.9" cy="202.0" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 37%, happened 33% — 33 predictions</title></circle><circle cx="137.7" cy="194.4" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 41%, happened 36% — 33 predictions</title></circle><circle cx="143.8" cy="171.5" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 44%, happened 45% — 33 predictions</title></circle><circle cx="149.6" cy="186.7" r="8.7" fill="#4391e9" fill-opacity="0.85" stroke="#F6F1E3" stroke-width="1"><title>said 46%, happened 39% — 33 predictions</title></circle>
       <text x="34.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">0%</text><text x="28" y="289.0" fill="#9DB0A5" font-size="10" text-anchor="end">0%</text><text x="97.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">25%</text><text x="28" y="226.0" fill="#9DB0A5" font-size="10" text-anchor="end">25%</text><text x="160.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">50%</text><text x="28" y="163.0" fill="#9DB0A5" font-size="10" text-anchor="end">50%</text><text x="223.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">75%</text><text x="28" y="100.0" fill="#9DB0A5" font-size="10" text-anchor="end">75%</text><text x="286.0" y="301" fill="#9DB0A5" font-size="10" text-anchor="middle">100%</text><text x="28" y="37.0" fill="#9DB0A5" font-size="10" text-anchor="end">100%</text>
       <text x="160.0" y="316" fill="#9DB0A5" font-size="10" text-anchor="middle">Model said</text>
       <text x="10" y="160.0" fill="#9DB0A5" font-size="10" text-anchor="middle"
@@ -603,7 +603,7 @@
     </svg>
     <p class="note">The dashed diagonal is perfect calibration. Dot size is how
     many predictions fell in that band; points above the line mean the model
-    said it less often than it happened.</p><p class="note">Weighted RMS gap 0.114 against a sampling-noise floor of 0.086. The gap is larger than the noise, so it is a real miscalibration.</p>
+    said it less often than it happened.</p><p class="note">Weighted RMS gap 0.101 against a sampling-noise floor of 0.084. The gap is larger than the noise, so it is a real miscalibration.</p>
   </section>
   <section class="card">
     <h2>Why "no edge" is not the same as "no skill"</h2>
@@ -640,16 +640,16 @@
     prices is the book revising its own opinion. If the model knows something
     the book has not priced yet, the revision should on average come
     <em>toward</em> the side the model took.</p>
-    <p>Measured over <strong>435</strong> priced player-games — the side
+    <p>Measured over <strong>456</strong> priced player-games — the side
     fixed against the opening price, the movement measured to the last capture
     before first pitch:</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead><tr><th>Market</th><th>n</th><th>Mean move (pts)</th><th>95% CI</th><th>Beat the close</th></tr></thead>
-      <tbody><tr><td>Strikeouts</td><td>123</td><td>+0.48</td><td>[-0.09, +1.06]</td><td>48%</td></tr><tr><td>Total bases</td><td>312</td><td>+0.19</td><td>[+0.04, +0.35]</td><td>37%</td></tr>
-        <tr><td><strong>All</strong></td><td><strong>435</strong></td>
+      <tbody><tr><td>Strikeouts</td><td>129</td><td>+0.48</td><td>[-0.08, +1.04]</td><td>48%</td></tr><tr><td>Total bases</td><td>327</td><td>+0.18</td><td>[+0.04, +0.33]</td><td>37%</td></tr>
+        <tr><td><strong>All</strong></td><td><strong>456</strong></td>
             <td><strong>+0.27</strong></td>
-            <td><strong>[+0.08, +0.47]</strong></td>
+            <td><strong>[+0.08, +0.46]</strong></td>
             <td><strong>40%</strong></td></tr>
       </tbody>
     </table>
