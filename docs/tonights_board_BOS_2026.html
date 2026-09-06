@@ -487,14 +487,41 @@
 
   <section class="card">
     <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
-    <p class="table-note"><strong>No movement to report yet.</strong> This is the first snapshot of the game, and movement needs two. The next scheduled build will have something to compare against.</p>
+    
+    <p class="market-read">Biggest move: <strong>Boston Red Sox</strong> -172 &rarr; -181, <strong>0.9 points</strong> toward the over since 23:00 UTC.</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Open &rarr; Now</th>
+          <th>Shift</th>
+          <th>Market</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>-172 &rarr; -181</td>
+          <td class="delta-pos">&#9650; 0.9 pts</td>
+          <td>Moneyline</td>
+        </tr>
+        <tr>
+          <td>Los Angeles Angels</td>
+          <td>+144 &rarr; +149</td>
+          <td class="delta-neg">&#9660; 0.9 pts</td>
+          <td>Moneyline</td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#how-movement-is-ranked">How movement is ranked &rarr;</a></p>
   </section>
 
   <section class="card">
     <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
     
     <p class="market-read">No bets logged on tonight's game.</p>
-    
+    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>23:00 UTC</strong>, 1116 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -510,19 +537,100 @@
 
   <section class="card">
     <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
-    <p class="table-note"><strong>No consensus available.</strong> Pricing a book against the market needs several books quoting the same number at the same time, and this build did not get that. Nothing is shown rather than comparing a price against itself.</p>
+    
+    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>Los Angeles Angels</strong> moneyline at +149, -2.09%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
+    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Los Angeles Angels</strong> moneyline at +149 becomes <strong>+27.21%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
+    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> -172 at 23:00 UTC &rarr; -181 &nbsp;·&nbsp; <strong>Los Angeles Angels</strong> +144 at 23:00 UTC &rarr; +149 — every build's prices are logged, so this is measured drift rather than an impression.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Draftkings</th>
+          <th>EV</th>
+          <th>EV <em>if</em> boosted (50%)</th>
+          <th>Consensus Fair %</th>
+          <th>Books</th>
+          <th>Market</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Los Angeles Angels</td>
+          <td>Moneyline</td>
+          <td>+149</td>
+          <td class="delta-neg">-2.09%</td>
+          <td>+27.21%</td>
+          <td>39.3%</td>
+          <td>3</td>
+          <td>Moneyline</td>
+        </tr>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>-181</td>
+          <td class="delta-neg">-5.80%</td>
+          <td>+10.96%</td>
+          <td>60.7%</td>
+          <td>3</td>
+          <td>Moneyline</td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#how-the-consensus-is-built">How the consensus is built &rarr;</a></p>
   </section>
 
   <section class="card">
     <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
-    <p class="table-note"><strong>No promotion maths available.</strong> Valuing a boost or a token needs a fair price to apply it to, and this build has no consensus to supply one.</p>
+    
+    <p class="market-read">Both promotions are worth <strong>more on longer
+    prices</strong>. The token only settles a moneyline, so most rows below have
+    no token figure &mdash; the boost's real advantage is what it can reach.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Price</th>
+          <th>EV raw</th>
+          <th>EV + 50% boost</th>
+          <th>EV + 2-run token</th>
+          <th>Better</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Los Angeles Angels</td>
+          <td>Moneyline</td>
+          <td>+149</td>
+          <td>-2.09%</td>
+          <td>+27.21%</td>
+          <td>+23.51%</td>
+          <td><strong>Boost</strong></td>
+        </tr>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>-181</td>
+          <td>-5.80%</td>
+          <td>+10.96%</td>
+          <td>+10.16%</td>
+          <td><strong>Boost</strong></td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#where-these-numbers-come-from">Where these numbers come from &rarr;</a></p>
   </section>
 
   <section class="card">
     <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
     <p class="table-note">Probable starter for 2026-09-06: <strong>Payton Tolle</strong>. First pitch <strong>1:35 PM ET (17:35 UTC)</strong>.</p>
     <p class="table-note">No strikeout line quoted for tonight.</p>
-    <p class="table-note">No total-bases lines quoted for tonight.</p>
+    <ul class="market-read"><li><strong>Wilyer Abreu</strong> &nbsp;<span class="prop-line">1.5 (+116)</span><br>market <strong>43.2%</strong> over &nbsp;·&nbsp; model <strong>43.3%</strong> &nbsp;·&nbsp; gap <strong>+0.1 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Caleb Durbin</strong> &nbsp;<span class="prop-line">1.5 (+139)</span><br>market <strong>39.1%</strong> over &nbsp;·&nbsp; model <strong>33.4%</strong> &nbsp;·&nbsp; gap <strong>-5.7 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-5.7 pts vs market)</span></li><li><strong>Nick Sogard</strong> &nbsp;<span class="prop-line">1.5 (+146)</span><br>market <strong>38.0%</strong> over &nbsp;·&nbsp; model <strong>40.6%</strong> &nbsp;·&nbsp; gap <strong>+2.6 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Mickey Gasper</strong> &nbsp;<span class="prop-line">1.5 (+140)</span><br>market <strong>39.0%</strong> over &nbsp;·&nbsp; model <strong>34.0%</strong> &nbsp;·&nbsp; gap <strong>-5.0 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-5.0 pts vs market)</span></li><li><strong>Adley Rutschman</strong> &nbsp;<span class="prop-line">1.5 (+118)</span><br>market <strong>42.9%</strong> over &nbsp;·&nbsp; model <strong>31.6%</strong> &nbsp;·&nbsp; gap <strong>-11.3 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-11.3 pts vs market)</span></li></ul>
     <p class="table-note">Every one of these reads <code>NO CALL</code> because
     both models measured their own error and found it as large as the entire
     spread of opinion they can demonstrate. The workings, the error bars and how
