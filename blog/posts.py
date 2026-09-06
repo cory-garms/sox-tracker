@@ -237,11 +237,11 @@ def gasper(ctx: dict[str, Any]) -> str:
     of {int(after['hr'])} or more in {int(after['ab'])} is
     <strong>{p_luck:.4f}</strong>, roughly one in {1 / p_luck:,.0f}. That is small
     enough to say the rate has genuinely changed and far too small a sample to say
-    what it changed <em>to</em>. A .{round(after['avg'] * 1000):03d} average will
-    not survive contact with the rest of the season. The question worth watching
-    is not whether he keeps slugging
-    {after['slg']:.3f} &mdash; he will not &mdash; but whether the strikeout rate
-    stays down when the batted-ball luck stops.</p>
+    what it changed <em>to</em>. A .{round(after['avg'] * 1000):03d} average and
+    {after['slg']:.3f} slugging on {int(after['ab'])} at-bats are rates this
+    sample cannot place; where they settle, and whether the strikeout rate stays
+    down once the batted-ball luck turns, is not something these numbers
+    answer.</p>
     """
 
 
@@ -524,10 +524,11 @@ def gasper_september(ctx: dict[str, Any]) -> str:
     flags = [1 if h > 0 else 0 for h in g["hr"]]
 
     return f"""
-    <p class="lede">The earlier note ended on a prediction: that the average
-    would not survive September, and that the strikeout rate was the part worth
-    watching. He is hitting <strong>.{round(a_sept['avg'] * 1000):03d}</strong>
-    this month. The home runs did not stop; the contact did.</p>
+    <p class="lede">The note above splits Mickey Gasper's season around a
+    {int(gaps.max())}-day absence. A month on, the half after the break has a
+    third part: he is hitting
+    <strong>.{round(a_sept['avg'] * 1000):03d}</strong> in September, with
+    {int(a_sept['hr'])} home runs in {int(a_sept['ab'])} at-bats.</p>
 
     <div class="stat-row">
       {_stat("Home runs since", f"{int(a_all['hr'])}", f"in {int(a_all['ab'])} AB")}
@@ -546,19 +547,19 @@ def gasper_september(ctx: dict[str, Any]) -> str:
     {_bar_trio("Strikeout rate", [("Before", before["k_rate"]), ("Streak", a_early["k_rate"]),
                                   ("September", a_sept["k_rate"])], fmt="{:.1%}", highlight=2)}
 
-    <p><strong>The part that argued for something real is the part that went
-    back.</strong> The case for the streak being more than luck was the
-    strikeout rate: {before['k_rate']:.0%} before the break, {a_early['k_rate']:.0%}
-    during it. In September it is <strong>{a_sept['k_rate']:.0%}</strong> &mdash;
-    worse than where he started. The slugging held and the contact did not,
-    which is the opposite of what the first post expected to survive.</p>
+    <p><strong>Both rates have come off the streak.</strong> The slugging is
+    down from {a_early['slg']:.3f} to {a_sept['slg']:.3f}, still above the
+    {before['slg']:.3f} he posted before the break. The strikeout rate has moved
+    the other way: {before['k_rate']:.1%} before the absence,
+    {a_early['k_rate']:.1%} during the streak, and
+    <strong>{a_sept['k_rate']:.1%}</strong> in September &mdash; higher than
+    either.</p>
 
     <p class="caveat">{int(a_sept['ab'])} September at-bats is a smaller sample
-    than the one the original post spent a paragraph warning about, and it is
-    being used here to judge that one. Both readings rest on a part-time
-    catcher's playing time. The honest summary is that the average regressed
-    exactly as predicted, the power has not yet, and nothing in
-    {int(a_all['ab'])} at-bats can separate those.</p>
+    than the {int(a_early['ab'])} it is being set against, and both rest on a
+    part-time catcher's playing time. Nothing in {int(a_all['ab'])} at-bats
+    separates a rate that has changed from one that has not settled, in either
+    direction.</p>
     """
 
 
@@ -923,9 +924,9 @@ POSTS: tuple[Post, ...] = (
     ),
     Post(
         slug="gasper-september",
-        title="September came, as promised",
-        dek="The earlier note bet that the average would collapse and the "
-            "strikeout rate would hold. Exactly one of those happened.",
+        title="Mickey Gasper in September",
+        dek="A month on from the streak: the average has come down, the home "
+            "runs have not, and the strikeout rate has gone back up.",
         dateline="2026-09-06",
         build=gasper_september,
     ),
