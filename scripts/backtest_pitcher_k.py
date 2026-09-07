@@ -50,27 +50,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config  # noqa: E402
 from analysis.betting import MODEL_ERROR_K  # noqa: E402
 from analysis.k_projections import project_marcel  # noqa: E402
+# One decomposition, shared. Three copies of this arithmetic existed and the
+# one the scripts used did not return `mse`, so an error bar computed from it
+# silently read zero.
+from analysis.scoring import decompose  # noqa: E402
 from client.mlb_client import MLBClient  # noqa: E402
 from data import league_pitching as lp  # noqa: E402
 from data import opponent as opp  # noqa: E402
 from data.fetcher import Fetcher  # noqa: E402
-
-
-def decompose(projected: list[float], actual: list[float]) -> dict[str, float]:
-    n = len(projected)
-    if not n:
-        return {"n": 0}
-    mse = sum((p - a) ** 2 for p, a in zip(projected, actual)) / n
-    rmse = math.sqrt(mse)
-    # A perfect projection of a Poisson count still scatters by sqrt(mean).
-    poisson_var = sum(projected) / n
-    model_err = math.sqrt(max(0.0, mse - poisson_var))
-    bias = sum(p - a for p, a in zip(projected, actual)) / n
-    mae = sum(abs(p - a) for p, a in zip(projected, actual)) / n
-    return {
-        "n": n, "rmse": rmse, "poisson": math.sqrt(poisson_var),
-        "model_err": model_err, "bias": bias, "mae": mae,
-    }
 
 
 def report(label: str, d: dict[str, float]) -> None:

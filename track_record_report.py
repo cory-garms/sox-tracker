@@ -28,7 +28,7 @@ import pandas as pd
 
 import config
 import numpy as np
-from analysis import scoring, selection_effect
+from analysis import model_lineage, scoring, selection_effect
 from analysis.betting import MODEL_ERROR_K, MODEL_ERROR_TB_PROB
 from betting_report import _shell
 from data import predictions_history as ph
@@ -497,6 +497,104 @@ def _selection_section(history: pd.DataFrame, season: int, team_id: int) -> str:
   </section>"""
 
 
+_STATUS_LABEL = {
+    "shipped": "in force", "retired": "retired",
+    "component": "component", "baseline": "baseline",
+}
+
+
+def _lineage_section(season: int) -> str:
+    """
+    Has the strikeout model actually improved?
+
+    The prediction log cannot answer this: its replayed rows end 2026-08-23 and
+    its live rows begin 2026-08-24, so early-versus-late is exactly
+    replay-versus-live. What can answer it is that every projection this repo
+    has shipped still exists as a function, so all of them can be run over the
+    same held-out league starts and compared directly.
+    """
+    data = model_lineage.load(season)
+    if not data or not data.get("models"):
+        return ""
+
+    rows = "".join(
+        f'<tr><td>{m["label"]}</td>'
+        f'<td class="dim">{_STATUS_LABEL.get(m["status"], m["status"])}</td>'
+        f'<td>{m["model_err"]:.3f}</td>'
+        f'<td class="dim">&plusmn;{m["se"]:.3f}</td>'
+        f'<td>{m["mae"]:.3f}</td>'
+        f'<td>{m["bias"]:+.3f}</td></tr>'
+        for m in data["models"])
+
+    def _verdict_row(c):
+        if c["better"] is None:
+            verdict = "no measurable difference"
+            cls = "flat"
+        else:
+            verdict = f'<strong>{c["better"]}</strong> better'
+            cls = "good"
+        # Verdict second, not last. It is the answer to the question in the
+        # first column, and on a phone this table scrolls -- a reader should not
+        # have to swipe past two numeric columns to find out which way it went.
+        return (f'<tr><td>{c["question"]}</td>'
+                f'<td class="{cls}">{verdict}</td>'
+                f'<td>{c["gap"]:+.4f}</td>'
+                f'<td class="dim">[{c["lo"]:+.4f}, {c["hi"]:+.4f}]</td>'
+                f'<td class="dim">{c["a"]} &minus; {c["b"]}</td></tr>')
+
+    pairs = "".join(_verdict_row(c) for c in data["comparisons"])
+
+    shipped = next((m for m in data["models"] if m["status"] == "shipped"), None)
+    retired = next((m for m in data["models"] if m["status"] == "retired"), None)
+    headline = ""
+    if shipped and retired:
+        moved = retired["model_err"] - shipped["model_err"]
+        direction = "better" if moved > 0 else "worse"
+        headline = (
+            f'<p>The model in force measures <strong>{shipped["model_err"]:.2f} K</strong> '
+            f'of error against the <strong>{retired["model_err"]:.2f} K</strong> of the '
+            f'one it replaced &mdash; {abs(moved):.2f} K {direction}, on the same '
+            f'{data["n"]:,} starts.</p>')
+
+    return f"""
+  <section class="card">
+    <h2>Has the strikeout model got better?</h2>
+    <p>Every projection this site has shipped is still a function in
+    <code>analysis/k_projections.py</code>, kept so a replaced baseline stays
+    measurable. All of them are run here over the same
+    <strong>{data["n"]:,}</strong> held-out starts by
+    <strong>{data["pitchers"]}</strong> league pitchers &mdash; each start
+    projected from that pitcher's earlier starts only, with the league rate as
+    of that date. Same starts, same priors, same opponents; only the arithmetic
+    differs.</p>
+    {headline}
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Model</th><th>Status</th><th>Model error</th><th>SE</th>
+      <th>MAE</th><th>Bias</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p>Absolute error bars are wide enough to overlap, which is why the changes
+    are judged by pairing the residuals instead: both models predict the same
+    starts, so most of the variance is the starts themselves and cancels.
+    A positive gap means the second model in the pair is better.</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Question</th><th>Verdict</th><th>MSE gap (K&sup2;)</th>
+      <th>95% CI</th><th>Pair</th></tr></thead>
+      <tbody>{pairs}</tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p class="note">This is the strikeout model only. The total-bases model has
+    shipped one version and never been revised, so it has no lineage to compare
+    &mdash; and the prediction log cannot stand in for one, because its replayed
+    rows end the day its live rows begin.</p>
+  </section>"""
+
+
 def generate_track_record_html(
     team_abbr: str = config.TEAM_ABBR,
     season: int = config.SEASON,
@@ -541,6 +639,7 @@ def generate_track_record_html(
 
         sections += _accuracy_section(history)
         sections += _selection_section(history, season, team_id)
+        sections += _lineage_section(season)
         sections += """
   """ + _market_move_section(history) + """
   <section class="card">

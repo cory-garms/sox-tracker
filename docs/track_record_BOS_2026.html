@@ -669,6 +669,42 @@
     slope is correspondingly unstable &mdash; it is the sign and the gap that
     carry the argument, not the third decimal.</p>
   </section>
+  <section class="card">
+    <h2>Has the strikeout model got better?</h2>
+    <p>Every projection this site has shipped is still a function in
+    <code>analysis/k_projections.py</code>, kept so a replaced baseline stays
+    measurable. All of them are run here over the same
+    <strong>3,165</strong> held-out starts by
+    <strong>225</strong> league pitchers &mdash; each start
+    projected from that pitcher's earlier starts only, with the league rate as
+    of that date. Same starts, same priors, same opponents; only the arithmetic
+    differs.</p>
+    <p>The model in force measures <strong>0.31 K</strong> of error against the <strong>0.59 K</strong> of the one it replaced &mdash; 0.28 K better, on the same 3,165 starts.</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Model</th><th>Status</th><th>Model error</th><th>SE</th>
+      <th>MAE</th><th>Bias</th></tr></thead>
+      <tbody><tr><td>League average</td><td class="dim">baseline</td><td>0.877</td><td class="dim">&plusmn;0.082</td><td>1.907</td><td>-0.005</td></tr><tr><td>Season average</td><td class="dim">baseline</td><td>0.587</td><td class="dim">&plusmn;0.113</td><td>1.836</td><td>+0.009</td></tr><tr><td>Season / last-5 blend</td><td class="dim">retired</td><td>0.588</td><td class="dim">&plusmn;0.113</td><td>1.837</td><td>+0.022</td></tr><tr><td>Blend + opponent</td><td class="dim">retired</td><td>0.516</td><td class="dim">&plusmn;0.127</td><td>1.825</td><td>+0.023</td></tr><tr><td>Marcel regression</td><td class="dim">component</td><td>0.413</td><td class="dim">&plusmn;0.156</td><td>1.813</td><td>+0.016</td></tr><tr><td>Marcel + opponent</td><td class="dim">in force</td><td>0.307</td><td class="dim">&plusmn;0.207</td><td>1.800</td><td>+0.017</td></tr></tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p>Absolute error bars are wide enough to overlap, which is why the changes
+    are judged by pairing the residuals instead: both models predict the same
+    starts, so most of the variance is the starts themselves and cancels.
+    A positive gap means the second model in the pair is better.</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Question</th><th>Verdict</th><th>MSE gap (K&sup2;)</th>
+      <th>95% CI</th><th>Pair</th></tr></thead>
+      <tbody><tr><td>Did the last-5 term earn anything?</td><td class="flat">no measurable difference</td><td>+0.0139</td><td class="dim">[-0.0225, +0.0479]</td><td class="dim">blend &minus; season</td></tr><tr><td>Did replacing the blend with regression help?</td><td class="good"><strong>marcel</strong> better</td><td>+0.1813</td><td class="dim">[+0.1027, +0.2623]</td><td class="dim">blend &minus; marcel</td></tr><tr><td>Does the opponent factor help?</td><td class="good"><strong>marcel+opp</strong> better</td><td>+0.0755</td><td class="dim">[+0.0268, +0.1185]</td><td class="dim">marcel &minus; marcel+opp</td></tr><tr><td>Both changes together, against what shipped before.</td><td class="good"><strong>marcel+opp</strong> better</td><td>+0.2568</td><td class="dim">[+0.1669, +0.3473]</td><td class="dim">blend &minus; marcel+opp</td></tr></tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p class="note">This is the strikeout model only. The total-bases model has
+    shipped one version and never been revised, so it has no lineage to compare
+    &mdash; and the prediction log cannot stand in for one, because its replayed
+    rows end the day its live rows begin.</p>
+  </section>
   
   <section class="card">
     <h2>Does the market move toward the model?</h2>

@@ -36,31 +36,15 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
+from analysis.scoring import decompose, se_of_model_error  # noqa: E402
 from analysis.k_projections import (  # noqa: E402
     project_blend, project_league, project_marcel, project_season,
 )
 from client.mlb_client import MLBClient  # noqa: E402
 from data import league_pitching as lp  # noqa: E402
 from data import opponent as opp  # noqa: E402
-from scripts.backtest_pitcher_k import decompose  # noqa: E402
 
 BOOTSTRAP_RESAMPLES = 2000
-
-
-def se_of_model_error(d: dict) -> float:
-    """
-    Standard error on a *single* model's error estimate.
-
-    SE(MSE) ~ MSE * sqrt(2/n) for roughly-normal residuals, and model_err is
-    sqrt(MSE - poisson), so the error propagates as SE(MSE) / (2 * model_err).
-
-    This is the right error bar to print next to one model's absolute accuracy.
-    It is the WRONG thing to compare two models with - see `paired_ci`.
-    """
-    n, mse, me = d.get("n", 0), d.get("rmse", 0) ** 2, d.get("model_err", 0)
-    if not n or me <= 0:
-        return float("nan")
-    return (mse * math.sqrt(2.0 / n)) / (2.0 * me)
 
 
 def paired_ci(

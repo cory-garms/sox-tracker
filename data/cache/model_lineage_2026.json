@@ -1,0 +1,112 @@
+{
+ "season": 2026,
+ "n": 3165,
+ "pitchers": 225,
+ "league_k9": 8.358133293573879,
+ "models": [
+  {
+   "key": "league",
+   "label": "League average",
+   "status": "baseline",
+   "note": "Every starter gets the league rate. The floor any model must clear.",
+   "rmse": 2.38718578418464,
+   "mae": 1.9073026335008527,
+   "model_err": 0.8766098425078434,
+   "bias": -0.005333871465065855,
+   "se": 0.0817079362777309
+  },
+  {
+   "key": "season",
+   "label": "Season average",
+   "status": "baseline",
+   "note": "The pitcher's own rate, unregressed.",
+   "rmse": 2.2998687388330694,
+   "mae": 1.8361373550204227,
+   "model_err": 0.5869560748769904,
+   "bias": 0.009333758329938949,
+   "se": 0.11326575998387851
+  },
+  {
+   "key": "blend",
+   "label": "Season / last-5 blend",
+   "status": "retired",
+   "note": "Shipped until 2026-08-04.",
+   "rmse": 2.3028808274642585,
+   "mae": 1.837445681551666,
+   "model_err": 0.5878264052035126,
+   "bias": 0.022175199151306422,
+   "se": 0.1133944979355381
+  },
+  {
+   "key": "blend+opp",
+   "label": "Blend + opponent",
+   "status": "retired",
+   "note": "The blend with the opponent strikeout factor applied.",
+   "rmse": 2.285833884768923,
+   "mae": 1.8252874525627056,
+   "model_err": 0.5161663860299325,
+   "bias": 0.023063786993897793,
+   "se": 0.12723241153945455
+  },
+  {
+   "key": "marcel",
+   "label": "Marcel regression",
+   "status": "component",
+   "note": "Own rate regressed toward the league by innings behind it.",
+   "rmse": 2.2631780454519514,
+   "mae": 1.812805539235251,
+   "model_err": 0.41305726892564043,
+   "bias": 0.01581353430671743,
+   "se": 0.15585664336287602
+  },
+  {
+   "key": "marcel+opp",
+   "label": "Marcel + opponent",
+   "status": "shipped",
+   "note": "What the board runs today.",
+   "rmse": 2.2464329391039213,
+   "mae": 1.7995298940645512,
+   "model_err": 0.30689449450931167,
+   "bias": 0.016731695434275953,
+   "se": 0.20667881575967867
+  }
+ ],
+ "comparisons": [
+  {
+   "a": "blend",
+   "b": "season",
+   "question": "Did the last-5 term earn anything?",
+   "gap": 0.013863889640867762,
+   "lo": -0.02252397549821653,
+   "hi": 0.04794716688938275,
+   "better": null
+  },
+  {
+   "a": "blend",
+   "b": "marcel",
+   "question": "Did replacing the blend with regression help?",
+   "gap": 0.1812852400867412,
+   "lo": 0.10267264000555514,
+   "hi": 0.2622901444303152,
+   "better": "marcel"
+  },
+  {
+   "a": "marcel",
+   "b": "marcel+opp",
+   "question": "Does the opponent factor help?",
+   "gap": 0.07551391552464233,
+   "lo": 0.026814290878198338,
+   "hi": 0.11846594847085756,
+   "better": "marcel+opp"
+  },
+  {
+   "a": "blend",
+   "b": "marcel+opp",
+   "question": "Both changes together, against what shipped before.",
+   "gap": 0.25679915561138356,
+   "lo": 0.1668647369514268,
+   "hi": 0.3473105190066848,
+   "better": "marcel+opp"
+  }
+ ]
+}
