@@ -186,9 +186,59 @@ def attach_clv(predictions: pd.DataFrame, odds: pd.DataFrame) -> pd.DataFrame:
                 "clv_points": round(clv_points(side, float(open_fair), float(close_fair)), 3),
                 "opened_at": str(open_row["captured_at"]),
                 "closed_at": str(close_row["captured_at"]),
+                # How near first pitch the "close" actually was. Carried because
+                # the answer depends on it: measured over every capture the mean
+                # movement is positive and its interval clears zero, and measured
+                # only where the last capture landed within an hour of first
+                # pitch it turns negative and the interval spans zero. A close
+                # taken three hours out is not a close, and a section that does
+                # not say how near it got is reporting the schedule of a cron
+                # job as though it were a property of the market.
+                "close_lead_minutes": _lead_minutes(close_row),
                 "model_version": r.get("model_version", ""),
             })
     return pd.DataFrame(out)
+
+
+def _lead_minutes(row: Any) -> float:
+    """Minutes between a capture and first pitch; NaN when either is unreadable."""
+    try:
+        cap = pd.to_datetime(row.get("captured_at"), utc=True)
+        ct = pd.to_datetime(row.get("commence_time"), utc=True)
+    except (TypeError, ValueError):
+        return float("nan")
+    if pd.isna(cap) or pd.isna(ct):
+        return float("nan")
+    return round((ct - cap).total_seconds() / 60.0, 1)
+
+
+def by_close_window(frame: pd.DataFrame,
+                    windows: tuple[int, ...] = (120, 60, 30)) -> list[dict[str, Any]]:
+    """
+    The same measurement, restricted to closes that actually landed near first
+    pitch.
+
+    This exists because the headline does not survive it. Over every capture the
+    mean movement is positive with an interval clearing zero; restricted to the
+    captures within an hour of first pitch it is negative, and the interval
+    spans zero. Either the effect is real only in the hours before a close, or
+    -- far likelier -- an early capture differenced against a slightly less
+    early one is measuring the market waking up rather than the model
+    anticipating it.
+
+    Reported rather than resolved: the honest position is that this cannot yet
+    be told apart, and the row that says so belongs on the page.
+    """
+    if frame is None or frame.empty or "close_lead_minutes" not in frame.columns:
+        return []
+    lead = pd.to_numeric(frame["close_lead_minutes"], errors="coerce")
+    rows = [{"label": "Every capture", "cap": None, **summarise(frame)}]
+    for w in windows:
+        sub = frame[lead <= w]
+        s = summarise(sub)
+        if s.get("n"):
+            rows.append({"label": f"Close within {w} min", "cap": w, **s})
+    return rows
 
 
 def summarise(frame: pd.DataFrame) -> dict[str, Any]:

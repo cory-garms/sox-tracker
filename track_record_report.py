@@ -310,12 +310,38 @@ def _market_move_section(history: pd.DataFrame) -> str:
                  f"<td>[{m['ci_low']:+.2f}, {m['ci_high']:+.2f}]</td>"
                  f"<td>{m['beat_close_pct']:.0f}%</td></tr>")
 
-    contains_zero = s["ci_low"] <= 0 <= s["ci_high"]
-    verdict = ("The interval contains zero: the market does not move toward "
-               "these projections any more than it moves away from them."
-               if contains_zero else
-               "The interval clears zero, which would be the first evidence "
-               "here of the model seeing a revision before the book made it.")
+    windows = clv.by_close_window(frame)
+    tight = next((w for w in windows if w.get("cap") == 60), None)
+    lead = pd.to_numeric(frame["close_lead_minutes"], errors="coerce").median()
+
+    win_rows = "".join(
+        f'<tr><td>{w["label"]}</td><td>{w["n"]}</td>'
+        f'<td>{w["mean_points"]:+.2f}</td>'
+        f'<td class="dim">[{w["ci_low"]:+.2f}, {w["ci_high"]:+.2f}]</td>'
+        f'<td>{"clears zero" if w["ci_low"] > 0 else "spans zero"}</td></tr>'
+        for w in windows)
+
+    headline_clears = s["ci_low"] > 0
+    tight_clears = bool(tight and tight["ci_low"] > 0)
+    if headline_clears and not tight_clears:
+        verdict = (
+            "<strong>It does not survive a tighter close.</strong> Measured over "
+            "every capture the mean movement is positive and its interval clears "
+            f"zero. Restricted to the {tight['n']} player-games whose last capture "
+            f"landed within an hour of first pitch it is {tight['mean_points']:+.2f} "
+            f"points, with an interval spanning zero. A price read three hours out "
+            "is not a close, and the difference between two early captures is at "
+            "least as likely to be the market waking up as the model anticipating "
+            "it. On this evidence the honest answer is that the market does not "
+            "demonstrably move toward these projections."
+        )
+    elif headline_clears:
+        verdict = ("The interval clears zero at every close window measured, which "
+                   "is the first evidence here of the model seeing a revision "
+                   "before the book made it.")
+    else:
+        verdict = ("The interval contains zero: the market does not move toward "
+                   "these projections any more than it moves away from them.")
 
     return f"""
   <section class="card">
@@ -327,7 +353,8 @@ def _market_move_section(history: pd.DataFrame) -> str:
     <em>toward</em> the side the model took.</p>
     <p>Measured over <strong>{s['n']}</strong> priced player-games — the side
     fixed against the opening price, the movement measured to the last capture
-    before first pitch:</p>
+    before first pitch, which lands a median of <strong>{lead:.0f} minutes</strong>
+    out:</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead><tr><th>Market</th><th>n</th><th>Mean move (pts)</th><th>95% CI</th><th>Beat the close</th></tr></thead>
@@ -339,7 +366,26 @@ def _market_move_section(history: pd.DataFrame) -> str:
       </tbody>
     </table>
     </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p><strong>How near the close actually was decides the answer.</strong> The
+    capture the movement is measured to is whatever the odds job last recorded
+    before first pitch, and that is often hours out. Restricting to the ones
+    that landed nearer:</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Close window</th><th>n</th><th>Mean move (pts)</th>
+      <th>95% CI</th><th>Interval</th></tr></thead>
+      <tbody>{win_rows}</tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
     <p>{verdict}</p>
+    <p class="note"><strong>&ldquo;Beat the close&rdquo; is not a win rate.</strong>
+    {100 - s['moved_at_all_pct']:.0f}% of these prices did not move at all
+    between the two captures, so the {s['beat_close_pct']:.0f}% that moved toward
+    the model sits against {s['moved_at_all_pct'] - s['beat_close_pct']:.0f}%
+    that moved away and the rest unchanged &mdash; nearer even than the first
+    figure reads.</p>
     <p class="note">This is not closing line value in the betting sense and is
     not reported as such: nothing was staked, so no vig was paid and nothing had
     to be executed at the quoted number. It measures only whether the model's

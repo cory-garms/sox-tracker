@@ -715,7 +715,8 @@
     <em>toward</em> the side the model took.</p>
     <p>Measured over <strong>456</strong> priced player-games — the side
     fixed against the opening price, the movement measured to the last capture
-    before first pitch:</p>
+    before first pitch, which lands a median of <strong>58 minutes</strong>
+    out:</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead><tr><th>Market</th><th>n</th><th>Mean move (pts)</th><th>95% CI</th><th>Beat the close</th></tr></thead>
@@ -727,7 +728,26 @@
       </tbody>
     </table>
     </div>
-    <p>The interval clears zero, which would be the first evidence here of the model seeing a revision before the book made it.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p><strong>How near the close actually was decides the answer.</strong> The
+    capture the movement is measured to is whatever the odds job last recorded
+    before first pitch, and that is often hours out. Restricting to the ones
+    that landed nearer:</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Close window</th><th>n</th><th>Mean move (pts)</th>
+      <th>95% CI</th><th>Interval</th></tr></thead>
+      <tbody><tr><td>Every capture</td><td>456</td><td>+0.27</td><td class="dim">[+0.08, +0.46]</td><td>clears zero</td></tr><tr><td>Close within 120 min</td><td>352</td><td>+0.23</td><td class="dim">[+0.01, +0.46]</td><td>clears zero</td></tr><tr><td>Close within 60 min</td><td>250</td><td>-0.19</td><td class="dim">[-0.43, +0.05]</td><td>spans zero</td></tr><tr><td>Close within 30 min</td><td>149</td><td>-0.29</td><td class="dim">[-0.63, +0.04]</td><td>spans zero</td></tr></tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p><strong>It does not survive a tighter close.</strong> Measured over every capture the mean movement is positive and its interval clears zero. Restricted to the 250 player-games whose last capture landed within an hour of first pitch it is -0.19 points, with an interval spanning zero. A price read three hours out is not a close, and the difference between two early captures is at least as likely to be the market waking up as the model anticipating it. On this evidence the honest answer is that the market does not demonstrably move toward these projections.</p>
+    <p class="note"><strong>&ldquo;Beat the close&rdquo; is not a win rate.</strong>
+    22% of these prices did not move at all
+    between the two captures, so the 40% that moved toward
+    the model sits against 38%
+    that moved away and the rest unchanged &mdash; nearer even than the first
+    figure reads.</p>
     <p class="note">This is not closing line value in the betting sense and is
     not reported as such: nothing was staked, so no vig was paid and nothing had
     to be executed at the quoted number. It measures only whether the model's

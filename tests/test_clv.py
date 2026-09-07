@@ -23,6 +23,10 @@ these tests existed.
 
 from __future__ import annotations
 
+import math
+
+import pytest
+
 import pandas as pd
 
 from analysis import clv
@@ -187,3 +191,57 @@ class TestBooksAreNotMixed:
         pts = dict(zip(f["book"], f["clv_points"]))
         assert pts["DraftKings"] > 0
         assert pts["FanDuel"] < 0
+
+
+class TestHowNearTheCloseWas:
+    """
+    The regression this guards is a conclusion, not a crash.
+
+    The section reported a mean movement toward the model whose interval cleared
+    zero, and that result was carried entirely by player-games whose "close" was
+    a capture taken hours before first pitch. Restricted to the ones inside an
+    hour it turns negative and the interval spans zero. A cron job's schedule
+    was being read as a property of the market.
+    """
+
+    def _row(self, lead, pts):
+        return {"clv_points": pts, "close_lead_minutes": lead}
+
+    def _frame(self, rows):
+        return pd.DataFrame([self._row(l, p) for l, p in rows])
+
+    def test_lead_minutes_measures_to_first_pitch(self):
+        row = {"captured_at": "2026-09-06T17:05:00Z",
+               "commence_time": "2026-09-06T17:35:00Z"}
+        assert clv._lead_minutes(row) == pytest.approx(30.0)
+
+    def test_lead_minutes_is_nan_when_either_end_is_unreadable(self):
+        assert math.isnan(clv._lead_minutes({"captured_at": "x", "commence_time": "y"}))
+        assert math.isnan(clv._lead_minutes({}))
+
+    def test_windows_narrow_the_sample(self):
+        frame = self._frame([(200, 1.0), (90, 1.0), (45, -1.0), (10, -1.0)])
+        rows = {r["label"]: r for r in clv.by_close_window(frame)}
+        assert rows["Every capture"]["n"] == 4
+        assert rows["Close within 120 min"]["n"] == 3
+        assert rows["Close within 60 min"]["n"] == 2
+        assert rows["Close within 30 min"]["n"] == 1
+
+    def test_an_effect_carried_by_distant_captures_is_exposed(self):
+        """The actual shape of the bug: positive overall, negative near the close."""
+        far = [(240, 3.0)] * 40
+        near = [(20, -1.0)] * 40
+        rows = {r["label"]: r for r in clv.by_close_window(self._frame(far + near))}
+        assert rows["Every capture"]["mean_points"] > 0
+        assert rows["Close within 30 min"]["mean_points"] < 0
+
+    def test_a_frame_without_the_column_yields_nothing(self):
+        """Older archives predate close_lead_minutes; the section must not raise."""
+        assert clv.by_close_window(pd.DataFrame({"clv_points": [1.0, 2.0]})) == []
+
+    def test_an_empty_frame_yields_nothing(self):
+        assert clv.by_close_window(pd.DataFrame()) == []
+
+    def test_a_window_with_no_rows_is_dropped_not_reported_as_zero(self):
+        rows = {r["label"] for r in clv.by_close_window(self._frame([(300, 1.0)]))}
+        assert rows == {"Every capture"}
