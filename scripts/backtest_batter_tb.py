@@ -42,6 +42,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
+from analysis import selection_effect
 from analysis.betting import (
     MIN_PA_FOR_TB_PROP,
     TB_REGRESSION_PA,
@@ -56,64 +57,15 @@ from analysis.betting import (
     project_batter_tb,
 )
 
-# A hitter needs some history before a projection means anything. The page's own
-# floor is MIN_PA_FOR_TB_PROP plate appearances; the backtest adds a start count
-# so that the earliest games of the season, where every hitter looks identical,
-# do not dominate the sample.
-MIN_PRIOR_STARTS = 10
-
-# The line the whole market is posted at, and therefore the question calibration
-# has to be measured on.
-REFERENCE_LINE = 1.5
-
-
-def load_starts(season: int, team_id: int) -> pd.DataFrame:
-    path = config.CACHE_DIR / f"batting_{team_id}_{season}.parquet"
-    if not path.exists():
-        raise SystemExit(f"No cached batting for {season}: {path}\n"
-                         f"Run: python fetch.py --season {season} --refresh")
-    batting = pd.read_parquet(path)
-    starts = _lineup_starts(batting).copy()
-    starts["tb"] = _total_bases(starts)
-    return starts.sort_values(["game_date", "game_pk"]).reset_index(drop=True)
-
-
-def walk_forward(starts: pd.DataFrame) -> pd.DataFrame:
-    """One row per held-out start, with everything the prior games can say about it."""
-    rows = []
-    for (pid, pname), games in starts.groupby(["player_id", "player_name"]):
-        games = games.sort_values(["game_date", "game_pk"])
-        for i in range(len(games)):
-            prior, actual = games.iloc[:i], games.iloc[i]
-            if len(prior) < MIN_PRIOR_STARTS or prior["pa"].sum() < MIN_PA_FOR_TB_PROP:
-                continue
-
-            # The team prior must also be blind to the day being predicted.
-            team_prior = starts[starts["game_date"] < actual["game_date"]]
-            team_mix = _per_pa_mix(team_prior)
-
-            projection = project_batter_tb(prior, team_mix)
-            if projection is None:
-                continue
-            p_over, _ = _pmf_over_push(projection["pmf"], REFERENCE_LINE)
-
-            l10 = prior.tail(10)
-            rows.append({
-                "player_id": pid, "player_name": pname,
-                "game_date": actual["game_date"],
-                "actual_tb": float(actual["tb"]),
-                "cleared": int(actual["tb"] > REFERENCE_LINE),
-                "proj_tb": projection["proj_tb"],
-                "p_over": p_over,
-                "prior_pa": float(prior["pa"].sum()),
-                "prior_starts": len(prior),
-                # alternatives, for the comparison in section 1
-                "alt_season": float(prior["tb"].sum()) / len(prior),
-                "alt_l10": float(l10["tb"].sum()) / len(l10),
-                "alt_blend": 0.4 * (float(prior["tb"].sum()) / len(prior))
-                             + 0.6 * (float(l10["tb"].sum()) / len(l10)),
-            })
-    return pd.DataFrame(rows)
+# The walk-forward moved to analysis/selection_effect.py so this script and the
+# track record page share one implementation -- the page recomputes the
+# selection-effect table on every build and must not do it a second way.
+# Re-exported here because this module's own report_* functions use them and
+# because that is the name the docstring above advertises.
+MIN_PRIOR_STARTS = selection_effect.MIN_PRIOR_STARTS
+REFERENCE_LINE = selection_effect.REFERENCE_LINE
+load_starts = selection_effect.load_starts
+walk_forward = selection_effect.walk_forward
 
 
 def report_accuracy(held: pd.DataFrame) -> None:

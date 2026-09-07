@@ -27,7 +27,8 @@ from pathlib import Path
 import pandas as pd
 
 import config
-from analysis import scoring
+import numpy as np
+from analysis import scoring, selection_effect
 from analysis.betting import MODEL_ERROR_K, MODEL_ERROR_TB_PROB
 from betting_report import _shell
 from data import predictions_history as ph
@@ -88,6 +89,12 @@ _PAGE_CSS = """
       text-align: left; font-weight: 400; color: #9DB0A5;
       white-space: nowrap; padding-right: 14px;
     }
+    /* Every one of these tables sits inside .table-scroll, so a cell that
+       cannot fit should push the table sideways rather than wrap into an
+       unreadable stack -- a confidence interval broken across two lines and
+       clipped at the card edge reads as a rendering fault. */
+    .report-table td { white-space: nowrap; padding-right: 14px; }
+    .ci { color: #9DB0A5; font-size: 0.86em; margin-left: 2px; }
   </style>
 """
 
@@ -345,11 +352,157 @@ def _market_move_section(history: pd.DataFrame) -> str:
   </section>"""
 
 
+def _fmt(v: float, spec: str = "{:.3f}", dash: str = "&mdash;") -> str:
+    return dash if v is None or not np.isfinite(v) else spec.format(v)
+
+
+def _accuracy_section(history: pd.DataFrame) -> str:
+    """
+    Projection against outcome, on every row the box score can settle.
+
+    The graded record above can only score a prediction a book priced, which is
+    230 of 1,219 kept rows. Most of the rest are players who did not appear and
+    are genuinely unscoreable -- but 250 are players who did appear and whom no
+    book quoted, and those carry an actual like any other. Scoring them is not a
+    softer test; it is the same test on the population the market ignored.
+    """
+    rows = selection_effect.projection_accuracy(history)
+    if not rows:
+        return ""
+
+    body = []
+    for r in rows:
+        spec = MARKETS.get(r["market"], {})
+        ci = (f'{_fmt(r["r"], "{:+.3f}")} '
+              f'<span class="ci">[{_fmt(r["r_lo"], "{:+.2f}")}, '
+              f'{_fmt(r["r_hi"], "{:+.2f}")}]</span>')
+        body.append(
+            f'<tr><td>{spec.get("label", r["market"])}</td>'
+            f'<td>{r["population"]}</td><td>{r["n"]}</td>'
+            f'<td>{r["graded"]}</td>'
+            f'<td>{_fmt(r["mae"], "{:.2f}")}</td>'
+            f'<td>{_fmt(r["bias"], "{:+.2f}")}</td>'
+            f'<td>{ci}</td></tr>')
+
+    gaps = []
+    for market, spec in MARKETS.items():
+        z = selection_effect.gap_z(rows, market)
+        if np.isfinite(z):
+            verdict = ("survives its sample" if abs(z) > 1.96
+                       else "does not survive its sample")
+            gaps.append(f"{spec['label'].lower()} <strong>z&nbsp;=&nbsp;{z:+.2f}</strong> "
+                        f"({verdict})")
+    gap_line = (f"<p>Comparing the two populations directly, the difference in "
+                f"correlation is {'; '.join(gaps)}. That is the claim being made "
+                f"here &mdash; not that either correlation is impressive on its "
+                f"own, but that they differ.</p>" if gaps else "")
+
+    total = sum(r["n"] for r in rows)
+    graded = sum(r["graded"] for r in rows)
+    return f"""
+  <section class="card">
+    <h2>Projections scored against outcomes, not against lines</h2>
+    <p>A prediction can only be graded over/under if a book posted a line to
+    grade it against, which is why the record above rests on
+    <strong>{graded}</strong> rows. But every logged projection whose player
+    actually appeared has a box-score result beside it, priced or not
+    &mdash; <strong>{total}</strong> of them. This is that larger sample, split
+    by whether the market had an opinion.</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Market</th><th>Population</th><th>n</th><th>graded</th>
+      <th>MAE</th><th>Bias</th><th>r (proj, actual)</th></tr></thead>
+      <tbody>{"".join(body)}</tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p><strong>r</strong> asks whether the projection can tell one start from
+    another: rank the player-games by projection and see whether the actuals
+    follow. Intervals are Fisher-z at 95%; where one spans zero, the correlation
+    on its own is not evidence of anything.</p>
+    {gap_line}
+    <p class="note">Ranking players against each other is an easier question
+    than beating a line &mdash; telling a middle-of-the-order bat from a utility
+    infielder is most of it. These numbers are not a claim of edge, and the
+    section below is the reason why.</p>
+  </section>"""
+
+
+def _selection_section(history: pd.DataFrame, season: int, team_id: int) -> str:
+    """
+    The same model, the same question, two populations.
+
+    This table used to be six numbers typed into the HTML from a measurement run
+    on 2026-08-23. By 2026-09-07 the priced recalibration slope had moved from
+    -0.014 to -0.822 and the hitter count from 54 to 22, and nothing on the page
+    knew. It is computed now, on every build, from the walk-forward the backtest
+    script uses.
+    """
+    try:
+        held = selection_effect.walk_forward(
+            selection_effect.load_starts(season, team_id))
+        table = selection_effect.selection_table(
+            held, selection_effect.priced_keys(history))
+    except (FileNotFoundError, KeyError, ValueError) as e:
+        return (f'<section class="card"><h2>Why "no edge" is not the same as '
+                f'"no skill"</h2><p class="note">This section is computed from '
+                f'the batting cache and could not be built ({type(e).__name__}).'
+                f'</p></section>')
+    if len(table) < 2:
+        return ""
+
+    everyone, priced = table[0], table[1]
+    body = "".join(
+        f'<tr><td>{r["population"]}</td><td>{r["n"]}</td>'
+        f'<td>{_fmt(r["auc"])}</td><td>{_fmt(r["slope"], "{:+.3f}")}</td>'
+        f'<td>{_fmt(r["base_rate"])}</td><td>{r["hitters"]}</td></tr>'
+        for r in table)
+
+    ranks = everyone["auc"] > 0.5 and everyone["slope"] > 0.2
+    priced_flat = not (priced["auc"] > 0.5 and priced["slope"] > 0.2)
+    return f"""
+  <section class="card">
+    <h2>Why "no edge" is not the same as "no skill"</h2>
+    <p>Run the total-bases model over <em>every</em> hitter-start in the cache
+    rather than only the ones a book priced, and the two answers are not the
+    same model at all:</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Population</th><th>n</th><th>AUC</th><th>Slope</th>
+      <th>Base rate</th><th>Hitters</th></tr></thead>
+      <tbody>{body}</tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p>Every line in both rows is {selection_effect.REFERENCE_LINE} bases, so
+    this is one question asked of two populations.
+    {"The model can tell a good hitter-game from a bad one across the roster."
+     if ranks else "Across the roster the model ranks hitter-games only weakly."}
+    {"Among the " + str(priced["hitters"]) + " hitters a book bothers to post a line on it cannot"
+     if priced_flat else "It holds up among the priced hitters too"} &mdash; and
+    the higher base rate in that row
+    ({_fmt(priced["base_rate"])} against {_fmt(everyone["base_rate"])}) shows
+    the mechanism: the book is already selecting the hitters likely to clear the
+    number.</p>
+    <p>That is a <strong>selection effect</strong>, and it is the honest reason
+    the board says NO CALL. The skill is real; the market has already priced out
+    the part of it you could act on. It also means adding a third prop market
+    would not help &mdash; the same selection applies wherever a book chooses
+    what to quote.</p>
+    <p class="note">Both rows are recomputed on every build from the same
+    walk-forward <code>scripts/backtest_batter_tb.py</code> runs: each start
+    projected from only the starts before it. The priced row is small and its
+    slope is correspondingly unstable &mdash; it is the sign and the gap that
+    carry the argument, not the third decimal.</p>
+  </section>"""
+
+
 def generate_track_record_html(
     team_abbr: str = config.TEAM_ABBR,
     season: int = config.SEASON,
 ) -> Path:
     team_name = config.TEAMS.get(team_abbr, {}).get("name", config.TEAM_NAME)
+    team_id = config.TEAMS.get(team_abbr, {}).get("id", config.TEAM_ID)
 
     history = ph.load_history()
     # Scoring must go through latest_per_game: every build logs a snapshot, so
@@ -386,34 +539,9 @@ def generate_track_record_html(
             _market_section(m, spec, scored, actuals) for m, spec in MARKETS.items()
         )
 
+        sections += _accuracy_section(history)
+        sections += _selection_section(history, season, team_id)
         sections += """
-  <section class="card">
-    <h2>Why "no edge" is not the same as "no skill"</h2>
-    <p>The total-bases model looks inert above — AUC 0.495, a recalibration
-    slope of about zero. Run the same model over <em>every</em> hitter-start in
-    the cache rather than only the ones a book priced, and it is not inert at
-    all:</p>
-    <div class="table-scroll">
-    <table class="report-table">
-      <thead><tr><th>Population</th><th>n</th><th>AUC</th><th>Slope</th><th>Base rate</th><th>Hitters</th></tr></thead>
-      <tbody>
-        <tr><td>All hitter-starts</td><td>935</td><td>0.564</td><td>+0.710</td><td>0.353</td><td>54</td></tr>
-        <tr><td>Only those a book priced</td><td>140</td><td>0.495</td><td>&minus;0.014</td><td>0.436</td><td>12</td></tr>
-      </tbody>
-    </table>
-    </div>
-    <p>Every line in both rows is 1.5 bases, so this is the same question asked
-    of two different populations. The model can tell a good hitter-game from a
-    bad one across the roster. It cannot do so among the twelve regulars a book
-    bothers to post a line on — and the higher base rate in that row shows why:
-    the book is already selecting the hitters likely to clear the number.</p>
-    <p>That is a <strong>selection effect</strong>, and it is the honest reason
-    the board says NO CALL. The skill is real; the market has already priced out
-    the part of it you could act on. It also means adding a third prop market
-    would not help — the same selection applies wherever a book chooses what to
-    quote.</p>
-  </section>
-
   """ + _market_move_section(history) + """
   <section class="card">
     <h2>How to read this</h2>

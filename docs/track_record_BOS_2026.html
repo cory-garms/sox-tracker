@@ -510,6 +510,12 @@
       text-align: left; font-weight: 400; color: #9DB0A5;
       white-space: nowrap; padding-right: 14px;
     }
+    /* Every one of these tables sits inside .table-scroll, so a cell that
+       cannot fit should push the table sideways rather than wrap into an
+       unreadable stack -- a confidence interval broken across two lines and
+       clipped at the card edge reads as a rendering fault. */
+    .report-table td { white-space: nowrap; padding-right: 14px; }
+    .ci { color: #9DB0A5; font-size: 0.86em; margin-left: 2px; }
   </style>
 
   <section class="card">
@@ -526,7 +532,7 @@
     <h2>Pitcher strikeouts</h2>
     <p class="sample">50 graded.</p>
 
-    <p class="verdict flat">No demonstrated edge. Across 50 graded predictions the model's Brier score is 0.2587 against the market's 0.2394 — a gap of -0.0193, whose 95% interval [-0.0428, +0.0027] contains zero. On this sample the model knows nothing the price did not already carry.</p>
+    <p class="verdict flat">No demonstrated edge. Across 50 graded predictions the model's Brier score is 0.2587 against the market's 0.2394 — a gap of -0.0193, whose 95% interval [-0.0422, +0.0043] contains zero. On this sample the model knows nothing the price did not already carry.</p>
 
     <div class="table-scroll">
     <table class="report-table">
@@ -568,7 +574,7 @@
     <h2>Batter total bases</h2>
     <p class="sample">200 graded.</p>
 
-    <p class="verdict flat">No demonstrated edge. Across 200 graded predictions the model's Brier score is 0.2511 against the market's 0.2470 — a gap of -0.0041, whose 95% interval [-0.0130, +0.0041] contains zero. On this sample the model knows nothing the price did not already carry.</p>
+    <p class="verdict flat">No demonstrated edge. Across 200 graded predictions the model's Brier score is 0.2511 against the market's 0.2470 — a gap of -0.0041, whose 95% interval [-0.0128, +0.0048] contains zero. On this sample the model knows nothing the price did not already carry.</p>
 
     <div class="table-scroll">
     <table class="report-table">
@@ -606,32 +612,63 @@
     said it less often than it happened.</p><p class="note">Weighted RMS gap 0.105 against a sampling-noise floor of 0.084. The gap is larger than the noise, so it is a real miscalibration.</p>
   </section>
   <section class="card">
-    <h2>Why "no edge" is not the same as "no skill"</h2>
-    <p>The total-bases model looks inert above — AUC 0.495, a recalibration
-    slope of about zero. Run the same model over <em>every</em> hitter-start in
-    the cache rather than only the ones a book priced, and it is not inert at
-    all:</p>
+    <h2>Projections scored against outcomes, not against lines</h2>
+    <p>A prediction can only be graded over/under if a book posted a line to
+    grade it against, which is why the record above rests on
+    <strong>230</strong> rows. But every logged projection whose player
+    actually appeared has a box-score result beside it, priced or not
+    &mdash; <strong>480</strong> of them. This is that larger sample, split
+    by whether the market had an opinion.</p>
     <div class="table-scroll">
     <table class="report-table">
-      <thead><tr><th>Population</th><th>n</th><th>AUC</th><th>Slope</th><th>Base rate</th><th>Hitters</th></tr></thead>
-      <tbody>
-        <tr><td>All hitter-starts</td><td>935</td><td>0.564</td><td>+0.710</td><td>0.353</td><td>54</td></tr>
-        <tr><td>Only those a book priced</td><td>140</td><td>0.495</td><td>&minus;0.014</td><td>0.436</td><td>12</td></tr>
-      </tbody>
+      <thead><tr><th>Market</th><th>Population</th><th>n</th><th>graded</th>
+      <th>MAE</th><th>Bias</th><th>r (proj, actual)</th></tr></thead>
+      <tbody><tr><td>Batter total bases</td><td>priced</td><td>180</td><td>180</td><td>1.52</td><td>-0.17</td><td>-0.096 <span class="ci">[-0.24, +0.05]</span></td></tr><tr><td>Batter total bases</td><td>unpriced</td><td>231</td><td>0</td><td>1.27</td><td>+0.15</td><td>+0.118 <span class="ci">[-0.01, +0.24]</span></td></tr><tr><td>Pitcher strikeouts</td><td>priced</td><td>50</td><td>50</td><td>1.76</td><td>-0.32</td><td>+0.373 <span class="ci">[+0.11, +0.59]</span></td></tr><tr><td>Pitcher strikeouts</td><td>unpriced</td><td>19</td><td>0</td><td>1.05</td><td>+0.04</td><td>+0.815 <span class="ci">[+0.57, +0.93]</span></td></tr></tbody>
     </table>
     </div>
-    <p>Every line in both rows is 1.5 bases, so this is the same question asked
-    of two different populations. The model can tell a good hitter-game from a
-    bad one across the roster. It cannot do so among the twelve regulars a book
-    bothers to post a line on — and the higher base rate in that row shows why:
-    the book is already selecting the hitters likely to clear the number.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p><strong>r</strong> asks whether the projection can tell one start from
+    another: rank the player-games by projection and see whether the actuals
+    follow. Intervals are Fisher-z at 95%; where one spans zero, the correlation
+    on its own is not evidence of anything.</p>
+    <p>Comparing the two populations directly, the difference in correlation is pitcher strikeouts <strong>z&nbsp;=&nbsp;+2.59</strong> (survives its sample); batter total bases <strong>z&nbsp;=&nbsp;+2.14</strong> (survives its sample). That is the claim being made here &mdash; not that either correlation is impressive on its own, but that they differ.</p>
+    <p class="note">Ranking players against each other is an easier question
+    than beating a line &mdash; telling a middle-of-the-order bat from a utility
+    infielder is most of it. These numbers are not a claim of edge, and the
+    section below is the reason why.</p>
+  </section>
+  <section class="card">
+    <h2>Why "no edge" is not the same as "no skill"</h2>
+    <p>Run the total-bases model over <em>every</em> hitter-start in the cache
+    rather than only the ones a book priced, and the two answers are not the
+    same model at all:</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead><tr><th>Population</th><th>n</th><th>AUC</th><th>Slope</th>
+      <th>Base rate</th><th>Hitters</th></tr></thead>
+      <tbody><tr><td>All hitter-starts</td><td>1068</td><td>0.564</td><td>+0.697</td><td>0.351</td><td>22</td></tr><tr><td>Only those a book priced</td><td>161</td><td>0.452</td><td>-0.822</td><td>0.435</td><td>16</td></tr></tbody>
+    </table>
+    </div>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <p>Every line in both rows is 1.5 bases, so
+    this is one question asked of two populations.
+    The model can tell a good hitter-game from a bad one across the roster.
+    Among the 16 hitters a book bothers to post a line on it cannot &mdash; and
+    the higher base rate in that row
+    (0.435 against 0.351) shows
+    the mechanism: the book is already selecting the hitters likely to clear the
+    number.</p>
     <p>That is a <strong>selection effect</strong>, and it is the honest reason
     the board says NO CALL. The skill is real; the market has already priced out
     the part of it you could act on. It also means adding a third prop market
-    would not help — the same selection applies wherever a book chooses what to
-    quote.</p>
+    would not help &mdash; the same selection applies wherever a book chooses
+    what to quote.</p>
+    <p class="note">Both rows are recomputed on every build from the same
+    walk-forward <code>scripts/backtest_batter_tb.py</code> runs: each start
+    projected from only the starts before it. The priced row is small and its
+    slope is correspondingly unstable &mdash; it is the sign and the gap that
+    carry the argument, not the third decimal.</p>
   </section>
-
   
   <section class="card">
     <h2>Does the market move toward the model?</h2>
