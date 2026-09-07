@@ -2,6 +2,13 @@
 
 A strategic feature roadmap for transforming **`sox_tracker`** into an elite pre-game betting intelligence & prop model suite.
 
+> **Read [`NEXT_SEASON_PLAN.md`](NEXT_SEASON_PLAN.md) first.** As of 2026-09-07
+> the strikeout model's measured ceiling is 0.9% — 98.1% of its error is
+> irreducible Poisson scatter — so most of the prop-accuracy items below are
+> competing for shares of a percent. Several are struck through here because a
+> measurement closed them, not because they were tried and abandoned. The open
+> work is measurement and timing, not features.
+
 ---
 
 ## 🎯 1. Player Prop Betting Intelligence
@@ -19,11 +26,15 @@ A strategic feature roadmap for transforming **`sox_tracker`** into an elite pre
   replaced rather than extended the season/last-5 blend, which measured as worth
   nothing at all over a plain season average. See
   [`analysis/k_projections.py`](analysis/k_projections.py).
-- **Pitch Count & Innings Limit Predictor**: Projected strikeouts based on pitch-count limits, 3-day rest, and 5-start rolling K% per 100 pitches.
+- ~~**Pitch Count & Innings Limit Predictor**~~ — **closed 2026-09-07 by
+  measurement.** Days of rest carries no signal: residuals at 5, 6 and 7+ days
+  sit within ±0.09 K, and modern rotations barely vary it (the short-rest
+  buckets are n=2 and n=6). The pitch-count half is untested, but it is bidding
+  for a share of a 0.9% ceiling.
 
 ### 💥 Batter Total Bases (TB) & Home Run Props
 - **Pitch Type Matchup Matrix**: Match batter pitch-type OPS (e.g., Devers vs. 4-Seam Fastballs > 95mph) against opposing starter's pitch mix via Baseball Savant Statcast.
-- **Stadium & Park Factor Adjustments**: Factor in Fenway Park Green Monster HR/2B park factors vs. road venue dimensions.
+- **Stadium & Park Factor Adjustments**: Factor in Fenway Park Green Monster HR/2B park factors vs. road venue dimensions. — *Untested, and see the ceiling note above. The nearest thing measured is home/away, which is a real bias (+0.272 K, interval clear of zero) that produced no measurable improvement when applied. Bank the data; do not model it yet.*
 
 ---
 
@@ -44,7 +55,23 @@ A strategic feature roadmap for transforming **`sox_tracker`** into an elite pre
 - **1st Inning Run Scored/Allowed Matrix**: Track Red Sox starter 1st-inning ERA, WHIP, and NRFI success rate.
 
 ### 🎲 Game Total Over/Under Trends
-- **Contextual O/U Hit Rates**: Track Over/Under trends for Day vs. Night games, Home vs. Away, and Weather/Wind factors.
+- **Contextual O/U Hit Rates**: Track Over/Under trends for Day vs. Night games, Home vs. Away, and Weather/Wind factors. — *As a tracker this is fine. As a model input it is the home/away result again: a real split that does not survive contact with the noise it has to beat.*
+
+---
+
+## 🔭 3b. The work that is actually open
+
+Not features. See [`NEXT_SEASON_PLAN.md`](NEXT_SEASON_PLAN.md) for the reasoning
+and the numbers.
+
+1. **Close the capture gap.** The last pre-game price lands a median of 58
+   minutes before first pitch, and the closing-line result reverses sign
+   between the loose and tight windows. Nothing else can be evaluated until
+   this is fixed.
+2. **Capture openers earlier.** The only population where skill survives is the
+   one no book has priced yet, which points at timing rather than modelling.
+3. **Bank weather, park, umpire and catcher** without modelling them, so the
+   question is answerable in 2027.
 
 ---
 
