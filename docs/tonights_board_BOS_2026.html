@@ -539,7 +539,7 @@
     <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
     
     <p class="market-read">No bets logged on tonight's game.</p>
-    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>18:03 UTC</strong>, 128 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
+    <p class="table-note">Closing prices are the last read before first pitch, at <strong>18:03 UTC</strong> &mdash; 128 minutes out. The game has started, so these are final.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -555,254 +555,19 @@
 
   <section class="card">
     <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
-    
-    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>Mickey Gasper</strong> over 1.5 at +138, -0.93%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
-    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Mickey Gasper</strong> over 1.5 at +138 becomes <strong>+27.79%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
-    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> -215 at 13:55 UTC &rarr; -235 &nbsp;·&nbsp; <strong>Kansas City Royals</strong> +180 at 13:55 UTC &rarr; +190 — every build's prices are logged, so this is measured drift rather than an impression.</p>
-    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
-    <div class="table-scroll">
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th>Selection</th>
-          <th>Side</th>
-          <th>Draftkings</th>
-          <th>EV</th>
-          <th>EV <em>if</em> boosted (50%)</th>
-          <th>Consensus Fair %</th>
-          <th>Books</th>
-          <th>Market</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Mickey Gasper</td>
-          <td>Over 1.5</td>
-          <td>+138</td>
-          <td class="delta-neg">-0.93%</td>
-          <td>+27.79%</td>
-          <td>41.6%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Ranger Suarez</td>
-          <td>Under 4.5</td>
-          <td>+108</td>
-          <td class="delta-neg">-3.03%</td>
-          <td>+22.15%</td>
-          <td>46.6%</td>
-          <td>4</td>
-          <td>Strikeouts</td>
-        </tr>
-        <tr>
-          <td>Salvador Perez</td>
-          <td>Over 1.5</td>
-          <td>+140</td>
-          <td class="delta-neg">-3.56%</td>
-          <td>+24.57%</td>
-          <td>40.2%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Kansas City Royals</td>
-          <td>Moneyline</td>
-          <td>+184</td>
-          <td class="delta-neg">-3.73%</td>
-          <td>+27.46%</td>
-          <td>33.9%</td>
-          <td>8</td>
-          <td>Moneyline</td>
-        </tr>
-        <tr>
-          <td>Randy Dobnak</td>
-          <td>Under 3.5</td>
-          <td>-152</td>
-          <td class="delta-neg">-4.11%</td>
-          <td>+14.91%</td>
-          <td>57.8%</td>
-          <td>5</td>
-          <td>Strikeouts</td>
-        </tr>
-        <tr>
-          <td>Boston Red Sox</td>
-          <td>Moneyline</td>
-          <td>-226</td>
-          <td class="delta-neg">-4.65%</td>
-          <td>+9.97%</td>
-          <td>66.1%</td>
-          <td>8</td>
-          <td>Moneyline</td>
-        </tr>
-        <tr>
-          <td>Trevor Story</td>
-          <td>Over 1.5</td>
-          <td>+130</td>
-          <td class="delta-neg">-4.70%</td>
-          <td>+22.23%</td>
-          <td>41.4%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Adley Rutschman</td>
-          <td>Under 1.5</td>
-          <td>-144</td>
-          <td class="delta-neg">-5.09%</td>
-          <td>+14.36%</td>
-          <td>56.0%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Roman Anthony</td>
-          <td>Over 1.5</td>
-          <td>+107</td>
-          <td class="delta-neg">-5.21%</td>
-          <td>+19.29%</td>
-          <td>45.8%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Bobby Witt Jr.</td>
-          <td>Over 1.5</td>
-          <td>-105</td>
-          <td class="delta-neg">-5.42%</td>
-          <td>+17.65%</td>
-          <td>48.4%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Vinnie Pasquantino</td>
-          <td>Under 1.5</td>
-          <td>-197</td>
-          <td class="delta-neg">-5.77%</td>
-          <td>+10.09%</td>
-          <td>62.5%</td>
-          <td>3</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Nick Sogard</td>
-          <td>Over 1.5</td>
-          <td>+146</td>
-          <td class="delta-neg">-6.08%</td>
-          <td>+21.79%</td>
-          <td>38.2%</td>
-          <td>4</td>
-          <td>Total bases</td>
-        </tr></tbody>
-    </table>
-    </div>
-    <p class="method-link"><a href="method_BOS_2026.html#how-the-consensus-is-built">How the consensus is built &rarr;</a></p>
+    <p class="table-note"><strong>No consensus available.</strong> Pricing a book against the market needs several books quoting the same number at the same time, and this build did not get that. Nothing is shown rather than comparing a price against itself.</p>
   </section>
 
   <section class="card">
     <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
-    
-    <p class="market-read">Both promotions are worth <strong>more on longer
-    prices</strong>. The token only settles a moneyline, so most rows below have
-    no token figure &mdash; the boost's real advantage is what it can reach.</p>
-    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
-    <div class="table-scroll">
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th>Selection</th>
-          <th>Side</th>
-          <th>Price</th>
-          <th>EV raw</th>
-          <th>EV + 50% boost</th>
-          <th>EV + 2-run token</th>
-          <th>Better</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Mickey Gasper</td>
-          <td>Over 1.5</td>
-          <td>+138</td>
-          <td>-0.93%</td>
-          <td>+27.79%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Kansas City Royals</td>
-          <td>Moneyline</td>
-          <td>+184</td>
-          <td>-3.73%</td>
-          <td>+27.46%</td>
-          <td>+25.47%</td>
-          <td><strong>Boost</strong></td>
-        </tr>
-        <tr>
-          <td>Salvador Perez</td>
-          <td>Over 1.5</td>
-          <td>+140</td>
-          <td>-3.56%</td>
-          <td>+24.57%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Trevor Story</td>
-          <td>Over 1.5</td>
-          <td>+130</td>
-          <td>-4.70%</td>
-          <td>+22.23%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Ranger Suarez</td>
-          <td>Under 4.5</td>
-          <td>+108</td>
-          <td>-3.03%</td>
-          <td>+22.15%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Nick Sogard</td>
-          <td>Over 1.5</td>
-          <td>+146</td>
-          <td>-6.08%</td>
-          <td>+21.79%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Vinnie Pasquantino</td>
-          <td>Over 1.5</td>
-          <td>+147</td>
-          <td>-7.38%</td>
-          <td>+20.19%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr>
-        <tr>
-          <td>Jarren Duran</td>
-          <td>Over 1.5</td>
-          <td>+123</td>
-          <td>-6.39%</td>
-          <td>+19.43%</td>
-          <td><span class="no-line">&mdash; n/a</span></td>
-          <td><strong>Boost only</strong></td>
-        </tr></tbody>
-    </table>
-    </div>
-    <p class="method-link"><a href="method_BOS_2026.html#where-these-numbers-come-from">Where these numbers come from &rarr;</a></p>
+    <p class="table-note"><strong>No promotion maths available.</strong> Valuing a boost or a token needs a fair price to apply it to, and this build has no consensus to supply one.</p>
   </section>
 
   <section class="card">
     <h2>&#9918; Tonight's Quoted Props &mdash; At a Glance</h2>
     <p class="table-note">Probable starter for 2026-09-12: <strong>Ranger Suarez</strong>. First pitch <strong>4:10 PM ET (20:10 UTC)</strong>.</p>
-    <ul class="market-read"><li><strong>Ranger Suarez</strong> &nbsp;<span class="prop-line">4.5 (-137)</span><br>market <strong>54.6%</strong> over &nbsp;·&nbsp; model <strong>49.5%</strong> &nbsp;·&nbsp; gap <strong>+0.15 K</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Randy Dobnak &middot; KC</strong> &nbsp;<span class="prop-line">3.5 (+119)</span><br>market <strong>43.1%</strong> over &nbsp;·&nbsp; model <strong>57.4%</strong> &nbsp;·&nbsp; gap <strong>+0.54 K</strong> &nbsp; <span class="rec-badge over">OVER (+25.6% EV) 🔥</span></li></ul>
-    <ul class="market-read"><li><strong>Wilyer Abreu</strong> &nbsp;<span class="prop-line">1.5 (-105)</span><br>market <strong>47.8%</strong> over &nbsp;·&nbsp; model <strong>43.4%</strong> &nbsp;·&nbsp; gap <strong>-4.4 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Jarren Duran</strong> &nbsp;<span class="prop-line">1.5 (+123)</span><br>market <strong>42.0%</strong> over &nbsp;·&nbsp; model <strong>33.6%</strong> &nbsp;·&nbsp; gap <strong>-8.4 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-8.4 pts vs market)</span></li><li><strong>Nick Sogard</strong> &nbsp;<span class="prop-line">1.5 (+146)</span><br>market <strong>38.1%</strong> over &nbsp;·&nbsp; model <strong>39.8%</strong> &nbsp;·&nbsp; gap <strong>+1.7 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Trevor Story</strong> &nbsp;<span class="prop-line">1.5 (+130)</span><br>market <strong>40.7%</strong> over &nbsp;·&nbsp; model <strong>37.8%</strong> &nbsp;·&nbsp; gap <strong>-2.9 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Roman Anthony</strong> &nbsp;<span class="prop-line">1.5 (+107)</span><br>market <strong>45.1%</strong> over &nbsp;·&nbsp; model <strong>36.9%</strong> &nbsp;·&nbsp; gap <strong>-8.3 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-8.3 pts vs market)</span></li><li><strong>Mickey Gasper</strong> &nbsp;<span class="prop-line">1.5 (+138)</span><br>market <strong>39.3%</strong> over &nbsp;·&nbsp; model <strong>32.6%</strong> &nbsp;·&nbsp; gap <strong>-6.8 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-6.8 pts vs market)</span></li><li><strong>Adley Rutschman</strong> &nbsp;<span class="prop-line">1.5 (+109)</span><br>market <strong>44.8%</strong> over &nbsp;·&nbsp; model <strong>31.9%</strong> &nbsp;·&nbsp; gap <strong>-12.9 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-12.9 pts vs market)</span></li></ul>
+    <p class="table-note">No strikeout line quoted for tonight.</p>
+    <ul class="market-read"><li><strong>Wilyer Abreu</strong> &nbsp;<span class="prop-line">2.5 (+260)</span><br>market <strong>26.1%</strong> over &nbsp;·&nbsp; model <strong>27.1%</strong> &nbsp;·&nbsp; gap <strong>+1.0 pts</strong> &nbsp; <span class="rec-badge neu">NO CALL ⚖️</span></li><li><strong>Roman Anthony</strong> &nbsp;<span class="prop-line">2.5 (+3500)</span><br>market <strong>2.7%</strong> over &nbsp;·&nbsp; model <strong>21.6%</strong> &nbsp;·&nbsp; gap <strong>+18.9 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (+18.9 pts vs market)</span></li><li><strong>Mickey Gasper</strong> &nbsp;<span class="prop-line">1.5 (+4000)</span><br>market <strong>2.4%</strong> over &nbsp;·&nbsp; model <strong>32.6%</strong> &nbsp;·&nbsp; gap <strong>+30.2 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (+30.2 pts vs market)</span></li><li><strong>Adley Rutschman</strong> &nbsp;<span class="prop-line">2.5 (+255)</span><br>market <strong>26.5%</strong> over &nbsp;·&nbsp; model <strong>20.3%</strong> &nbsp;·&nbsp; gap <strong>-6.1 pts</strong> &nbsp; <span class="rec-badge review">REVIEW ⚠️ (-6.1 pts vs market)</span></li></ul>
     <p class="table-note">Every one of these reads <code>NO CALL</code> because
     both models measured their own error and found it as large as the entire
     spread of opinion they can demonstrate. The workings, the error bars and how
