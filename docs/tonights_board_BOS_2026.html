@@ -487,14 +487,14 @@
 
   <section class="card">
     <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
-    <p class="table-note"><strong>Nothing has moved.</strong> 4 snapshots of this game are logged and no price has shifted by as much as 0.8 of a probability point. A quiet board is a real observation, not a missing one.</p>
+    <p class="table-note"><strong>No movement to report yet.</strong> This is the first snapshot of the game, and movement needs two. The next scheduled build will have something to compare against.</p>
   </section>
 
   <section class="card">
     <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
     
     <p class="market-read">No bets logged on tonight's game.</p>
-    <p class="table-note">Closing prices are the last read before first pitch, at <strong>19:47 UTC</strong> &mdash; 108 minutes out. The game has started, so these are final.</p>
+    
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -510,93 +510,12 @@
 
   <section class="card">
     <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
-    
-    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>Boston Red Sox</strong> moneyline at -4600, -4.55%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
-    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Chicago Cubs</strong> moneyline at +1060 becomes <strong>+11.18%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
-    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> -102 at 15:47 UTC &rarr; +104 &nbsp;·&nbsp; <strong>Chicago Cubs</strong> -116 at 15:47 UTC &rarr; -114 — every build's prices are logged, so this is measured drift rather than an impression.</p>
-    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
-    <div class="table-scroll">
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th>Selection</th>
-          <th>Side</th>
-          <th>Draftkings</th>
-          <th>EV</th>
-          <th>EV <em>if</em> boosted (50%)</th>
-          <th>Consensus Fair %</th>
-          <th>Books</th>
-          <th>Market</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Boston Red Sox</td>
-          <td>Moneyline</td>
-          <td>-4600</td>
-          <td class="delta-neg">-4.55%</td>
-          <td>-3.53%</td>
-          <td>93.4%</td>
-          <td>4</td>
-          <td>Moneyline</td>
-        </tr>
-        <tr>
-          <td>Chicago Cubs</td>
-          <td>Moneyline</td>
-          <td>+1060</td>
-          <td class="delta-neg">-23.68%</td>
-          <td>+11.18%</td>
-          <td>6.6%</td>
-          <td>4</td>
-          <td>Moneyline</td>
-        </tr></tbody>
-    </table>
-    </div>
-    <p class="method-link"><a href="method_BOS_2026.html#how-the-consensus-is-built">How the consensus is built &rarr;</a></p>
+    <p class="table-note"><strong>No consensus available.</strong> Pricing a book against the market needs several books quoting the same number at the same time, and this build did not get that. Nothing is shown rather than comparing a price against itself.</p>
   </section>
 
   <section class="card">
     <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
-    
-    <p class="market-read">Both promotions are worth <strong>more on longer
-    prices</strong>. The token only settles a moneyline, so most rows below have
-    no token figure &mdash; the boost's real advantage is what it can reach.</p>
-    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
-    <div class="table-scroll">
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th>Selection</th>
-          <th>Side</th>
-          <th>Price</th>
-          <th>EV raw</th>
-          <th>EV + 50% boost</th>
-          <th>EV + 2-run token</th>
-          <th>Better</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Chicago Cubs</td>
-          <td>Moneyline</td>
-          <td>+1060</td>
-          <td>-23.68%</td>
-          <td>+11.18%</td>
-          <td>+95.56%</td>
-          <td><strong>Token</strong></td>
-        </tr>
-        <tr>
-          <td>Boston Red Sox</td>
-          <td>Moneyline</td>
-          <td>-4600</td>
-          <td>-4.55%</td>
-          <td>-3.53%</td>
-          <td>+5.96%</td>
-          <td><strong>Token</strong></td>
-        </tr></tbody>
-    </table>
-    </div>
-    <p class="method-link"><a href="method_BOS_2026.html#where-these-numbers-come-from">Where these numbers come from &rarr;</a></p>
+    <p class="table-note"><strong>No promotion maths available.</strong> Valuing a boost or a token needs a fair price to apply it to, and this build has no consensus to supply one.</p>
   </section>
 
   <section class="card">
