@@ -488,7 +488,7 @@
   <section class="card">
     <h2>&#128200; Biggest Line Moves &mdash; What the Market Changed Its Mind About</h2>
     
-    <p class="market-read">Biggest move: <strong>Shota Imanaga</strong> -142 &rarr; -133, <strong>2.6 points</strong> away from the over since 15:34 UTC.</p>
+    <p class="market-read">Biggest move: <strong>Cam Schlittler</strong> +114 &rarr; +132, <strong>3.4 points</strong> away from the over since 23:54 UTC.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -501,28 +501,22 @@
       </thead>
       <tbody>
         <tr>
-          <td>Shota Imanaga</td>
-          <td>-142 &rarr; -133</td>
-          <td class="delta-neg">&#9660; 2.6 pts</td>
+          <td>Cam Schlittler</td>
+          <td>+114 &rarr; +132</td>
+          <td class="delta-neg">&#9660; 3.4 pts</td>
           <td>Strikeouts</td>
         </tr>
         <tr>
-          <td>Ian Happ</td>
-          <td>+204 &rarr; +185</td>
-          <td class="delta-pos">&#9650; 1.6 pts</td>
-          <td>Total bases</td>
+          <td>Boston Red Sox</td>
+          <td>+118 &rarr; +128</td>
+          <td class="delta-neg">&#9660; 2.1 pts</td>
+          <td>Moneyline</td>
         </tr>
         <tr>
-          <td>Michael Conforto</td>
-          <td>+182 &rarr; +167</td>
-          <td class="delta-pos">&#9650; 1.3 pts</td>
-          <td>Total bases</td>
-        </tr>
-        <tr>
-          <td>Jarren Duran</td>
-          <td>+171 &rarr; +158</td>
-          <td class="delta-pos">&#9650; 1.2 pts</td>
-          <td>Total bases</td>
+          <td>New York Yankees</td>
+          <td>-142 &rarr; -157</td>
+          <td class="delta-pos">&#9650; 2.1 pts</td>
+          <td>Moneyline</td>
         </tr></tbody>
     </table>
     </div>
@@ -533,7 +527,7 @@
     <h2>&#128210; My Position &mdash; Bets Against the Close</h2>
     
     <p class="market-read">No bets logged on tonight's game.</p>
-    <p class="table-note">Closing prices are the last read before first pitch, at <strong>15:34 UTC</strong> &mdash; 212 minutes out. The game has started, so these are final.</p>
+    <p class="table-note">&#9203; <strong>Provisional.</strong> These are prices as of <strong>23:54 UTC</strong>, 2835 minutes before first pitch &mdash; the market has not closed yet, and every CLV figure below can still move. Calling this a close before the game starts is the same overstatement the models on the next page refuse to make.</p>
     <div class="table-scroll">
     <table class="report-table">
       <thead>
@@ -549,12 +543,93 @@
 
   <section class="card">
     <h2>&#128202; Market Consensus &mdash; Draftkings vs the Field</h2>
-    <p class="table-note"><strong>No consensus available.</strong> Pricing a book against the market needs several books quoting the same number at the same time, and this build did not get that. Nothing is shown rather than comparing a price against itself.</p>
+    
+    <p class="market-read"><strong>No positive-EV price on the board.</strong> Every selection here is priced at or behind the consensus of the other books &mdash; the closest is <strong>Boston Red Sox</strong> moneyline at +131, -3.46%. That is the normal state of a liquid market and is what the vig looks like from the inside.</p>
+    <p class="market-read">Under a 50% profit boost the same board reads differently: <strong>Boston Red Sox</strong> moneyline at +131 becomes <strong>+23.91%</strong>. A boost multiplies profit rather than stake, so its value climbs as the price lengthens &mdash; which is why the boosted column does not rank the same way as the raw one. <strong>That column is conditional and most of it is not available.</strong> It applies only to whoever holds the token, only to one bet, and the numbers in it sit beside raw prices that are negative &mdash; a boost worth more than the house edge does not make the underlying bet good, it makes the promotion good. Read the EV column for the bet and the boosted one only if you are actually holding a boost.</p>
+    <p class="table-note">📈 <strong>Line movement.</strong> <strong>Boston Red Sox</strong> +118 at 23:47 UTC &rarr; +128 &nbsp;·&nbsp; <strong>New York Yankees</strong> -142 at 23:47 UTC &rarr; -157 — every build's prices are logged, so this is measured drift rather than an impression.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Draftkings</th>
+          <th>EV</th>
+          <th>EV <em>if</em> boosted (50%)</th>
+          <th>Consensus Fair %</th>
+          <th>Books</th>
+          <th>Market</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>+131</td>
+          <td class="delta-neg">-3.46%</td>
+          <td>+23.91%</td>
+          <td>41.8%</td>
+          <td>5</td>
+          <td>Moneyline</td>
+        </tr>
+        <tr>
+          <td>New York Yankees</td>
+          <td>Moneyline</td>
+          <td>-158</td>
+          <td class="delta-neg">-4.95%</td>
+          <td>+13.47%</td>
+          <td>58.2%</td>
+          <td>5</td>
+          <td>Moneyline</td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#how-the-consensus-is-built">How the consensus is built &rarr;</a></p>
   </section>
 
   <section class="card">
     <h2>&#127873; Promotion Value &mdash; Boost vs Early-Win Token</h2>
-    <p class="table-note"><strong>No promotion maths available.</strong> Valuing a boost or a token needs a fair price to apply it to, and this build has no consensus to supply one.</p>
+    
+    <p class="market-read">Both promotions are worth <strong>more on longer
+    prices</strong>. The token only settles a moneyline, so most rows below have
+    no token figure &mdash; the boost's real advantage is what it can reach.</p>
+    <p class="scroll-hint">&#8594; Swipe table to see all columns</p>
+    <div class="table-scroll">
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Selection</th>
+          <th>Side</th>
+          <th>Price</th>
+          <th>EV raw</th>
+          <th>EV + 50% boost</th>
+          <th>EV + 2-run token</th>
+          <th>Better</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Boston Red Sox</td>
+          <td>Moneyline</td>
+          <td>+131</td>
+          <td>-3.46%</td>
+          <td>+23.91%</td>
+          <td>+20.28%</td>
+          <td><strong>Boost</strong></td>
+        </tr>
+        <tr>
+          <td>New York Yankees</td>
+          <td>Moneyline</td>
+          <td>-158</td>
+          <td>-4.95%</td>
+          <td>+13.47%</td>
+          <td>+11.84%</td>
+          <td><strong>Boost</strong></td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="method-link"><a href="method_BOS_2026.html#where-these-numbers-come-from">Where these numbers come from &rarr;</a></p>
   </section>
 
   <section class="card">
