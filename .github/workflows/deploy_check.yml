@@ -12,10 +12,7 @@
 name: Deploy check
 
 on:
-  schedule:
-    # Hourly, offset from the refresh builds (:00 / :30) so a check never
-    # lands mid-deploy and reports a mismatch that is just a build in flight.
-    - cron: "15 * * * *"
+  # Offseason: scheduled runs paused. Manual runs remain available.
   workflow_dispatch:
 
 permissions:

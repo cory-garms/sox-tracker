@@ -18,12 +18,7 @@ name: Post-Game Rebuild
 # rather than leaving it stale for the few minutes the deploy takes.
 
 on:
-  schedule:
-    # Every 30 minutes across the hours games finish — 22:00 UTC (18:00 ET,
-    # after the earliest afternoon games end) through 06:00 UTC (02:00 ET,
-    # after the latest west-coast game). Outside this the runner is not woken.
-    - cron: "*/30 22-23 * * *"
-    - cron: "*/30 0-6 * * *"
+  # Offseason: scheduled runs paused. Manual runs remain available.
   workflow_dispatch:
     inputs:
       lookback:

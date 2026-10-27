@@ -1,0 +1,34 @@
+name: Publish offseason archive
+
+# Deliberately manual: the offseason archive needs no recurring jobs.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Package existing reports without fetching data
+        run: python scripts/build_static_archive.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: output/offseason
+      - uses: actions/deploy-pages@v4
+        id: deployment

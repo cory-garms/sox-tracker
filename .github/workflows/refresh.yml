@@ -1,26 +1,7 @@
 name: Daily Data Refresh
 
 on:
-  schedule:
-    # GitHub cron is always UTC. The regular season sits entirely inside EDT,
-    # so ET = UTC-4 below.
-    #
-    # The betting page is a static file: it shows the odds of its last build and
-    # can never be more current than that. A single 07:00 ET run left the lines
-    # ~9 hours stale by a 16:00 ET first pitch, so the schedule now puts a build
-    # within roughly 90 minutes of every common start time.
-    - cron: "0 11 * * *"    # 07:00 ET — daily refresh, picks up last night's finals
-    - cron: "0 16 * * *"    # 12:00 ET — before 13:35 ET afternoon starts
-    - cron: "0 19 * * *"    # 15:00 ET — before 16:10 ET late-afternoon starts
-    - cron: "30 21 * * *"   # 17:30 ET — before 19:10 ET evening starts
-    #
-    # Quota: The Odds API allows 500 requests/month. get_events() is free; each
-    # build spends one credit per prop market, and the page now prices two —
-    # pitcher strikeouts and batter total bases. Four builds a day is therefore
-    # ~240/month against the 500 budget. Count the cost before adding a fifth
-    # build or a third market, and note that scheduled runs can be delayed when
-    # GitHub is busy — another reason the page states its own timestamp rather
-    # than promising freshness.
+  # Offseason: scheduled runs paused. Manual runs remain available.
   workflow_dispatch:       # allow manual trigger from the GitHub UI
 
 jobs:
